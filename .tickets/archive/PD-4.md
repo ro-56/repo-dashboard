@@ -6,11 +6,11 @@ id: PD-4
 links: []
 mode: afk
 priority: 2
-status: open
+status: closed
 tags: []
 title: Extend collection to Member grants (group membership expansion)
 type: task
-updated: "2026-07-28T18:15:58Z"
+updated: "2026-07-28T23:29:38Z"
 ---
 
 ## What to build
@@ -29,3 +29,6 @@ Extend normalization so each group grant's membership is expanded into individua
 - [ ] Diffing two snapshots correctly Grants/Revokes/Escalates/Demotes individual Member records using the existing diff function, with no changes beyond new fixtures.
 - [ ] A principal holding both a Direct grant and a Member grant on the same repo at different levels is represented as two independent records, never collapsed (ADR-0001) — a new Member grant appearing alongside an unchanged Direct grant surfaces as a Grant, not an Escalation.
 - [ ] Covered by `cargo test` fixtures extending the previous tickets' suites.
+## Notes
+
+Extended group normalization to expand resolvable membership into Member(group_id) PermissionRecords at the group's permission level, tracked members_resolved per group/repo/snapshot (Ok(empty) vs FetchFailed distinguished via a dedicated sentinel enum), and confirmed the diff engine needs no changes beyond new fixtures for Member records.

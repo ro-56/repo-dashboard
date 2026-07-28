@@ -188,6 +188,19 @@ mod tests {
         }
     }
 
+    fn member_record(group_id: &str, account_id: &str, label: &str, permission: Permission) -> PermissionRecord {
+        PermissionRecord {
+            repo_project: "TEAM".to_string(),
+            repo: "repo-a".to_string(),
+            principal: Principal {
+                id: account_id.to_string(),
+                label: label.to_string(),
+            },
+            access_type: AccessType::Member(group_id.to_string()),
+            permission,
+        }
+    }
+
     fn ok_status(repo: &str) -> RepoFetchStatus {
         RepoFetchStatus {
             repo_project: "TEAM".to_string(),
@@ -476,5 +489,157 @@ mod tests {
 
         let diff = diff_snapshots(&a, &b);
         assert!(diff.repos.is_empty());
+    }
+
+    #[test]
+    fn grant_for_member_record_when_record_only_in_b() {
+        let a = Snapshot::default();
+        let b = Snapshot {
+            records: vec![member_record("platform-eng", "acct-1", "Ada", Permission::Write)],
+            repo_statuses: vec![],
+        };
+
+        let diff = diff_snapshots(&a, &b);
+        assert_eq!(
+            diff.records,
+            vec![RecordDiff::Grant(member_record(
+                "platform-eng",
+                "acct-1",
+                "Ada",
+                Permission::Write
+            ))]
+        );
+    }
+
+    #[test]
+    fn revoke_for_member_record_when_record_only_in_a() {
+        let a = Snapshot {
+            records: vec![member_record("platform-eng", "acct-1", "Ada", Permission::Write)],
+            repo_statuses: vec![],
+        };
+        let b = Snapshot::default();
+
+        let diff = diff_snapshots(&a, &b);
+        assert_eq!(
+            diff.records,
+            vec![RecordDiff::Revoke(member_record(
+                "platform-eng",
+                "acct-1",
+                "Ada",
+                Permission::Write
+            ))]
+        );
+    }
+
+    #[test]
+    fn escalation_when_member_record_level_rises() {
+        let a = Snapshot {
+            records: vec![member_record("platform-eng", "acct-1", "Ada", Permission::Read)],
+            repo_statuses: vec![],
+        };
+        let b = Snapshot {
+            records: vec![member_record("platform-eng", "acct-1", "Ada", Permission::Admin)],
+            repo_statuses: vec![],
+        };
+
+        let diff = diff_snapshots(&a, &b);
+        assert_eq!(
+            diff.records,
+            vec![RecordDiff::LevelChange {
+                repo_project: "TEAM".to_string(),
+                repo: "repo-a".to_string(),
+                principal: Principal {
+                    id: "acct-1".to_string(),
+                    label: "Ada".to_string(),
+                },
+                access_type: AccessType::Member("platform-eng".to_string()),
+                from: Permission::Read,
+                to: Permission::Admin,
+                kind: LevelChangeKind::Escalation,
+            }]
+        );
+    }
+
+    #[test]
+    fn demotion_when_member_record_level_falls() {
+        let a = Snapshot {
+            records: vec![member_record("platform-eng", "acct-1", "Ada", Permission::Admin)],
+            repo_statuses: vec![],
+        };
+        let b = Snapshot {
+            records: vec![member_record("platform-eng", "acct-1", "Ada", Permission::Write)],
+            repo_statuses: vec![],
+        };
+
+        let diff = diff_snapshots(&a, &b);
+        assert_eq!(
+            diff.records,
+            vec![RecordDiff::LevelChange {
+                repo_project: "TEAM".to_string(),
+                repo: "repo-a".to_string(),
+                principal: Principal {
+                    id: "acct-1".to_string(),
+                    label: "Ada".to_string(),
+                },
+                access_type: AccessType::Member("platform-eng".to_string()),
+                from: Permission::Admin,
+                to: Permission::Write,
+                kind: LevelChangeKind::Demotion,
+            }]
+        );
+    }
+
+    #[test]
+    fn new_member_grant_alongside_unchanged_direct_grant_is_a_grant_not_an_escalation() {
+        // ADR-0001: records are diffed per grant-source, never collapsed into an "effective
+        // permission" per Principal. A user picking up a higher-level Member grant via a new
+        // group membership, while their unrelated Direct grant is untouched, must surface as
+        // an independent Grant on the Member record — not an Escalation of the Direct one.
+        let a = Snapshot {
+            records: vec![record("acct-1", "Ada", Permission::Read)],
+            repo_statuses: vec![],
+        };
+        let b = Snapshot {
+            records: vec![
+                record("acct-1", "Ada", Permission::Read),
+                member_record("platform-eng", "acct-1", "Ada", Permission::Admin),
+            ],
+            repo_statuses: vec![],
+        };
+
+        let diff = diff_snapshots(&a, &b);
+        assert_eq!(
+            diff.records,
+            vec![RecordDiff::Grant(member_record(
+                "platform-eng",
+                "acct-1",
+                "Ada",
+                Permission::Admin
+            ))]
+        );
+    }
+
+    #[test]
+    fn direct_and_member_grants_sharing_a_principal_are_diffed_independently() {
+        // A principal can hold both a Direct grant and a Member grant on the same repo at
+        // different levels; they must never be collapsed into one record (ADR-0001) — a
+        // Direct revoke must not be masked by an untouched Member grant, and vice versa.
+        let a = Snapshot {
+            records: vec![
+                record("acct-1", "Ada", Permission::Write),
+                member_record("platform-eng", "acct-1", "Ada", Permission::Read),
+            ],
+            repo_statuses: vec![],
+        };
+        let b = Snapshot {
+            records: vec![member_record("platform-eng", "acct-1", "Ada", Permission::Read)],
+            repo_statuses: vec![],
+        };
+
+        let diff = diff_snapshots(&a, &b);
+        assert_eq!(
+            diff.records,
+            vec![RecordDiff::Revoke(record("acct-1", "Ada", Permission::Write))]
+        );
     }
 }
