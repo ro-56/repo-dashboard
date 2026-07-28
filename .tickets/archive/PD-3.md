@@ -6,11 +6,11 @@ id: PD-3
 links: []
 mode: afk
 priority: 2
-status: open
+status: closed
 tags: []
 title: Extend collection + diff to Group grants
 type: task
-updated: "2026-07-28T18:15:58Z"
+updated: "2026-07-28T23:18:59Z"
 ---
 
 ## What to build
@@ -27,3 +27,6 @@ Extend the model from the Direct-grant tracer bullet to cover a group's own gran
 - [ ] Diffing two snapshots produces a Grant/Revoke for a group's own grant appearing/disappearing.
 - [ ] Diffing produces an Escalation/Demotion when a group's own grant level changes between runs, using the same diff function as the Direct-grant tracer bullet with no code changes beyond new fixtures — proving the generic keying design.
 - [ ] Covered by `cargo test` fixtures extending the tracer bullet's suite.
+## Notes
+
+Extended AccessType with a Group variant, added normalize_repo_group_permissions to parse permissions-config/groups into PermissionRecords keyed on group slug (ADR-0002), and added diff.rs fixtures proving the existing generic diff function handles Group grants (Grant/Revoke/Escalation/Demotion) with zero changes to diff logic itself. 20/20 cargo tests pass.

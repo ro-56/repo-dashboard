@@ -175,6 +175,19 @@ mod tests {
         }
     }
 
+    fn group_record(group_id: &str, label: &str, permission: Permission) -> PermissionRecord {
+        PermissionRecord {
+            repo_project: "TEAM".to_string(),
+            repo: "repo-a".to_string(),
+            principal: Principal {
+                id: group_id.to_string(),
+                label: label.to_string(),
+            },
+            access_type: AccessType::Group,
+            permission,
+        }
+    }
+
     fn ok_status(repo: &str) -> RepoFetchStatus {
         RepoFetchStatus {
             repo_project: "TEAM".to_string(),
@@ -293,6 +306,125 @@ mod tests {
 
         let diff = diff_snapshots(&a, &b);
         assert!(diff.records.is_empty());
+    }
+
+    #[test]
+    fn grant_for_group_own_grant_when_record_only_in_b() {
+        let a = Snapshot::default();
+        let b = Snapshot {
+            records: vec![group_record("platform-eng", "Platform Engineering", Permission::Read)],
+            repo_statuses: vec![],
+        };
+
+        let diff = diff_snapshots(&a, &b);
+        assert_eq!(
+            diff.records,
+            vec![RecordDiff::Grant(group_record(
+                "platform-eng",
+                "Platform Engineering",
+                Permission::Read
+            ))]
+        );
+    }
+
+    #[test]
+    fn revoke_for_group_own_grant_when_record_only_in_a() {
+        let a = Snapshot {
+            records: vec![group_record("platform-eng", "Platform Engineering", Permission::Read)],
+            repo_statuses: vec![],
+        };
+        let b = Snapshot::default();
+
+        let diff = diff_snapshots(&a, &b);
+        assert_eq!(
+            diff.records,
+            vec![RecordDiff::Revoke(group_record(
+                "platform-eng",
+                "Platform Engineering",
+                Permission::Read
+            ))]
+        );
+    }
+
+    #[test]
+    fn escalation_when_group_own_grant_level_rises() {
+        let a = Snapshot {
+            records: vec![group_record("platform-eng", "Platform Engineering", Permission::Read)],
+            repo_statuses: vec![],
+        };
+        let b = Snapshot {
+            records: vec![group_record("platform-eng", "Platform Engineering", Permission::Admin)],
+            repo_statuses: vec![],
+        };
+
+        let diff = diff_snapshots(&a, &b);
+        assert_eq!(
+            diff.records,
+            vec![RecordDiff::LevelChange {
+                repo_project: "TEAM".to_string(),
+                repo: "repo-a".to_string(),
+                principal: Principal {
+                    id: "platform-eng".to_string(),
+                    label: "Platform Engineering".to_string(),
+                },
+                access_type: AccessType::Group,
+                from: Permission::Read,
+                to: Permission::Admin,
+                kind: LevelChangeKind::Escalation,
+            }]
+        );
+    }
+
+    #[test]
+    fn demotion_when_group_own_grant_level_falls() {
+        let a = Snapshot {
+            records: vec![group_record("platform-eng", "Platform Engineering", Permission::Admin)],
+            repo_statuses: vec![],
+        };
+        let b = Snapshot {
+            records: vec![group_record("platform-eng", "Platform Engineering", Permission::Write)],
+            repo_statuses: vec![],
+        };
+
+        let diff = diff_snapshots(&a, &b);
+        assert_eq!(
+            diff.records,
+            vec![RecordDiff::LevelChange {
+                repo_project: "TEAM".to_string(),
+                repo: "repo-a".to_string(),
+                principal: Principal {
+                    id: "platform-eng".to_string(),
+                    label: "Platform Engineering".to_string(),
+                },
+                access_type: AccessType::Group,
+                from: Permission::Admin,
+                to: Permission::Write,
+                kind: LevelChangeKind::Demotion,
+            }]
+        );
+    }
+
+    #[test]
+    fn direct_and_group_grants_sharing_an_id_are_diffed_independently() {
+        // Proves access_type is part of the diff key: a Direct grant disappearing must not
+        // be masked by an unrelated Group grant that shares the same principal id, and vice versa.
+        let a = Snapshot {
+            records: vec![
+                record("shared-id", "Ada (user)", Permission::Read),
+                group_record("shared-id", "Shared Slug (group)", Permission::Write),
+            ],
+            repo_statuses: vec![],
+        };
+        let b = Snapshot {
+            records: vec![group_record("shared-id", "Shared Slug (group)", Permission::Write)],
+            repo_statuses: vec![],
+        };
+
+        let diff = diff_snapshots(&a, &b);
+        assert_eq!(
+            diff.records,
+            vec![RecordDiff::Revoke(record("shared-id", "Ada (user)", Permission::Read))]
+        );
     }
 
     #[test]

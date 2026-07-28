@@ -1,17 +1,19 @@
 /// Anything that can hold a permission grant on a repository. `id` is the stable identity
-/// (Bitbucket `account_id` for a user; a group's slug/id once Group grants are added) —
-/// `label` is a display name only and must never be used for identity or diff keying.
+/// (Bitbucket `account_id` for a user; a group's slug for a `Group` grant) — `label` is a
+/// display name only and must never be used for identity or diff keying.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Principal {
     pub id: String,
     pub label: String,
 }
 
-/// How a `PermissionRecord` was granted. Only `Direct` exists in the PD-2 tracer bullet;
-/// `Group` and `Member(group_id)` are added in PD-3/PD-4 without reshaping `PermissionRecord`.
+/// How a `PermissionRecord` was granted. `Direct` and `Group` (ADR-0002: a group's own
+/// grant is a first-class Principal, independent of member resolution) exist as of PD-3;
+/// `Member(group_id)` is added in PD-4 without reshaping `PermissionRecord`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AccessType {
     Direct,
+    Group,
 }
 
 /// Permission level. Declaration order is significant: derived `Ord` gives `Read < Write < Admin`.
