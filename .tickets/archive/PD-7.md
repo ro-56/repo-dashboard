@@ -6,11 +6,11 @@ id: PD-7
 links: []
 mode: afk
 priority: 2
-status: in_progress
+status: closed
 tags: []
 title: Credential entry + Direct-grant Run now (tracer bullet)
 type: task
-updated: "2026-07-29T00:30:10Z"
+updated: "2026-07-29T00:43:34Z"
 ---
 
 ## What to build
@@ -29,3 +29,6 @@ The full PRD 5.1+5.2 pipe, narrowed to Direct grants only (mirrors PD-2's role f
 - [ ] Pagination (Bitbucket's `next` cursor) is followed transparently so callers receive fully materialized lists.
 - [ ] A successful Run persists exactly one new Snapshot via `save_snapshot`, containing only Direct-grant `PermissionRecord`s in this ticket's scope.
 - [ ] Covered by `cargo test`: `BitbucketClient` is exercised only through a fake implementation returning canned responses (no real network call in tests); `collect_and_store` is tested end-to-end against a real in-memory SQLite connection.
+## Notes
+
+Added set_credentials/run_now Tauri commands, a BitbucketClient trait + reqwest-backed RealBitbucketClient (pagination, single retry+backoff on 429, immediate abort on 401), and collect_and_store orchestration wired to save_snapshot, feeding normalize_repo_permissions (PD-2) unmodified. Covered by 6 new cargo tests against a fake client + real in-memory SQLite; 41 tests total pass. Minimal credential-form/Run-now UI added to +page.svelte.
