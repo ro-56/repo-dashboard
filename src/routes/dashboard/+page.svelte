@@ -18,6 +18,7 @@
     } else {
       expandedRepos.add(key);
     }
+    console.log("expandedRepos:", Array.from(expandedRepos));
   }
 
   // A principal can appear more than once per repo (e.g. Direct plus Member-of-group-X),
@@ -43,7 +44,7 @@
         <h2>{project.repoProject}</h2>
         <div class="repo-cards">
           {#each project.repos as repo (repo.repo)}
-            {const isExpanded = expandedRepos.has(repoKey(repo.repoProject, repo.repo))}
+            {const isExpanded = $derived(expandedRepos.has(repoKey(repo.repoProject, repo.repo)))}
             <article class="repo-card" class:expanded={isExpanded}>
               <button
                 type="button"

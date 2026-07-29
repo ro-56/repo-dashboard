@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(taskr *)",
+      "Bash(cargo check *)",
+      "Bash(cargo test *)",
+      "Bash(git diff *)",
+      "Read(//tmp/**)",
+      "Bash(cargo fmt *)",
+      "Bash(xargs ls -la)",
+      "Bash(pnpm check *)",
+      "Bash(cd /workspace)",
+      "Bash(git -C /workspace log *..HEAD *)",
+      "Bash(git -C /workspace diff *...HEAD *)",
+      "Read(//home/devuser/.claude/**)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ]
+  }
+}
