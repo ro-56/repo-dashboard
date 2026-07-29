@@ -3,7 +3,7 @@
 //! against canned responses, with `RealBitbucketClient` the only implementation that ever
 //! makes a real network call.
 
-use crate::normalize::{RawGroupMembersResponse, RawGroupPermission, RawUserPermission};
+use crate::normalize::{RawGroupMembersResponse, RawGroupPermission, RawMember, RawUserPermission};
 
 /// Distinguishes the failure classes `collect_and_store` needs to treat differently:
 /// `Unauthorized` aborts the whole Run, `RateLimited` is retried once by the client itself
@@ -42,6 +42,12 @@ pub trait BitbucketClient {
         workspace: &str,
         repo: &str,
     ) -> impl std::future::Future<Output = Result<Vec<RawGroupPermission>, ClientError>> + Send;
+
+    fn list_group_members(
+        &self,
+        workspace: &str,
+        group_slug: &str,
+    ) -> impl std::future::Future<Output = Result<Vec<RawMember>, ClientError>> + Send;
 }
 
 const RETRY_BACKOFF: std::time::Duration = std::time::Duration::from_millis(500);
@@ -166,9 +172,30 @@ impl BitbucketClient for RealBitbucketClient {
                     group_slug: group.get("slug")?.as_str()?.to_string(),
                     group_name: group.get("name")?.as_str()?.to_string(),
                     permission: v.get("permission")?.as_str()?.to_string(),
-                    // Group-membership fetching is PD-9's scope; every group is reported as
-                    // unresolved until then rather than resolved-and-empty.
+                    // Placeholder — `collect_and_store` (PD-9) fetches each group's members
+                    // separately (once per Run, cached by group id) and overwrites this field
+                    // before normalization, so the value set here is never actually consumed.
                     members: RawGroupMembersResponse::FetchFailed,
+                })
+            })
+            .collect())
+    }
+
+    async fn list_group_members(
+        &self,
+        workspace: &str,
+        group_slug: &str,
+    ) -> Result<Vec<RawMember>, ClientError> {
+        let url = format!(
+            "https://api.bitbucket.org/2.0/workspaces/{workspace}/permissions/config/groups/{group_slug}/members"
+        );
+        let values = self.get_paginated(url).await?;
+        Ok(values
+            .into_iter()
+            .filter_map(|v| {
+                Some(RawMember {
+                    account_id: v.get("account_id")?.as_str()?.to_string(),
+                    display_name: v.get("display_name")?.as_str()?.to_string(),
                 })
             })
             .collect())

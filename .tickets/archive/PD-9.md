@@ -6,11 +6,11 @@ id: PD-9
 links: []
 mode: afk
 priority: 2
-status: open
+status: closed
 tags: []
 title: Extend collection to Member grants (group membership expansion + caching)
 type: task
-updated: "2026-07-29T00:10:03Z"
+updated: "2026-07-29T02:16:20Z"
 ---
 
 ## What to build
@@ -26,3 +26,6 @@ Extend collection to Member grants via group-membership expansion (mirrors PD-4'
 - [ ] `group_membership_statuses` rows are written into the table from the storage-foundation ticket as part of the same `save_snapshot` transaction as the rest of the Run's data.
 - [ ] A Run's persisted Snapshot now contains Direct, Group, and Member grants together, matching `main.py`'s data coverage plus the per-Run membership caching improvement.
 - [ ] Covered by `cargo test` extending prior tickets' fixtures with member-expansion scenarios (resolved non-empty, resolved empty, unresolved) and the caching assertion.
+## Notes
+
+Added list_group_members (paginated) to BitbucketClient; extended collect_and_store to resolve each encountered group's membership at most once per Run (cached by group slug/id, reused across every repo that group grants access to), expanding via normalize_repo_group_permissions (PD-4) unmodified, and persisting group_membership_statuses in the same save_snapshot transaction. Covered by 7 new cargo tests (resolved non-empty, resolved empty, unresolved-continues-run, caching call-count assertion, unauthorized-on-member-call abort, combined Direct+Group+Member snapshot); 51 tests total pass.

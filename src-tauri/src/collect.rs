@@ -1,17 +1,21 @@
 //! Orchestrates one Run: discovers repos, fetches each repo's Direct and Group grants,
-//! normalizes them via the existing PD-2 `normalize_repo_permissions` and PD-3
-//! `normalize_repo_group_permissions` unmodified, and persists the result as one new
-//! immutable Snapshot. The `run_now` Tauri command is a thin wrapper around
-//! `collect_and_store` — all meaningful logic lives here, covered by `cargo test`.
+//! resolves each encountered group's membership at most once per Run (cached by group id
+//! and reused across every repo that group grants access to), normalizes everything via the
+//! existing PD-2 `normalize_repo_permissions` and PD-3/PD-4 `normalize_repo_group_permissions`
+//! unmodified, and persists the result as one new immutable Snapshot. The `run_now` Tauri
+//! command is a thin wrapper around `collect_and_store` — all meaningful logic lives here,
+//! covered by `cargo test`.
+
+use std::collections::HashMap;
 
 use rusqlite::Connection;
 
 use crate::client::{BitbucketClient, ClientError};
 use crate::diff::Snapshot;
-use crate::model::{PermissionRecord, RepoFetchStatus, RepoStatus};
+use crate::model::{GroupMembershipStatus, PermissionRecord, RepoFetchStatus, RepoStatus};
 use crate::normalize::{
-    normalize_repo_group_permissions, normalize_repo_permissions, RawGroupsResponse,
-    RawUsersResponse,
+    normalize_repo_group_permissions, normalize_repo_permissions, RawGroupMembersResponse,
+    RawGroupPermission, RawGroupsResponse, RawMember, RawUsersResponse,
 };
 use crate::storage::save_snapshot;
 
@@ -49,6 +53,11 @@ pub async fn collect_and_store<C: BitbucketClient>(
 
     let mut records: Vec<PermissionRecord> = Vec::new();
     let mut repo_statuses: Vec<RepoFetchStatus> = Vec::new();
+    let mut group_membership_statuses: Vec<GroupMembershipStatus> = Vec::new();
+    // Caches each group's resolved membership by group id for the lifetime of this Run, so a
+    // group granting access to many repos only costs one `list_group_members` call (the
+    // caching improvement agreed in the PD-5 design session).
+    let mut member_cache: HashMap<String, Result<Vec<RawMember>, ClientError>> = HashMap::new();
 
     for repo in repos {
         let raw = match client.list_direct_permissions(workspace, &repo.repo).await {
@@ -63,18 +72,40 @@ pub async fn collect_and_store<C: BitbucketClient>(
         records.append(&mut direct_records);
 
         let raw_groups = match client.list_group_permissions(workspace, &repo.repo).await {
-            Ok(groups) => RawGroupsResponse::Ok(groups),
+            Ok(groups) => {
+                let mut resolved = Vec::with_capacity(groups.len());
+                for group in groups {
+                    let members_result = match member_cache.get(&group.group_slug) {
+                        Some(cached) => cached.clone(),
+                        None => {
+                            let result = client
+                                .list_group_members(workspace, &group.group_slug)
+                                .await;
+                            member_cache.insert(group.group_slug.clone(), result.clone());
+                            result
+                        }
+                    };
+                    let members = match members_result {
+                        Ok(members) => RawGroupMembersResponse::Ok(members),
+                        Err(ClientError::Unauthorized) => return Err(RunError::CredentialRejected),
+                        Err(ClientError::RateLimited) | Err(ClientError::Other(_)) => {
+                            RawGroupMembersResponse::FetchFailed
+                        }
+                    };
+                    resolved.push(RawGroupPermission { members, ..group });
+                }
+                RawGroupsResponse::Ok(resolved)
+            }
             Err(ClientError::Unauthorized) => return Err(RunError::CredentialRejected),
             Err(ClientError::RateLimited) | Err(ClientError::Other(_)) => {
                 RawGroupsResponse::FetchFailed
             }
         };
         let group_fetch_failed = matches!(raw_groups, RawGroupsResponse::FetchFailed);
-        // Membership statuses are always unresolved until PD-9 wires up member fetching, so
-        // persisting them is that ticket's job, not this one's.
-        let (mut group_records, _membership_statuses) =
+        let (mut group_records, mut membership_statuses) =
             normalize_repo_group_permissions(&repo.repo_project, &repo.repo, raw_groups);
         records.append(&mut group_records);
+        group_membership_statuses.append(&mut membership_statuses);
 
         let status = if direct_status.status == RepoStatus::FetchFailed || group_fetch_failed {
             RepoStatus::FetchFailed
@@ -89,7 +120,7 @@ pub async fn collect_and_store<C: BitbucketClient>(
     }
 
     let snapshot = Snapshot { records, repo_statuses };
-    save_snapshot(conn, run_at, &snapshot, &[])
+    save_snapshot(conn, run_at, &snapshot, &group_membership_statuses)
         .map_err(|e| RunError::StorageFailed(e.to_string()))
 }
 
@@ -99,13 +130,16 @@ mod tests {
     use crate::client::RepoInfo;
     use crate::model::RepoStatus;
     use crate::normalize::{RawGroupMembersResponse, RawGroupPermission, RawUserPermission};
-    use crate::storage::{init_schema, load_snapshot};
+    use crate::storage::{init_schema, load_group_membership_statuses, load_snapshot};
     use std::collections::HashMap;
+    use std::sync::Mutex;
 
     struct FakeBitbucketClient {
         repos: Result<Vec<RepoInfo>, ClientError>,
         direct_permissions: HashMap<String, Result<Vec<RawUserPermission>, ClientError>>,
         group_permissions: HashMap<String, Result<Vec<RawGroupPermission>, ClientError>>,
+        group_members: HashMap<String, Result<Vec<RawMember>, ClientError>>,
+        group_members_call_counts: Mutex<HashMap<String, u32>>,
     }
 
     impl FakeBitbucketClient {
@@ -114,6 +148,8 @@ mod tests {
                 repos,
                 direct_permissions: HashMap::new(),
                 group_permissions: HashMap::new(),
+                group_members: HashMap::new(),
+                group_members_call_counts: Mutex::new(HashMap::new()),
             }
         }
 
@@ -133,6 +169,24 @@ mod tests {
         ) -> Self {
             self.group_permissions.insert(repo.to_string(), result);
             self
+        }
+
+        fn with_group_members(
+            mut self,
+            group_slug: &str,
+            result: Result<Vec<RawMember>, ClientError>,
+        ) -> Self {
+            self.group_members.insert(group_slug.to_string(), result);
+            self
+        }
+
+        fn group_members_call_count(&self, group_slug: &str) -> u32 {
+            *self
+                .group_members_call_counts
+                .lock()
+                .unwrap()
+                .get(group_slug)
+                .unwrap_or(&0)
         }
     }
 
@@ -159,6 +213,23 @@ mod tests {
         ) -> Result<Vec<RawGroupPermission>, ClientError> {
             self.group_permissions
                 .get(repo)
+                .cloned()
+                .unwrap_or(Ok(Vec::new()))
+        }
+
+        async fn list_group_members(
+            &self,
+            _workspace: &str,
+            group_slug: &str,
+        ) -> Result<Vec<RawMember>, ClientError> {
+            *self
+                .group_members_call_counts
+                .lock()
+                .unwrap()
+                .entry(group_slug.to_string())
+                .or_insert(0) += 1;
+            self.group_members
+                .get(group_slug)
                 .cloned()
                 .unwrap_or(Ok(Vec::new()))
         }
@@ -189,6 +260,10 @@ mod tests {
             permission: permission.to_string(),
             members: RawGroupMembersResponse::FetchFailed,
         }
+    }
+
+    fn member(id: &str, name: &str) -> RawMember {
+        RawMember { account_id: id.to_string(), display_name: name.to_string() }
     }
 
     fn snapshot_count(conn: &Connection) -> i64 {
@@ -371,5 +446,174 @@ mod tests {
         let loaded = load_snapshot(&conn, snapshot_id).unwrap();
         assert!(loaded.records.is_empty());
         assert!(loaded.repo_statuses.is_empty());
+    }
+
+    #[tokio::test]
+    async fn resolvable_nonempty_group_membership_produces_member_records_at_group_level() {
+        let client = FakeBitbucketClient::new(Ok(vec![repo("TEAM", "repo-a")]))
+            .with_group_permissions(
+                "repo-a",
+                Ok(vec![group_perm("platform-eng", "Platform Engineering", "write")]),
+            )
+            .with_group_members(
+                "platform-eng",
+                Ok(vec![member("acct-1", "Ada"), member("acct-2", "Grace")]),
+            );
+
+        let mut conn = open_conn();
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+            .await
+            .unwrap();
+
+        let loaded = load_snapshot(&conn, snapshot_id).unwrap();
+        // One Group record plus one Member record per resolved member.
+        assert_eq!(loaded.records.len(), 3);
+        let member_records: Vec<_> = loaded
+            .records
+            .iter()
+            .filter(|r| r.access_type == crate::model::AccessType::Member("platform-eng".to_string()))
+            .collect();
+        assert_eq!(member_records.len(), 2);
+        assert!(member_records
+            .iter()
+            .all(|r| r.permission == crate::model::Permission::Write));
+
+        let statuses = load_group_membership_statuses(&conn, snapshot_id).unwrap();
+        assert_eq!(statuses.len(), 1);
+        assert!(statuses[0].members_resolved);
+    }
+
+    #[tokio::test]
+    async fn resolvable_empty_group_membership_produces_zero_member_records_and_resolved_true() {
+        let client = FakeBitbucketClient::new(Ok(vec![repo("TEAM", "repo-a")]))
+            .with_group_permissions(
+                "repo-a",
+                Ok(vec![group_perm("empty-group", "Empty Group", "admin")]),
+            )
+            .with_group_members("empty-group", Ok(vec![]));
+
+        let mut conn = open_conn();
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+            .await
+            .unwrap();
+
+        let loaded = load_snapshot(&conn, snapshot_id).unwrap();
+        // Only the group's own record — no Member records for a confirmed-empty group.
+        assert_eq!(loaded.records.len(), 1);
+        assert_eq!(loaded.records[0].access_type, crate::model::AccessType::Group);
+
+        let statuses = load_group_membership_statuses(&conn, snapshot_id).unwrap();
+        assert_eq!(statuses.len(), 1);
+        assert!(statuses[0].members_resolved);
+    }
+
+    #[tokio::test]
+    async fn unresolvable_group_membership_produces_zero_member_records_resolved_false_and_run_continues(
+    ) {
+        let client = FakeBitbucketClient::new(Ok(vec![repo("TEAM", "repo-a")]))
+            .with_direct_permissions("repo-a", Ok(vec![user("acct-1", "Ada", "admin")]))
+            .with_group_permissions(
+                "repo-a",
+                Ok(vec![group_perm("locked-group", "Locked Group", "read")]),
+            )
+            .with_group_members("locked-group", Err(ClientError::Other("boom".to_string())));
+
+        let mut conn = open_conn();
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+            .await
+            .unwrap();
+
+        let loaded = load_snapshot(&conn, snapshot_id).unwrap();
+        // Direct grant + the group's own record — no Member records.
+        assert_eq!(loaded.records.len(), 2);
+        assert!(loaded
+            .records
+            .iter()
+            .all(|r| !matches!(r.access_type, crate::model::AccessType::Member(_))));
+        // The group-permissions call itself succeeded, so the repo is not marked failed.
+        assert_eq!(loaded.repo_statuses[0].status, RepoStatus::Ok);
+
+        let statuses = load_group_membership_statuses(&conn, snapshot_id).unwrap();
+        assert_eq!(statuses.len(), 1);
+        assert!(!statuses[0].members_resolved);
+    }
+
+    #[tokio::test]
+    async fn a_groups_members_are_fetched_at_most_once_per_run_across_multiple_repos() {
+        let client = FakeBitbucketClient::new(Ok(vec![
+            repo("TEAM", "repo-a"),
+            repo("TEAM", "repo-b"),
+        ]))
+        .with_group_permissions(
+            "repo-a",
+            Ok(vec![group_perm("platform-eng", "Platform Engineering", "write")]),
+        )
+        .with_group_permissions(
+            "repo-b",
+            Ok(vec![group_perm("platform-eng", "Platform Engineering", "read")]),
+        )
+        .with_group_members("platform-eng", Ok(vec![member("acct-1", "Ada")]));
+
+        let mut conn = open_conn();
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+            .await
+            .unwrap();
+
+        assert_eq!(client.group_members_call_count("platform-eng"), 1);
+
+        let loaded = load_snapshot(&conn, snapshot_id).unwrap();
+        let member_records: Vec<_> = loaded
+            .records
+            .iter()
+            .filter(|r| matches!(r.access_type, crate::model::AccessType::Member(_)))
+            .collect();
+        assert_eq!(member_records.len(), 2); // one per repo the group grants access to
+    }
+
+    #[tokio::test]
+    async fn unauthorized_on_a_group_members_call_aborts_the_whole_run() {
+        let client = FakeBitbucketClient::new(Ok(vec![repo("TEAM", "repo-a")]))
+            .with_group_permissions(
+                "repo-a",
+                Ok(vec![group_perm("locked-group", "Locked Group", "read")]),
+            )
+            .with_group_members("locked-group", Err(ClientError::Unauthorized));
+
+        let mut conn = open_conn();
+        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z").await;
+
+        assert_eq!(result, Err(RunError::CredentialRejected));
+        assert_eq!(snapshot_count(&conn), 0);
+    }
+
+    #[tokio::test]
+    async fn run_persists_direct_group_and_member_grants_together_in_one_snapshot() {
+        let client = FakeBitbucketClient::new(Ok(vec![repo("TEAM", "repo-a")]))
+            .with_direct_permissions("repo-a", Ok(vec![user("acct-1", "Ada", "admin")]))
+            .with_group_permissions(
+                "repo-a",
+                Ok(vec![group_perm("platform-eng", "Platform Engineering", "write")]),
+            )
+            .with_group_members("platform-eng", Ok(vec![member("acct-2", "Grace")]));
+
+        let mut conn = open_conn();
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+            .await
+            .unwrap();
+
+        let loaded = load_snapshot(&conn, snapshot_id).unwrap();
+        assert_eq!(loaded.records.len(), 3);
+        assert!(loaded
+            .records
+            .iter()
+            .any(|r| r.access_type == crate::model::AccessType::Direct));
+        assert!(loaded
+            .records
+            .iter()
+            .any(|r| r.access_type == crate::model::AccessType::Group));
+        assert!(loaded
+            .records
+            .iter()
+            .any(|r| matches!(r.access_type, crate::model::AccessType::Member(_))));
     }
 }
