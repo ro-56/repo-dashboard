@@ -22,7 +22,7 @@ pub struct SnapshotSummary {
 
 /// Every Snapshot's id + run_at, newest first.
 pub fn list_snapshots(conn: &Connection) -> rusqlite::Result<Vec<SnapshotSummary>> {
-    let mut stmt = conn.prepare("SELECT id, run_at FROM snapshots ORDER BY id DESC")?;
+    let mut stmt = conn.prepare("SELECT id, run_at FROM snapshots ORDER BY run_at DESC")?;
     let rows = stmt
         .query_map([], |row| {
             Ok(SnapshotSummary {
