@@ -6,11 +6,11 @@ id: PD-7
 links: []
 mode: afk
 priority: 2
-status: open
+status: in_progress
 tags: []
 title: Credential entry + Direct-grant Run now (tracer bullet)
 type: task
-updated: "2026-07-29T00:09:16Z"
+updated: "2026-07-29T00:30:10Z"
 ---
 
 ## What to build
