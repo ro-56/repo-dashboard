@@ -6,11 +6,11 @@ id: PD-8
 links: []
 mode: afk
 priority: 2
-status: open
+status: closed
 tags: []
 title: Extend collection to Group grants
 type: task
-updated: "2026-07-29T00:09:26Z"
+updated: "2026-07-29T01:01:05Z"
 ---
 
 ## What to build
@@ -23,3 +23,6 @@ Extend the model from the Direct-grant Run-now tracer bullet to cover Group gran
 - [ ] A group-permissions call failure (after one retry on `RateLimited`) is recorded the same way a direct-permissions failure is (`RepoFetchStatus::FetchFailed` for that repo), reusing the existing failure-handling path rather than new logic.
 - [ ] A Run's persisted Snapshot now contains both Direct and Group grants in the same `permission_records` table with no schema migration.
 - [ ] Covered by `cargo test` extending the previous ticket's fake-client and in-memory-SQLite fixtures with group-permission scenarios (success, empty, fetch failure).
+## Notes
+
+Added list_group_permissions to BitbucketClient (real client always reports membership unresolved, per PD-9's scope), extended collect_and_store to fetch and normalize each repo's group grants via normalize_repo_group_permissions unmodified, merging direct+group fetch failures into a single RepoFetchStatus::FetchFailed per repo. Covered by 6 new cargo tests (group success, empty, failure-with-direct-success, and unauthorized-on-group-call abort); 45 tests total pass.

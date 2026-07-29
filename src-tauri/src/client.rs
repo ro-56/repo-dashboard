@@ -3,7 +3,7 @@
 //! against canned responses, with `RealBitbucketClient` the only implementation that ever
 //! makes a real network call.
 
-use crate::normalize::RawUserPermission;
+use crate::normalize::{RawGroupMembersResponse, RawGroupPermission, RawUserPermission};
 
 /// Distinguishes the failure classes `collect_and_store` needs to treat differently:
 /// `Unauthorized` aborts the whole Run, `RateLimited` is retried once by the client itself
@@ -36,6 +36,12 @@ pub trait BitbucketClient {
         workspace: &str,
         repo: &str,
     ) -> impl std::future::Future<Output = Result<Vec<RawUserPermission>, ClientError>> + Send;
+
+    fn list_group_permissions(
+        &self,
+        workspace: &str,
+        repo: &str,
+    ) -> impl std::future::Future<Output = Result<Vec<RawGroupPermission>, ClientError>> + Send;
 }
 
 const RETRY_BACKOFF: std::time::Duration = std::time::Duration::from_millis(500);
@@ -138,6 +144,31 @@ impl BitbucketClient for RealBitbucketClient {
                     account_id: user.get("account_id")?.as_str()?.to_string(),
                     display_name: user.get("display_name")?.as_str()?.to_string(),
                     permission: v.get("permission")?.as_str()?.to_string(),
+                })
+            })
+            .collect())
+    }
+
+    async fn list_group_permissions(
+        &self,
+        workspace: &str,
+        repo: &str,
+    ) -> Result<Vec<RawGroupPermission>, ClientError> {
+        let url = format!(
+            "https://api.bitbucket.org/2.0/repositories/{workspace}/{repo}/permissions-config/groups"
+        );
+        let values = self.get_paginated(url).await?;
+        Ok(values
+            .into_iter()
+            .filter_map(|v| {
+                let group = v.get("group")?;
+                Some(RawGroupPermission {
+                    group_slug: group.get("slug")?.as_str()?.to_string(),
+                    group_name: group.get("name")?.as_str()?.to_string(),
+                    permission: v.get("permission")?.as_str()?.to_string(),
+                    // Group-membership fetching is PD-9's scope; every group is reported as
+                    // unresolved until then rather than resolved-and-empty.
+                    members: RawGroupMembersResponse::FetchFailed,
                 })
             })
             .collect())
