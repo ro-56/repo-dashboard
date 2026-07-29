@@ -15,13 +15,13 @@
 
   let {
     repo,
-    snapshotBId,
+    comparisonId,
     anyChanges,
     toggled,
     onToggle,
   }: {
     repo: RepoNode;
-    snapshotBId: number;
+    comparisonId: number;
     anyChanges: boolean;
     toggled: boolean;
     onToggle: () => void;
@@ -31,7 +31,7 @@
   // XOR-ing against the default keeps that default live as the underlying tree data changes.
   let open = $derived(defaultOpen(repo, anyChanges) !== toggled);
   let counts = $derived(countBadges(repoBreakdown(repo)));
-  let tag = $derived(repoTag(repo, snapshotBId));
+  let tag = $derived(repoTag(repo, comparisonId));
   let gone = $derived(absentSide(repo) === "B");
 
   // A principal can appear more than once per repo (e.g. Direct plus Member-of-group-X),

@@ -118,14 +118,14 @@ export interface RepoTag {
   label: string;
 }
 
-/** A repo absent from run B (the Comparison side) carries `absent from run N`; a repo absent
- * only from run A — present for the first time as of B — carries `new in run N`. Both name the
- * Comparison run, matching the reference design. Repo arrival proper is PD-17; until then this
- * is driven entirely off repo-absence data, per PD-16's stated scope. */
-export function repoTag(repo: RepoNode, snapshotBId: number): RepoTag | null {
+/** A repo absent from the Comparison side carries `absent from run N`; a repo absent only from
+ * the Baseline — present for the first time as of the Comparison — carries `new in run N`. Both
+ * name the Comparison run, matching the reference design. Repo arrival proper is PD-17; until
+ * then this is driven entirely off repo-absence data, per PD-16's stated scope. */
+export function repoTag(repo: RepoNode, comparisonId: number): RepoTag | null {
   const side = absentSide(repo);
-  if (side === "B") return { kind: "gone", label: `absent from run ${snapshotBId}` };
-  if (side === "A") return { kind: "new", label: `new in run ${snapshotBId}` };
+  if (side === "B") return { kind: "gone", label: `absent from run ${comparisonId}` };
+  if (side === "A") return { kind: "new", label: `new in run ${comparisonId}` };
   return null;
 }
 

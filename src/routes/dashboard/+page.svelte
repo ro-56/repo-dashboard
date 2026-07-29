@@ -1,9 +1,13 @@
 <script lang="ts">
   import { SvelteSet } from "svelte/reactivity";
+  import { goto } from "$app/navigation";
   import type { PageData } from "./$types";
+  import HeadBar from "$lib/components/HeadBar.svelte";
+  import SummaryBar from "$lib/components/SummaryBar.svelte";
   import ProjectSection from "$lib/components/ProjectSection.svelte";
   import RosterColumnLabels from "$lib/components/RosterColumnLabels.svelte";
   import { treeHasAnyChanges } from "$lib/repoCard";
+  import { snapshotSeqs } from "$lib/headBar";
 
   let { data }: { data: PageData } = $props();
 
@@ -30,24 +34,54 @@
   }
 
   let anyChanges = $derived(treeHasAnyChanges(data.tree));
+  let seqs = $derived(snapshotSeqs(data.snapshots));
+  let same = $derived(data.baselineId === data.comparisonId);
+
+  function navigateToPair(baselineId: number, comparisonId: number) {
+    const params = new URLSearchParams({ baseline: String(baselineId), comparison: String(comparisonId) });
+    goto(`?${params.toString()}`, { keepFocus: true, noScroll: true });
+  }
+
+  function selectBaseline(id: number) {
+    navigateToPair(id, data.comparisonId);
+  }
+  function selectComparison(id: number) {
+    navigateToPair(data.baselineId, id);
+  }
+  function swapPair() {
+    navigateToPair(data.comparisonId, data.baselineId);
+  }
 </script>
 
 <main class="dashboard">
-  <h1>Roster dashboard</h1>
-
   {#if data.snapshots.length === 0}
-    <p>No runs recorded yet — use "Run now" on the home page first.</p>
+    <p class="empty-note">No runs recorded yet — use "Run now" on the home page first.</p>
   {:else}
-    <p class="run-pair">
-      Run pair: Snapshot #{data.snapshotAId} → Snapshot #{data.snapshotBId}
-    </p>
+    <HeadBar
+      snapshots={data.snapshots}
+      baselineId={data.baselineId}
+      comparisonId={data.comparisonId}
+      comparison={data.comparison!}
+      pair={data.pair!}
+      {same}
+      onSelectBaseline={selectBaseline}
+      onSelectComparison={selectComparison}
+      onSwap={swapPair}
+    />
+    <SummaryBar
+      comparison={data.comparison!}
+      pair={data.pair!}
+      {same}
+      baselineSeq={seqs.get(data.baselineId)!}
+      comparisonSeq={seqs.get(data.comparisonId)!}
+    />
 
     <RosterColumnLabels />
     <div class="canvas">
       {#each data.tree as project (project.repoProject)}
         <ProjectSection
           {project}
-          snapshotBId={data.snapshotBId}
+          comparisonId={data.comparisonId}
           {anyChanges}
           {isToggled}
           onToggle={toggleRepo}
@@ -65,13 +99,8 @@
     color: var(--ink);
   }
 
-  h1 {
-    margin: var(--s-7) var(--s-7) 0;
-    font-size: var(--t-head);
-  }
-
-  .run-pair {
-    margin: var(--s-3) var(--s-7) var(--s-7);
+  .empty-note {
+    margin: var(--s-7);
     font-family: var(--font-mono);
     font-size: var(--t-body);
     color: var(--ink-3);

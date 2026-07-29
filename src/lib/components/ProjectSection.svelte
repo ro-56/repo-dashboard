@@ -6,13 +6,13 @@
 
   let {
     project,
-    snapshotBId,
+    comparisonId,
     anyChanges,
     isToggled,
     onToggle,
   }: {
     project: ProjectNode;
-    snapshotBId: number;
+    comparisonId: number;
     anyChanges: boolean;
     isToggled: (repoProject: string, repo: string) => boolean;
     onToggle: (repoProject: string, repo: string) => void;
@@ -32,7 +32,7 @@
     {#each project.repos as repo (repo.repo)}
       <RepoCard
         {repo}
-        {snapshotBId}
+        {comparisonId}
         {anyChanges}
         toggled={isToggled(project.repoProject, repo.repo)}
         onToggle={() => onToggle(project.repoProject, repo.repo)}
