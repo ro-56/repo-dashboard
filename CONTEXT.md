@@ -25,8 +25,12 @@ The state where a group's own grant was fetched successfully but its member list
 _Avoid_: Empty group, inaccessible group
 
 **Fetch failure**:
-A repo that was discovered, but whose permissions could not be retrieved this Run (e.g. the permissions-config call errored). Distinct from a repo absent from a Run (never discovered at all) and from a repo with zero grants (fetched successfully, empty result). Tracked as a per-repo status, not as a permission record, since there is no Principal to attach it to.
+A repo that was discovered, but whose permissions could not be retrieved this Run (e.g. the permissions-config call errored). Distinct from a repo absent from a Run (never discovered at all) and from a repo with zero grants (fetched successfully, empty result). Tracked as a per-repo status, not as a permission record, since there is no Principal to attach it to. Recoverable at the granularity of a single repo — the rest of the Run continues.
 _Avoid_: Inaccessible repo, "no access" (main.py's SEM ACESSO OU INACESSÍVEL conflated this with "zero grants")
+
+**Discovery failure**:
+The top-level list-repositories call for a Run failing outright (e.g. the credential itself is rejected with a 401) — as opposed to a Fetch failure, which is scoped to one already-discovered repo. A Discovery failure means there is no repo set to attach a Snapshot to, so it blocks the Run entirely: no Snapshot is saved, and the failure is surfaced to the user directly rather than appearing as a pile of per-repo statuses.
+_Avoid_: Fetch failure (that term is reserved for a single repo's permissions call failing after discovery succeeded), Run failure (too generic — a Run with several Fetch failures is not a failed Run, it's a partial Snapshot)
 
 **Run**:
 The user-facing action of triggering a new data collection pass ("Run now"). Produces exactly one Snapshot.

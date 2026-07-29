@@ -1,7 +1,6 @@
 ---
-name: to-tickets
+name: to-ticket
 description: Break a plan, spec, or the current conversation into a set of tracer-bullet tickets, each declaring its blocking edges, published via taskr.
-disable-model-invocation: true
 ---
 
 # To Tickets

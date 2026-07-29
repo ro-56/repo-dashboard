@@ -1,7 +1,6 @@
 ---
 name: setup-skills
 description: Configure this repo's domain documentation layout — CONTEXT.md and ADR directories. Run once before first use of the domain-modeling skill.
-disable-model-invocation: true
 ---
 
 # Setup Skills
