@@ -1,13 +1,16 @@
 <script lang="ts">
   import { SvelteSet } from "svelte/reactivity";
   import type { PageData } from "./$types";
-  import type { PrincipalEntry, RepoNode } from "$lib/roster";
-  import RosterRow from "$lib/components/RosterRow.svelte";
-  import { sortedPrincipals } from "$lib/rosterRow";
+  import ProjectSection from "$lib/components/ProjectSection.svelte";
+  import RosterColumnLabels from "$lib/components/RosterColumnLabels.svelte";
+  import { treeHasAnyChanges } from "$lib/repoCard";
 
   let { data }: { data: PageData } = $props();
 
-  let expandedRepos = new SvelteSet<string>();
+  // Keys of repos the user has clicked away from their computed default-open state
+  // (PD-16's default-expand rule) — not "which repos are open" directly, so that rule keeps
+  // applying to every repo the user hasn't touched even as the underlying tree changes.
+  let toggledRepos = new SvelteSet<string>();
 
   function repoKey(repoProject: string, repo: string): string {
     return `${repoProject}::${repo}`;
@@ -15,32 +18,21 @@
 
   function toggleRepo(repoProject: string, repo: string) {
     const key = repoKey(repoProject, repo);
-    if (expandedRepos.has(key)) {
-      expandedRepos.delete(key);
+    if (toggledRepos.has(key)) {
+      toggledRepos.delete(key);
     } else {
-      expandedRepos.add(key);
+      toggledRepos.add(key);
     }
-    console.log("expandedRepos:", Array.from(expandedRepos));
   }
 
-  // A principal can appear more than once per repo (e.g. Direct plus Member-of-group-X),
-  // so the key needs the access type — and, for Member, the group_id — to stay unique.
-  function principalEntryKey(entry: PrincipalEntry): string {
-    const groupId = entry.accessType.type === "Member" ? entry.accessType.group_id : "";
-    return `${entry.principal.id}::${entry.accessType.type}::${groupId}`;
+  function isToggled(repoProject: string, repo: string): boolean {
+    return toggledRepos.has(repoKey(repoProject, repo));
   }
 
-  // A repo present in one compared Snapshot's discovery but absent from the other's
-  // (one status is null, the other isn't) — distinct from a repo genuinely fetched on both
-  // sides with zero grants, which must not be struck through.
-  function absentSide(repo: RepoNode): "A" | "B" | null {
-    if (repo.statusA === null && repo.statusB !== null) return "A";
-    if (repo.statusB === null && repo.statusA !== null) return "B";
-    return null;
-  }
+  let anyChanges = $derived(treeHasAnyChanges(data.tree));
 </script>
 
-<main class="container">
+<main class="dashboard">
   <h1>Roster dashboard</h1>
 
   {#if data.snapshots.length === 0}
@@ -50,158 +42,44 @@
       Run pair: Snapshot #{data.snapshotAId} → Snapshot #{data.snapshotBId}
     </p>
 
-    {#each data.tree as project (project.repoProject)}
-      <section class="project">
-        <h2>{project.repoProject}</h2>
-        <div class="repo-cards">
-          {#each project.repos as repo (repo.repo)}
-            {const isExpanded = $derived(expandedRepos.has(repoKey(repo.repoProject, repo.repo)))}
-            {const absent = $derived(absentSide(repo))}
-            <article class="repo-card" class:expanded={isExpanded} class:absent={absent !== null}>
-              <button
-                type="button"
-                class="repo-card-header"
-                aria-expanded={isExpanded}
-                onclick={() => toggleRepo(repo.repoProject, repo.repo)}
-              >
-                <h3>{repo.repo}</h3>
-                {#if absent}
-                  <p class="absent-note">
-                    Not discovered in Snapshot #{absent === "A" ? data.snapshotAId : data.snapshotBId}
-                  </p>
-                {/if}
-                <dl class="counts">
-                  <div class="count">
-                    <dt>Read</dt>
-                    <dd>{repo.readCount}</dd>
-                  </div>
-                  <div class="count">
-                    <dt>Write</dt>
-                    <dd>{repo.writeCount}</dd>
-                  </div>
-                  <div class="count">
-                    <dt>Admin</dt>
-                    <dd>{repo.adminCount}</dd>
-                  </div>
-                  <div class="count change-count">
-                    <dt>Changes</dt>
-                    <dd>{repo.changeCount}</dd>
-                  </div>
-                </dl>
-              </button>
-
-              {#if isExpanded}
-                <div class="roster">
-                  {#each sortedPrincipals(repo.principals) as entry (principalEntryKey(entry))}
-                    <RosterRow {entry} />
-                  {/each}
-                </div>
-              {/if}
-            </article>
-          {/each}
-        </div>
-      </section>
-    {/each}
+    <RosterColumnLabels />
+    <div class="canvas">
+      {#each data.tree as project (project.repoProject)}
+        <ProjectSection
+          {project}
+          snapshotBId={data.snapshotBId}
+          {anyChanges}
+          {isToggled}
+          onToggle={toggleRepo}
+        />
+      {/each}
+    </div>
   {/if}
 </main>
 
 <style>
-  .container {
-    margin: 0 auto;
-    max-width: 960px;
-    padding: 2rem 1rem;
+  .dashboard {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
-    font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+    font-family: var(--font-sans);
+    color: var(--ink);
+  }
+
+  h1 {
+    margin: var(--s-7) var(--s-7) 0;
+    font-size: var(--t-head);
   }
 
   .run-pair {
-    color: #555;
+    margin: var(--s-3) var(--s-7) var(--s-7);
+    font-family: var(--font-mono);
+    font-size: var(--t-body);
+    color: var(--ink-3);
   }
 
-  .project {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .repo-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 1rem;
-  }
-
-  .repo-card {
-    border: 1px solid #ddd;
-    border-radius: 0.5rem;
-  }
-
-  .repo-card-header {
-    display: block;
-    width: 100%;
-    padding: 0.75rem 1rem;
-    border: none;
-    background: none;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .repo-card.expanded .repo-card-header {
-    border-bottom: 1px solid #eee;
-  }
-
-  .repo-card h3 {
-    margin: 0 0 0.5rem;
-  }
-
-  .repo-card.absent .repo-card-header,
-  .repo-card.absent .roster {
-    text-decoration: line-through;
-    opacity: 0.55;
-  }
-
-  .absent-note {
-    margin: -0.25rem 0 0.5rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-decoration: none;
-    color: var(--state-revoked);
-  }
-
-  .counts {
-    display: flex;
-    gap: 1rem;
-    margin: 0;
-  }
-
-  .count {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .count dt {
-    font-size: 0.75rem;
-    color: #777;
-    text-transform: uppercase;
-  }
-
-  .count dd {
-    margin: 0;
-    font-size: 1.1rem;
-    font-weight: 600;
-  }
-
-  .change-count dd {
-    color: #b45309;
-  }
-
-  .roster {
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
+  .canvas {
+    flex: 1;
+    background: var(--canvas);
+    padding: var(--s-7) var(--s-7) var(--s-8);
   }
 </style>
