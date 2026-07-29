@@ -48,8 +48,16 @@ The same permission record (same Principal, repo, and grant source) present in b
 _Avoid_: Change (too generic — Grant/Revoke are also "changes")
 
 **Run pair**:
-The two Snapshots selected for comparison in the dashboard (Snapshot A, Snapshot B). Selecting the same Snapshot for both is a valid Run pair — it produces a pure roster view with no diff, not an error.
-_Avoid_: Comparison, run selection
+The two Snapshots selected for comparison in the dashboard, named by role: the **Baseline** (the earlier state, "what it was") and the **Comparison** (the state being audited, "what it is now"). Selecting the same Snapshot for both is a valid Run pair — it produces a pure roster view with no diff, not an error. Grant/Revoke/Level change are always expressed as movement *from* the Baseline *to* the Comparison.
+_Avoid_: Snapshot A / Snapshot B (positional, says nothing about direction), "Comparison" used alone for the pair itself, run selection
+
+**Repo absence** / **Repo arrival**:
+A repo present in one Snapshot's discovery and not the other. Absence means every grant on it reads as a Revoke; arrival means every grant reads as a Grant. Both are properties of discovery, not of any Principal, and both are stated once at the repo level rather than repeated on every row underneath. Distinct from a **Fetch failure**, where the repo *was* discovered and its roster is unknown rather than empty.
+_Avoid_: Deleted repo, missing repo (a repo can be absent because it was renamed, archived, or made invisible to the credential — absence is not deletion)
+
+**Workspace departure** / **Workspace arrival**:
+A user Principal holding at least one grant somewhere in one Snapshot of the Run pair and none at all in the other. A workspace-wide fact about a person, computed across the whole Roster tree, not a per-repo one — a user losing access to a single repo while keeping others is an ordinary Revoke, not a departure.
+_Avoid_: Offboarded / onboarded (implies an HR event this tool cannot observe), deleted user
 
 **Roster tree**:
 The project → repo → Principal structure returned for a given Run pair, with Grant/Revoke/Level-change markers attached in place. Computed fresh from the Run pair's full PermissionRecord/RepoFetchStatus sets on every request — never materialized or cached (see ADR-0004, `docs/adr/0004-roster-tree-computed-per-request.md`).

@@ -6,11 +6,11 @@ id: PD-5
 links: []
 mode: afk
 priority: 2
-status: open
+status: closed
 tags: []
 title: 'Bitbucket collection: HTTP client, credential entry, SQLite storage (Run now tracer bullet)'
 type: feature
-updated: "2026-07-29T00:01:37Z"
+updated: "2026-07-29T16:26:46Z"
 ---
 
 ## Problem Statement
@@ -90,3 +90,6 @@ Build the "Run now" pipeline end to end, as a single tracer bullet: a minimal UI
 - This ticket resolves PRD §8's open question about rate-limit/expired-credential behavior mid-run — see the 401-vs-429 handling above. The PRD should be updated to reflect this as a documentation follow-up, the same way PD-1 flagged its own scope against §5.2–§5.4.
 - Builds directly on PD-1 through PD-4 without modifying `normalize.rs`/`diff.rs` — `collect_and_store` calls those pure functions as-is.
 - A new glossary term, **Discovery failure** (distinct from the existing **Fetch failure**), was added to `CONTEXT.md` during this ticket's design session. `docs/adr/0003-persist-membership-status-ahead-of-use.md` documents the decision to persist `GroupMembershipStatus` despite it being unread by the diff engine in v1.
+## Notes
+
+Superseded by PD-7, PD-8 and PD-9, which shipped the same Run now tracer bullet in three slices (credential entry + Direct grants, then Group grants, then Member grants with per-Run membership caching). Left open by oversight after those closed; no work in this ticket is outstanding.
