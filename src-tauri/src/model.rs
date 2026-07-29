@@ -1,7 +1,9 @@
+use serde::Serialize;
+
 /// Anything that can hold a permission grant on a repository. `id` is the stable identity
 /// (Bitbucket `account_id` for a user; a group's slug for a `Group` grant) — `label` is a
 /// display name only and must never be used for identity or diff keying.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub struct Principal {
     pub id: String,
     pub label: String,
@@ -11,7 +13,8 @@ pub struct Principal {
 /// grant is a first-class Principal, independent of member resolution) exist as of PD-3;
 /// `Member(group_id)` (PD-4) is a resolved group member's own grant, layered on top of
 /// that group's `Group` record — never collapsed into it (ADR-0001).
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(tag = "type", content = "group_id")]
 pub enum AccessType {
     Direct,
     Group,
@@ -19,7 +22,7 @@ pub enum AccessType {
 }
 
 /// Permission level. Declaration order is significant: derived `Ord` gives `Read < Write < Admin`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub enum Permission {
     Read,
     Write,
@@ -47,7 +50,7 @@ pub struct PermissionRecord {
     pub permission: Permission,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum RepoStatus {
     Ok,
     FetchFailed,

@@ -46,3 +46,11 @@ _Avoid_: Add/remove, gained/lost access
 **Level change**:
 The same permission record (same Principal, repo, and grant source) present in both compared Snapshots with a different permission. An **Escalation** if it moved up (`read < write < admin`), a **Demotion** if it moved down.
 _Avoid_: Change (too generic — Grant/Revoke are also "changes")
+
+**Run pair**:
+The two Snapshots selected for comparison in the dashboard (Snapshot A, Snapshot B). Selecting the same Snapshot for both is a valid Run pair — it produces a pure roster view with no diff, not an error.
+_Avoid_: Comparison, run selection
+
+**Roster tree**:
+The project → repo → Principal structure returned for a given Run pair, with Grant/Revoke/Level-change markers attached in place. Computed fresh from the Run pair's full PermissionRecord/RepoFetchStatus sets on every request — never materialized or cached (see ADR-0004, `docs/adr/0004-roster-tree-computed-per-request.md`).
+_Avoid_: Diff result (too narrow — the tree also carries un-diffed roster data when the Run pair is a single Snapshot compared to itself)

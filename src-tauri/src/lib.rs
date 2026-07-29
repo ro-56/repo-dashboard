@@ -4,6 +4,7 @@ pub mod credentials;
 pub mod diff;
 pub mod model;
 pub mod normalize;
+pub mod roster;
 pub mod storage;
 
 use tauri::Manager;
@@ -56,6 +57,25 @@ async fn run_now(
         })
 }
 
+/// Populates the two run selectors: every Snapshot's id + run_at, newest first.
+#[tauri::command]
+async fn list_snapshots(db: tauri::State<'_, DbState>) -> Result<Vec<storage::SnapshotSummary>, String> {
+    let conn = db.0.lock().await;
+    storage::list_snapshots(&conn).map_err(|e| e.to_string())
+}
+
+/// Thin wrapper around `roster::get_roster_tree` — all grouping/diff logic lives there and is
+/// covered by `cargo test`; this command only wires managed state to it.
+#[tauri::command]
+async fn get_roster_tree(
+    db: tauri::State<'_, DbState>,
+    snapshot_a_id: i64,
+    snapshot_b_id: i64,
+) -> Result<roster::RosterTree, String> {
+    let conn = db.0.lock().await;
+    roster::get_roster_tree(&conn, snapshot_a_id, snapshot_b_id).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -69,7 +89,12 @@ pub fn run() {
             app.manage(DbState(tokio::sync::Mutex::new(conn)));
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![set_credentials, run_now])
+        .invoke_handler(tauri::generate_handler![
+            set_credentials,
+            run_now,
+            list_snapshots,
+            get_roster_tree
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

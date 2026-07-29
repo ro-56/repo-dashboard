@@ -1,5 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 
+use serde::Serialize;
+
 use crate::model::{AccessType, Permission, PermissionRecord, Principal, RepoFetchStatus, RepoStatus};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -8,7 +10,7 @@ pub struct Snapshot {
     pub repo_statuses: Vec<RepoFetchStatus>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum LevelChangeKind {
     Escalation,
     Demotion,

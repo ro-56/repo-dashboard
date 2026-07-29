@@ -4,12 +4,35 @@
 //! translations between the PD-1–PD-4 domain types and rows; `diff.rs` is never touched.
 
 use rusqlite::{params, Connection};
+use serde::Serialize;
 
 use crate::diff::Snapshot;
 use crate::model::{
     AccessType, GroupMembershipStatus, Permission, PermissionRecord, Principal, RepoFetchStatus,
     RepoStatus,
 };
+
+/// A Snapshot's identity for populating run selectors — never its full record set.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SnapshotSummary {
+    pub id: i64,
+    pub run_at: String,
+}
+
+/// Every Snapshot's id + run_at, newest first.
+pub fn list_snapshots(conn: &Connection) -> rusqlite::Result<Vec<SnapshotSummary>> {
+    let mut stmt = conn.prepare("SELECT id, run_at FROM snapshots ORDER BY id DESC")?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(SnapshotSummary {
+                id: row.get(0)?,
+                run_at: row.get(1)?,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(rows)
+}
 
 pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
@@ -447,5 +470,22 @@ mod tests {
         let first = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[]).unwrap();
         let second = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &Snapshot::default(), &[]).unwrap();
         assert!(second > first);
+    }
+
+    #[test]
+    fn list_snapshots_returns_every_snapshot_newest_first() {
+        let mut conn = open_conn();
+        let first = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[]).unwrap();
+        let second = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &Snapshot::default(), &[]).unwrap();
+
+        let listed = list_snapshots(&conn).unwrap();
+
+        assert_eq!(
+            listed,
+            vec![
+                SnapshotSummary { id: second, run_at: "2026-01-02T00:00:00Z".to_string() },
+                SnapshotSummary { id: first, run_at: "2026-01-01T00:00:00Z".to_string() },
+            ]
+        );
     }
 }
