@@ -8,13 +8,15 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::Connection;
 use serde::Serialize;
 
-use crate::diff::{diff_snapshots, LevelChangeKind, RecordDiff, Snapshot};
+use crate::diff::{diff_snapshots, DiffResult, LevelChangeKind, RecordDiff, Snapshot};
 use crate::model::{AccessType, Permission, PermissionRecord, RepoFetchStatus, RepoStatus};
 use crate::storage::load_snapshot;
 
 /// Mirrors `diff.rs`'s private record key exactly, so a record counted as "changed" by the
 /// diff engine is never also folded in again as unchanged.
 type RecordKey = (String, String, AccessType);
+
+type RepoKey = (String, String);
 
 fn record_key(r: &PermissionRecord) -> RecordKey {
     (r.repo.clone(), r.principal.id.clone(), r.access_type.clone())
@@ -42,6 +44,36 @@ pub struct PrincipalEntry {
     /// Snapshot A's value for Revoke (there is no B-side value for a revoked record).
     pub permission: Permission,
     pub diff_status: DiffStatus,
+    /// Workspace-wide fact about this Principal (`None` for a `Group` grant — Workspace
+    /// departure/arrival, per CONTEXT.md, is a "user Principal" concept only; a group's own
+    /// grant does not make it a user). Attached to every row for that Principal across every
+    /// repo, not just the ones where its access changed on this particular repo.
+    pub workspace_state: Option<WorkspaceState>,
+}
+
+/// Repo arrival / absence (CONTEXT.md): whether this repo's discovery — independent of
+/// whether its permissions fetch succeeded — spans the whole pair or only one side.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RepoDiscoveryState {
+    Present,
+    /// Discovered in the Baseline, not in the Comparison — every grant on it reads as a Revoke.
+    Absent,
+    /// Discovered in the Comparison, not in the Baseline — every grant on it reads as a Grant.
+    Arrived,
+}
+
+/// Workspace departure / arrival (CONTEXT.md): a user Principal holding a grant somewhere in
+/// one Snapshot of the pair and nowhere at all in the other. Scoped to user Principals only
+/// (`AccessType::Direct` / `AccessType::Member`) — a `Group`'s own grant never carries this.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WorkspaceState {
+    Present,
+    /// Held a grant somewhere in the Baseline; holds none anywhere in the Comparison.
+    Departed,
+    /// Holds a grant somewhere in the Comparison; held none anywhere in the Baseline.
+    Arrived,
 }
 
 /// Per-repo, per-Snapshot fetch/discovery state, `None` meaning absent from that Snapshot's
@@ -54,6 +86,7 @@ pub struct RepoNode {
     pub repo: String,
     pub status_a: Option<RepoStatus>,
     pub status_b: Option<RepoStatus>,
+    pub discovery_state: RepoDiscoveryState,
     pub principals: Vec<PrincipalEntry>,
     /// Counts reflect currently-held access (i.e. exclude Revoked entries) — a Grant, an
     /// unchanged record, and the "to" side of a Level change all count; a Revoke does not,
@@ -75,15 +108,154 @@ pub struct ProjectNode {
 
 pub type RosterTree = Vec<ProjectNode>;
 
-fn repo_status_map(statuses: &[RepoFetchStatus]) -> HashMap<(String, String), RepoStatus> {
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LevelCounts {
+    pub admin: usize,
+    pub write: usize,
+    pub read: usize,
+}
+
+/// Aggregate facts about the Comparison Snapshot alone. Always computed over the full
+/// Snapshot, never affected by any view/filter state; every count is over `PermissionRecord`
+/// rows, not people (ADR-0008).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ComparisonSummary {
+    pub total_grants: usize,
+    /// Distinct repos discovered in the Comparison Snapshot (Ok or FetchFailed alike) —
+    /// sourced from `repo_statuses`, not `records`, so a FetchFailed or genuinely-empty repo
+    /// still counts.
+    pub distinct_repos: usize,
+    /// Distinct Direct/Member principal ids — a `Group`'s own grant does not make it a "user
+    /// Principal" (CONTEXT.md).
+    pub distinct_users: usize,
+    pub levels: LevelCounts,
+}
+
+/// Aggregate facts about the whole Run pair (Baseline -> Comparison). Always computed over
+/// the full pair, never affected by any view/filter state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairStats {
+    pub added: usize,
+    pub revoked: usize,
+    pub changed: usize,
+    pub escalations: usize,
+    /// Repos with at least one Grant, Revoke, or Level-change entry.
+    pub repos_hit: usize,
+    /// Comparison grant count minus Baseline grant count, signed.
+    pub net: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RosterTreeResult {
+    pub tree: RosterTree,
+    pub comparison: ComparisonSummary,
+    pub pair: PairStats,
+}
+
+fn repo_status_map(statuses: &[RepoFetchStatus]) -> HashMap<RepoKey, RepoStatus> {
     statuses
         .iter()
         .map(|s| ((s.repo_project.clone(), s.repo.clone()), s.status))
         .collect()
 }
 
-fn build_roster_tree(a: &Snapshot, b: &Snapshot) -> RosterTree {
-    let diff = diff_snapshots(a, b);
+/// A `Group`'s own grant is never a "user Principal" (CONTEXT.md) — this is the one place
+/// that distinction is drawn, shared by the distinct-user count and the workspace-state lookup.
+fn is_user_access_type(access_type: &AccessType) -> bool {
+    !matches!(access_type, AccessType::Group)
+}
+
+/// Distinct Direct/Member principal ids appearing anywhere in `records` — the "user
+/// Principal" population a `Group`'s own grant is deliberately excluded from.
+fn user_principal_ids(records: &[PermissionRecord]) -> HashSet<String> {
+    records
+        .iter()
+        .filter(|r| is_user_access_type(&r.access_type))
+        .map(|r| r.principal.id.clone())
+        .collect()
+}
+
+fn comparison_summary(b: &Snapshot) -> ComparisonSummary {
+    let total_grants = b.records.len();
+
+    let distinct_repos = b
+        .repo_statuses
+        .iter()
+        .map(|s| (s.repo_project.clone(), s.repo.clone()))
+        .collect::<HashSet<RepoKey>>()
+        .len();
+
+    let distinct_users = user_principal_ids(&b.records).len();
+
+    let mut levels = LevelCounts::default();
+    for r in &b.records {
+        match r.permission {
+            Permission::Read => levels.read += 1,
+            Permission::Write => levels.write += 1,
+            Permission::Admin => levels.admin += 1,
+        }
+    }
+
+    ComparisonSummary { total_grants, distinct_repos, distinct_users, levels }
+}
+
+fn pair_stats(diff: &DiffResult, a: &Snapshot, b: &Snapshot) -> PairStats {
+    let mut added = 0usize;
+    let mut revoked = 0usize;
+    let mut changed = 0usize;
+    let mut escalations = 0usize;
+    let mut repos_hit: HashSet<(String, String)> = HashSet::new();
+
+    for record_diff in &diff.records {
+        match record_diff {
+            RecordDiff::Grant(r) => {
+                added += 1;
+                repos_hit.insert((r.repo_project.clone(), r.repo.clone()));
+            }
+            RecordDiff::Revoke(r) => {
+                revoked += 1;
+                repos_hit.insert((r.repo_project.clone(), r.repo.clone()));
+            }
+            RecordDiff::LevelChange { repo_project, repo, kind, .. } => {
+                changed += 1;
+                if *kind == LevelChangeKind::Escalation {
+                    escalations += 1;
+                }
+                repos_hit.insert((repo_project.clone(), repo.clone()));
+            }
+        }
+    }
+
+    let net = b.records.len() as i64 - a.records.len() as i64;
+
+    PairStats { added, revoked, changed, escalations, repos_hit: repos_hit.len(), net }
+}
+
+fn build_roster_tree(a: &Snapshot, b: &Snapshot, diff: &DiffResult) -> RosterTree {
+    // Workspace departure/arrival (CONTEXT.md) is scoped to user Principals: a Principal
+    // holding at least one Direct/Member grant anywhere in one Snapshot and none anywhere in
+    // the other. Computed once, up front, over the whole Snapshot — never per-repo — so that
+    // losing access to one repo while keeping others never reads as a departure.
+    let users_a = user_principal_ids(&a.records);
+    let users_b = user_principal_ids(&b.records);
+    let departed: HashSet<String> = users_a.difference(&users_b).cloned().collect();
+    let arrived: HashSet<String> = users_b.difference(&users_a).cloned().collect();
+    let workspace_state = |access_type: &AccessType, principal_id: &str| -> Option<WorkspaceState> {
+        match access_type {
+            AccessType::Group => None,
+            AccessType::Direct | AccessType::Member(_) => Some(if departed.contains(principal_id) {
+                WorkspaceState::Departed
+            } else if arrived.contains(principal_id) {
+                WorkspaceState::Arrived
+            } else {
+                WorkspaceState::Present
+            }),
+        }
+    };
 
     let mut by_repo: HashMap<(String, String), Vec<PrincipalEntry>> = HashMap::new();
     let mut changed_keys: HashSet<RecordKey> = HashSet::new();
@@ -100,6 +272,7 @@ fn build_roster_tree(a: &Snapshot, b: &Snapshot) -> RosterTree {
                         access_type: r.access_type.clone(),
                         permission: r.permission,
                         diff_status: DiffStatus::Grant,
+                        workspace_state: workspace_state(&r.access_type, &r.principal.id),
                     },
                 )
             }
@@ -113,6 +286,7 @@ fn build_roster_tree(a: &Snapshot, b: &Snapshot) -> RosterTree {
                         access_type: r.access_type.clone(),
                         permission: r.permission,
                         diff_status: DiffStatus::Revoke,
+                        workspace_state: workspace_state(&r.access_type, &r.principal.id),
                     },
                 )
             }
@@ -126,6 +300,7 @@ fn build_roster_tree(a: &Snapshot, b: &Snapshot) -> RosterTree {
                         access_type: access_type.clone(),
                         permission: *to,
                         diff_status: DiffStatus::LevelChange { from: *from, to: *to, kind: *kind },
+                        workspace_state: workspace_state(access_type, &principal.id),
                     },
                 )
             }
@@ -144,6 +319,7 @@ fn build_roster_tree(a: &Snapshot, b: &Snapshot) -> RosterTree {
             access_type: r.access_type.clone(),
             permission: r.permission,
             diff_status: DiffStatus::None,
+            workspace_state: workspace_state(&r.access_type, &r.principal.id),
         });
     }
 
@@ -181,11 +357,19 @@ fn build_roster_tree(a: &Snapshot, b: &Snapshot) -> RosterTree {
             }
         }
 
+        let discovery_state = match (status_a.get(&key), status_b.get(&key)) {
+            (Some(_), Some(_)) => RepoDiscoveryState::Present,
+            (Some(_), None) => RepoDiscoveryState::Absent,
+            (None, Some(_)) => RepoDiscoveryState::Arrived,
+            (None, None) => RepoDiscoveryState::Present,
+        };
+
         repos_by_project.entry(repo_project.clone()).or_default().push(RepoNode {
             repo_project,
             repo: repo.clone(),
             status_a: status_a.get(&key).copied(),
             status_b: status_b.get(&key).copied(),
+            discovery_state,
             principals,
             read_count,
             write_count,
@@ -206,16 +390,24 @@ fn build_roster_tree(a: &Snapshot, b: &Snapshot) -> RosterTree {
 }
 
 /// The test seam: loads Snapshot A and B via `storage::load_snapshot`, runs the diff engine
-/// unmodified, and returns the fully grouped, diff-annotated Roster tree. Selecting the same
-/// Snapshot for both ids is a valid Run pair — every entry comes back with `DiffStatus::None`.
+/// unmodified, and returns the fully grouped, diff-annotated Roster tree alongside the
+/// workspace-summary and pair-stat aggregates (PD-17). Selecting the same Snapshot for both
+/// ids is a valid Run pair — every entry comes back with `DiffStatus::None` and every
+/// pair-level stat is zero.
 pub fn get_roster_tree(
     conn: &Connection,
     snapshot_a_id: i64,
     snapshot_b_id: i64,
-) -> rusqlite::Result<RosterTree> {
+) -> rusqlite::Result<RosterTreeResult> {
     let a = load_snapshot(conn, snapshot_a_id)?;
     let b = load_snapshot(conn, snapshot_b_id)?;
-    Ok(build_roster_tree(&a, &b))
+    let diff = diff_snapshots(&a, &b);
+
+    Ok(RosterTreeResult {
+        tree: build_roster_tree(&a, &b, &diff),
+        comparison: comparison_summary(&b),
+        pair: pair_stats(&diff, &a, &b),
+    })
 }
 
 #[cfg(test)]
@@ -246,6 +438,39 @@ mod tests {
         }
     }
 
+    fn member_record(
+        repo_project: &str,
+        repo: &str,
+        group_id: &str,
+        account_id: &str,
+        label: &str,
+        permission: Permission,
+    ) -> PermissionRecord {
+        PermissionRecord {
+            repo_project: repo_project.to_string(),
+            repo: repo.to_string(),
+            principal: Principal { id: account_id.to_string(), label: label.to_string() },
+            access_type: AccessType::Member(group_id.to_string()),
+            permission,
+        }
+    }
+
+    fn group_record(
+        repo_project: &str,
+        repo: &str,
+        group_id: &str,
+        label: &str,
+        permission: Permission,
+    ) -> PermissionRecord {
+        PermissionRecord {
+            repo_project: repo_project.to_string(),
+            repo: repo.to_string(),
+            principal: Principal { id: group_id.to_string(), label: label.to_string() },
+            access_type: AccessType::Group,
+            permission,
+        }
+    }
+
     fn ok_status(repo_project: &str, repo: &str) -> RepoFetchStatus {
         RepoFetchStatus {
             repo_project: repo_project.to_string(),
@@ -259,6 +484,13 @@ mod tests {
             .find(|p| p.repo_project == repo_project)
             .and_then(|p| p.repos.iter().find(|r| r.repo == repo))
             .expect("repo node present in tree")
+    }
+
+    fn principal_entry<'a>(repo: &'a RepoNode, label: &str) -> &'a PrincipalEntry {
+        repo.principals
+            .iter()
+            .find(|p| p.principal.label == label)
+            .expect("principal present in repo")
     }
 
     #[test]
@@ -285,7 +517,8 @@ mod tests {
         let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
         let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
 
-        let tree = get_roster_tree(&conn, a_id, b_id).unwrap();
+        let result = get_roster_tree(&conn, a_id, b_id).unwrap();
+        let tree = result.tree;
         assert_eq!(tree.len(), 1);
         let repo = repo_node(&tree, "TEAM", "repo-a");
 
@@ -322,8 +555,8 @@ mod tests {
         };
         let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[]).unwrap();
 
-        let tree = get_roster_tree(&conn, id, id).unwrap();
-        let repo = repo_node(&tree, "TEAM", "repo-a");
+        let result = get_roster_tree(&conn, id, id).unwrap();
+        let repo = repo_node(&result.tree, "TEAM", "repo-a");
 
         assert_eq!(repo.change_count, 0);
         assert!(repo.principals.iter().all(|p| p.diff_status == DiffStatus::None));
@@ -347,10 +580,190 @@ mod tests {
         let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
         let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
 
-        let tree = get_roster_tree(&conn, a_id, b_id).unwrap();
-        let repo_b = repo_node(&tree, "TEAM", "repo-b");
+        let result = get_roster_tree(&conn, a_id, b_id).unwrap();
+        let repo_a = repo_node(&result.tree, "TEAM", "repo-a");
+        let repo_b = repo_node(&result.tree, "TEAM", "repo-b");
 
         assert_eq!(repo_b.status_a, Some(RepoStatus::Ok));
         assert_eq!(repo_b.status_b, None);
+        assert_eq!(repo_a.discovery_state, RepoDiscoveryState::Present);
+        assert_eq!(repo_b.discovery_state, RepoDiscoveryState::Absent);
+    }
+
+    #[test]
+    fn repo_only_in_comparison_is_flagged_arrived() {
+        let mut conn = open_conn();
+        let a = Snapshot { records: vec![], repo_statuses: vec![ok_status("TEAM", "repo-a")] };
+        let b = Snapshot {
+            records: vec![],
+            // repo-c discovered for the first time in the Comparison
+            repo_statuses: vec![ok_status("TEAM", "repo-a"), ok_status("TEAM", "repo-c")],
+        };
+
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+
+        let result = get_roster_tree(&conn, a_id, b_id).unwrap();
+        let repo_c = repo_node(&result.tree, "TEAM", "repo-c");
+
+        assert_eq!(repo_c.status_a, None);
+        assert_eq!(repo_c.status_b, Some(RepoStatus::Ok));
+        assert_eq!(repo_c.discovery_state, RepoDiscoveryState::Arrived);
+    }
+
+    #[test]
+    fn comparison_summary_counts_grant_rows_not_people_across_multiple_sources() {
+        // ADR-0008: a user holding a Direct read and a Member admin on one repo contributes
+        // two grants and one distinct user, not two.
+        let mut conn = open_conn();
+        let b = Snapshot {
+            records: vec![
+                record("TEAM", "repo-a", "acct-1", "Ada", Permission::Read),
+                member_record("TEAM", "repo-a", "platform-eng", "acct-1", "Ada", Permission::Admin),
+                group_record("TEAM", "repo-a", "platform-eng", "Platform Engineering", Permission::Write),
+            ],
+            repo_statuses: vec![ok_status("TEAM", "repo-a")],
+        };
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+
+        let result = get_roster_tree(&conn, a_id, b_id).unwrap();
+
+        assert_eq!(result.comparison.total_grants, 3);
+        assert_eq!(result.comparison.distinct_repos, 1);
+        // acct-1 counted once despite two grant sources; the group's own grant isn't a "user".
+        assert_eq!(result.comparison.distinct_users, 1);
+        assert_eq!(result.comparison.levels.read, 1);
+        assert_eq!(result.comparison.levels.write, 1);
+        assert_eq!(result.comparison.levels.admin, 1);
+    }
+
+    #[test]
+    fn net_goes_negative_when_comparison_has_fewer_grants_than_baseline() {
+        let mut conn = open_conn();
+        let a = Snapshot {
+            records: vec![
+                record("TEAM", "repo-a", "acct-1", "Ada", Permission::Read),
+                record("TEAM", "repo-a", "acct-2", "Grace", Permission::Write),
+                record("TEAM", "repo-a", "acct-3", "Linus", Permission::Admin),
+            ],
+            repo_statuses: vec![ok_status("TEAM", "repo-a")],
+        };
+        let b = Snapshot {
+            records: vec![record("TEAM", "repo-a", "acct-1", "Ada", Permission::Read)],
+            repo_statuses: vec![ok_status("TEAM", "repo-a")],
+        };
+
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+
+        let result = get_roster_tree(&conn, a_id, b_id).unwrap();
+
+        assert_eq!(result.pair.net, -2);
+        assert_eq!(result.pair.revoked, 2);
+        assert_eq!(result.pair.repos_hit, 1);
+    }
+
+    #[test]
+    fn user_departing_the_workspace_is_flagged_on_every_row_left_behind() {
+        let mut conn = open_conn();
+        let a = Snapshot {
+            records: vec![
+                record("TEAM", "repo-a", "acct-1", "Ada", Permission::Read),
+                member_record("TEAM", "repo-b", "platform-eng", "acct-1", "Ada", Permission::Admin),
+            ],
+            repo_statuses: vec![ok_status("TEAM", "repo-a"), ok_status("TEAM", "repo-b")],
+        };
+        let b = Snapshot {
+            records: vec![],
+            repo_statuses: vec![ok_status("TEAM", "repo-a"), ok_status("TEAM", "repo-b")],
+        };
+
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+
+        let result = get_roster_tree(&conn, a_id, b_id).unwrap();
+        let repo_a = repo_node(&result.tree, "TEAM", "repo-a");
+        let repo_b = repo_node(&result.tree, "TEAM", "repo-b");
+
+        assert_eq!(principal_entry(repo_a, "Ada").workspace_state, Some(WorkspaceState::Departed));
+        assert_eq!(principal_entry(repo_b, "Ada").workspace_state, Some(WorkspaceState::Departed));
+    }
+
+    #[test]
+    fn user_departing_one_repo_but_not_the_workspace_is_not_a_departure() {
+        let mut conn = open_conn();
+        let a = Snapshot {
+            records: vec![
+                record("TEAM", "repo-a", "acct-1", "Ada", Permission::Read), // kept in b
+                member_record("TEAM", "repo-b", "platform-eng", "acct-1", "Ada", Permission::Admin), // lost in b
+            ],
+            repo_statuses: vec![ok_status("TEAM", "repo-a"), ok_status("TEAM", "repo-b")],
+        };
+        let b = Snapshot {
+            records: vec![record("TEAM", "repo-a", "acct-1", "Ada", Permission::Read)],
+            repo_statuses: vec![ok_status("TEAM", "repo-a"), ok_status("TEAM", "repo-b")],
+        };
+
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+
+        let result = get_roster_tree(&conn, a_id, b_id).unwrap();
+        let repo_a = repo_node(&result.tree, "TEAM", "repo-a");
+        let repo_b = repo_node(&result.tree, "TEAM", "repo-b");
+
+        let ada_repo_a = principal_entry(repo_a, "Ada");
+        let ada_repo_b = principal_entry(repo_b, "Ada");
+        assert_eq!(ada_repo_a.diff_status, DiffStatus::None);
+        assert_eq!(ada_repo_a.workspace_state, Some(WorkspaceState::Present));
+        assert_eq!(ada_repo_b.diff_status, DiffStatus::Revoke);
+        assert_eq!(ada_repo_b.workspace_state, Some(WorkspaceState::Present));
+    }
+
+    #[test]
+    fn user_arriving_in_the_workspace_is_flagged_arrived_and_group_grants_are_never_flagged() {
+        let mut conn = open_conn();
+        let a = Snapshot::default();
+        let b = Snapshot {
+            records: vec![
+                record("TEAM", "repo-a", "acct-9", "Nora", Permission::Write),
+                group_record("TEAM", "repo-a", "platform-eng", "Platform Engineering", Permission::Read),
+            ],
+            repo_statuses: vec![ok_status("TEAM", "repo-a")],
+        };
+
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+
+        let result = get_roster_tree(&conn, a_id, b_id).unwrap();
+        let repo_a = repo_node(&result.tree, "TEAM", "repo-a");
+
+        assert_eq!(principal_entry(repo_a, "Nora").workspace_state, Some(WorkspaceState::Arrived));
+        assert_eq!(principal_entry(repo_a, "Platform Engineering").workspace_state, None);
+    }
+
+    #[test]
+    fn same_snapshot_pair_yields_zero_pair_stats_and_no_departures_or_arrivals() {
+        let mut conn = open_conn();
+        let snapshot = Snapshot {
+            records: vec![
+                record("TEAM", "repo-a", "acct-1", "Ada", Permission::Read),
+                member_record("TEAM", "repo-a", "platform-eng", "acct-2", "Grace", Permission::Admin),
+            ],
+            repo_statuses: vec![ok_status("TEAM", "repo-a")],
+        };
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[]).unwrap();
+
+        let result = get_roster_tree(&conn, id, id).unwrap();
+
+        assert_eq!(
+            result.pair,
+            PairStats { added: 0, revoked: 0, changed: 0, escalations: 0, repos_hit: 0, net: 0 }
+        );
+        let repo = repo_node(&result.tree, "TEAM", "repo-a");
+        assert!(repo
+            .principals
+            .iter()
+            .all(|p| p.workspace_state == Some(WorkspaceState::Present)));
     }
 }

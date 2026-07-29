@@ -71,7 +71,7 @@ async fn get_roster_tree(
     db: tauri::State<'_, DbState>,
     snapshot_a_id: i64,
     snapshot_b_id: i64,
-) -> Result<roster::RosterTree, String> {
+) -> Result<roster::RosterTreeResult, String> {
     let conn = db.0.lock().await;
     roster::get_roster_tree(&conn, snapshot_a_id, snapshot_b_id).map_err(|e| e.to_string())
 }

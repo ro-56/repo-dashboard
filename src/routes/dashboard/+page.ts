@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { RosterTree, SnapshotSummary } from "$lib/roster";
+import type { ComparisonSummary, PairStats, RosterTree, RosterTreeResult, SnapshotSummary } from "$lib/roster";
 import type { PageLoad } from "./$types";
 
 export const load: PageLoad = async ({ url }) => {
@@ -14,10 +14,16 @@ export const load: PageLoad = async ({ url }) => {
   const snapshotAId = paramA !== null ? Number(paramA) : previousId;
   const snapshotBId = paramB !== null ? Number(paramB) : latestId;
 
-  const tree =
-    snapshotAId !== null && snapshotBId !== null
-      ? await invoke<RosterTree>("get_roster_tree", { snapshotAId, snapshotBId })
-      : [];
+  let tree: RosterTree = [];
+  let comparison: ComparisonSummary | null = null;
+  let pair: PairStats | null = null;
 
-  return { snapshots, snapshotAId, snapshotBId, tree };
+  if (snapshotAId !== null && snapshotBId !== null) {
+    const result = await invoke<RosterTreeResult>("get_roster_tree", { snapshotAId, snapshotBId });
+    tree = result.tree;
+    comparison = result.comparison;
+    pair = result.pair;
+  }
+
+  return { snapshots, snapshotAId, snapshotBId, tree, comparison, pair };
 };
