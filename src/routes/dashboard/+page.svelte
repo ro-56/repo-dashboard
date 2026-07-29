@@ -1,7 +1,7 @@
 <script lang="ts">
   import { SvelteSet } from "svelte/reactivity";
   import type { PageData } from "./$types";
-  import type { PrincipalEntry } from "$lib/roster";
+  import type { DiffStatus, PrincipalEntry, RepoNode } from "$lib/roster";
 
   let { data }: { data: PageData } = $props();
 
@@ -27,6 +27,43 @@
     const groupId = entry.accessType.type === "Member" ? entry.accessType.group_id : "";
     return `${entry.principal.id}::${entry.accessType.type}::${groupId}`;
   }
+
+  function diffLabel(status: DiffStatus): string | null {
+    switch (status.status) {
+      case "None":
+        return null;
+      case "Grant":
+        return "Grant";
+      case "Revoke":
+        return "Revoke";
+      case "LevelChange":
+        return status.kind === "Escalation"
+          ? `Escalation: ${status.from} → ${status.to}`
+          : `Demotion: ${status.from} → ${status.to}`;
+    }
+  }
+
+  function diffClass(status: DiffStatus): string {
+    switch (status.status) {
+      case "None":
+        return "";
+      case "Grant":
+        return "diff-grant";
+      case "Revoke":
+        return "diff-revoke";
+      case "LevelChange":
+        return status.kind === "Escalation" ? "diff-escalation" : "diff-demotion";
+    }
+  }
+
+  // A repo present in one compared Snapshot's discovery but absent from the other's
+  // (one status is null, the other isn't) — distinct from a repo genuinely fetched on both
+  // sides with zero grants, which must not be struck through.
+  function absentSide(repo: RepoNode): "A" | "B" | null {
+    if (repo.statusA === null && repo.statusB !== null) return "A";
+    if (repo.statusB === null && repo.statusA !== null) return "B";
+    return null;
+  }
 </script>
 
 <main class="container">
@@ -45,7 +82,8 @@
         <div class="repo-cards">
           {#each project.repos as repo (repo.repo)}
             {const isExpanded = $derived(expandedRepos.has(repoKey(repo.repoProject, repo.repo)))}
-            <article class="repo-card" class:expanded={isExpanded}>
+            {const absent = $derived(absentSide(repo))}
+            <article class="repo-card" class:expanded={isExpanded} class:absent={absent !== null}>
               <button
                 type="button"
                 class="repo-card-header"
@@ -53,6 +91,11 @@
                 onclick={() => toggleRepo(repo.repoProject, repo.repo)}
               >
                 <h3>{repo.repo}</h3>
+                {#if absent}
+                  <p class="absent-note">
+                    Not discovered in Snapshot #{absent === "A" ? data.snapshotAId : data.snapshotBId}
+                  </p>
+                {/if}
                 <dl class="counts">
                   <div class="count">
                     <dt>Read</dt>
@@ -76,10 +119,14 @@
               {#if isExpanded}
                 <ul class="roster">
                   {#each repo.principals as entry (principalEntryKey(entry))}
+                    {const label = diffLabel(entry.diffStatus)}
                     <li class="roster-row">
                       <span class="roster-label">{entry.principal.label}</span>
                       <span class="roster-access">{entry.accessType.type}</span>
                       <span class="roster-permission">{entry.permission}</span>
+                      {#if label}
+                        <span class={["diff-marker", diffClass(entry.diffStatus)]}>{label}</span>
+                      {/if}
                     </li>
                   {/each}
                 </ul>
@@ -143,6 +190,20 @@
     margin: 0 0 0.5rem;
   }
 
+  .repo-card.absent .repo-card-header,
+  .repo-card.absent .roster {
+    text-decoration: line-through;
+    opacity: 0.55;
+  }
+
+  .absent-note {
+    margin: -0.25rem 0 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-decoration: none;
+    color: #9e2b20;
+  }
+
   .counts {
     display: flex;
     gap: 1rem;
@@ -201,5 +262,31 @@
     font-weight: 600;
     min-width: 3.5rem;
     text-align: right;
+  }
+
+  .diff-marker {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.25rem;
+    white-space: nowrap;
+  }
+
+  .diff-grant {
+    color: #10653c;
+    background: #e3f3ea;
+  }
+
+  .diff-revoke,
+  .diff-escalation {
+    color: #9e2b20;
+    background: #f8ece9;
+  }
+
+  .diff-demotion {
+    color: #4b46a8;
+    background: #eceafc;
   }
 </style>
