@@ -14,7 +14,8 @@
       "Bash(git -C /workspace diff *...HEAD *)",
       "Read(//home/devuser/.claude/**)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(python3 *)"
     ]
   }
 }

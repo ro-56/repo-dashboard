@@ -1,7 +1,9 @@
 <script lang="ts">
   import { SvelteSet } from "svelte/reactivity";
   import type { PageData } from "./$types";
-  import type { DiffStatus, PrincipalEntry, RepoNode } from "$lib/roster";
+  import type { PrincipalEntry, RepoNode } from "$lib/roster";
+  import RosterRow from "$lib/components/RosterRow.svelte";
+  import { sortedPrincipals } from "$lib/rosterRow";
 
   let { data }: { data: PageData } = $props();
 
@@ -26,34 +28,6 @@
   function principalEntryKey(entry: PrincipalEntry): string {
     const groupId = entry.accessType.type === "Member" ? entry.accessType.group_id : "";
     return `${entry.principal.id}::${entry.accessType.type}::${groupId}`;
-  }
-
-  function diffLabel(status: DiffStatus): string | null {
-    switch (status.status) {
-      case "None":
-        return null;
-      case "Grant":
-        return "Grant";
-      case "Revoke":
-        return "Revoke";
-      case "LevelChange":
-        return status.kind === "Escalation"
-          ? `Escalation: ${status.from} → ${status.to}`
-          : `Demotion: ${status.from} → ${status.to}`;
-    }
-  }
-
-  function diffClass(status: DiffStatus): string {
-    switch (status.status) {
-      case "None":
-        return "";
-      case "Grant":
-        return "diff-grant";
-      case "Revoke":
-        return "diff-revoke";
-      case "LevelChange":
-        return status.kind === "Escalation" ? "diff-escalation" : "diff-demotion";
-    }
   }
 
   // A repo present in one compared Snapshot's discovery but absent from the other's
@@ -117,19 +91,11 @@
               </button>
 
               {#if isExpanded}
-                <ul class="roster">
-                  {#each repo.principals as entry (principalEntryKey(entry))}
-                    {const label = diffLabel(entry.diffStatus)}
-                    <li class="roster-row">
-                      <span class="roster-label">{entry.principal.label}</span>
-                      <span class="roster-access">{entry.accessType.type}</span>
-                      <span class="roster-permission">{entry.permission}</span>
-                      {#if label}
-                        <span class={["diff-marker", diffClass(entry.diffStatus)]}>{label}</span>
-                      {/if}
-                    </li>
+                <div class="roster">
+                  {#each sortedPrincipals(repo.principals) as entry (principalEntryKey(entry))}
+                    <RosterRow {entry} />
                   {/each}
-                </ul>
+                </div>
               {/if}
             </article>
           {/each}
@@ -201,7 +167,7 @@
     font-size: 0.75rem;
     font-weight: 600;
     text-decoration: none;
-    color: #9e2b20;
+    color: var(--state-revoked);
   }
 
   .counts {
@@ -233,60 +199,9 @@
   }
 
   .roster {
-    list-style: none;
     margin: 0;
-    padding: 0.5rem 1rem 0.75rem;
+    padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
-  }
-
-  .roster-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 0.75rem;
-    font-size: 0.85rem;
-  }
-
-  .roster-label {
-    flex: 1;
-    font-weight: 500;
-  }
-
-  .roster-access {
-    color: #777;
-  }
-
-  .roster-permission {
-    text-transform: capitalize;
-    font-weight: 600;
-    min-width: 3.5rem;
-    text-align: right;
-  }
-
-  .diff-marker {
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    padding: 0.1rem 0.4rem;
-    border-radius: 0.25rem;
-    white-space: nowrap;
-  }
-
-  .diff-grant {
-    color: #10653c;
-    background: #e3f3ea;
-  }
-
-  .diff-revoke,
-  .diff-escalation {
-    color: #9e2b20;
-    background: #f8ece9;
-  }
-
-  .diff-demotion {
-    color: #4b46a8;
-    background: #eceafc;
   }
 </style>
