@@ -4,6 +4,7 @@
   import type { PageData } from "./$types";
   import HeadBar from "$lib/components/HeadBar.svelte";
   import SummaryBar from "$lib/components/SummaryBar.svelte";
+  import NoticeStrip from "$lib/components/NoticeStrip.svelte";
   import ProjectSection from "$lib/components/ProjectSection.svelte";
   import RosterColumnLabels from "$lib/components/RosterColumnLabels.svelte";
   import { treeHasAnyChanges } from "$lib/repoCard";
@@ -75,6 +76,7 @@
       baselineSeq={seqs.get(data.baselineId)!}
       comparisonSeq={seqs.get(data.comparisonId)!}
     />
+    <NoticeStrip tree={data.tree} {same} comparisonSeq={seqs.get(data.comparisonId)!} />
 
     <RosterColumnLabels />
     <div class="canvas">

@@ -14,6 +14,13 @@ const SOURCE_RANK: Record<AccessType["type"], number> = { Direct: 0, Group: 1, M
 export const METER: Record<Permission, string> = { Admin: "■■■", Write: "■■□", Read: "■□□" };
 const LEVEL_CLASS: Record<Permission, LevelClass> = { Admin: "lvl-admin", Write: "lvl-write", Read: "lvl-read" };
 
+/** A Group's own entry whose membership could not be resolved (CONTEXT.md) — shared by the
+ * row's own tag (below) and the notice strip (noticeStrip.ts) so the two can't drift apart
+ * on the definition. */
+export function isUnresolvedGroup(entry: PrincipalEntry): boolean {
+  return entry.accessType.type === "Group" && entry.membersResolved === false;
+}
+
 /** `direct`, `group`, or `grp:<name>` — never spills into the notes column. */
 export function sourceLabel(accessType: AccessType): string {
   switch (accessType.type) {
@@ -41,7 +48,7 @@ export function sortedPrincipals(entries: PrincipalEntry[]): PrincipalEntry[] {
 
 export interface RosterRowTag {
   label: string;
-  kind: "esc";
+  kind: "esc" | "unresolved";
 }
 
 export interface RosterRowView {
@@ -71,59 +78,69 @@ export function deriveRow(entry: PrincipalEntry): RosterRowView {
     meter: METER[entry.permission],
   };
 
-  switch (status.status) {
-    case "None":
-      return {
-        ...base,
-        state: "same",
-        sigil: "·",
-        struck: false,
-        isEscalation: false,
-        showTransition: false,
-        from: "",
-        to: "",
-        tags: [],
-      };
-    case "Grant":
-      return {
-        ...base,
-        state: "added",
-        sigil: "+",
-        struck: false,
-        isEscalation: false,
-        showTransition: true,
-        from: "—",
-        to: base.levelWord,
-        tags: [],
-      };
-    case "Revoke":
-      return {
-        ...base,
-        state: "removed",
-        sigil: "−",
-        struck: true,
-        isEscalation: false,
-        showTransition: true,
-        from: base.levelWord,
-        to: "—",
-        tags: [],
-      };
-    case "LevelChange": {
-      const isEscalation = status.kind === "Escalation";
-      const tags: RosterRowTag[] = isEscalation
-        ? [{ label: status.to === "Admin" ? "escalation → admin" : "escalation", kind: "esc" }]
-        : [];
-      return {
-        ...base,
-        state: "modified",
-        sigil: "~",
-        struck: false,
-        isEscalation,
-        showTransition: true,
-        from: status.from.toLowerCase(),
-        to: status.to.toLowerCase(),
-        tags,
-      };
+  const view: RosterRowView = (() => {
+    switch (status.status) {
+      case "None":
+        return {
+          ...base,
+          state: "same",
+          sigil: "·",
+          struck: false,
+          isEscalation: false,
+          showTransition: false,
+          from: "",
+          to: "",
+          tags: [],
+        };
+      case "Grant":
+        return {
+          ...base,
+          state: "added",
+          sigil: "+",
+          struck: false,
+          isEscalation: false,
+          showTransition: true,
+          from: "—",
+          to: base.levelWord,
+          tags: [],
+        };
+      case "Revoke":
+        return {
+          ...base,
+          state: "removed",
+          sigil: "−",
+          struck: true,
+          isEscalation: false,
+          showTransition: true,
+          from: base.levelWord,
+          to: "—",
+          tags: [],
+        };
+      case "LevelChange": {
+        const isEscalation = status.kind === "Escalation";
+        const tags: RosterRowTag[] = isEscalation
+          ? [{ label: status.to === "Admin" ? "escalation → admin" : "escalation", kind: "esc" }]
+          : [];
+        return {
+          ...base,
+          state: "modified",
+          sigil: "~",
+          struck: false,
+          isEscalation,
+          showTransition: true,
+          from: status.from.toLowerCase(),
+          to: status.to.toLowerCase(),
+          tags,
+        };
+      }
     }
+  })();
+
+  // Unresolvable membership (CONTEXT.md): only a Group's own row carries this — never the
+  // Member rows beneath it, since an unresolved group derives none.
+  if (isUnresolvedGroup(entry)) {
+    view.tags = [...view.tags, { label: "members unresolved", kind: "unresolved" }];
   }
+
+  return view;
 }

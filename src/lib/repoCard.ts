@@ -114,18 +114,24 @@ export function absentSide(repo: RepoNode): AbsentSide {
 }
 
 export interface RepoTag {
-  kind: "gone" | "new";
+  kind: "gone" | "new" | "failed";
   label: string;
 }
 
 /** A repo absent from the Comparison side carries `absent from run N`; a repo absent only from
  * the Baseline — present for the first time as of the Comparison — carries `new in run N`. Both
  * name the Comparison run, matching the reference design. Repo arrival proper is PD-17; until
- * then this is driven entirely off repo-absence data, per PD-16's stated scope. */
+ * then this is driven entirely off repo-absence data, per PD-16's stated scope.
+ *
+ * Discovery (absent/new) takes priority over `fetchFailed` (PD-19) — a repo genuinely missing
+ * from one side's discovery is the more significant structural fact than a fetch error on the
+ * side where it *was* discovered. `fetch failed` reuses the neutral tag palette (ADR-0005): it
+ * is not a diff outcome, so it may not claim the red/green hues those are reserved for. */
 export function repoTag(repo: RepoNode, comparisonId: number): RepoTag | null {
   const side = absentSide(repo);
   if (side === "B") return { kind: "gone", label: `absent from run ${comparisonId}` };
   if (side === "A") return { kind: "new", label: `new in run ${comparisonId}` };
+  if (repo.fetchFailed) return { kind: "failed", label: "fetch failed" };
   return null;
 }
 

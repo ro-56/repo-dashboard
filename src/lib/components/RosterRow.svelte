@@ -182,4 +182,9 @@
     border-color: var(--tag-esc-border);
     color: var(--tag-esc-ink);
   }
+  .tag-unresolved {
+    background: var(--tag-neutral-bg);
+    border-color: var(--tag-neutral-border);
+    color: var(--tag-neutral-ink);
+  }
 </style>

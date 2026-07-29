@@ -32,6 +32,11 @@ export interface PrincipalEntry {
   permission: Permission;
   diffStatus: DiffStatus;
   workspaceState: WorkspaceState | null;
+  // Unresolvable membership (CONTEXT.md): null for Direct/Member entries — only a Group's own
+  // grant carries this. `false` means the group's own grant was fetched but its member list
+  // could not be, distinct from `true` (a confirmed, possibly empty, member list) — both states
+  // render zero Member rows beneath the group, so this is the only thing telling them apart.
+  membersResolved: boolean | null;
 }
 
 export interface RepoNode {
@@ -40,6 +45,11 @@ export interface RepoNode {
   statusA: RepoStatus | null;
   statusB: RepoStatus | null;
   discoveryState: RepoDiscoveryState;
+  // Fetch failure (CONTEXT.md): either side's permissions call for this repo failed. When
+  // true, `principals` is always empty — a fetch failure yields no reliable data to diff, so
+  // the tree renders nothing rather than a pile of spurious Grants/Revokes against whichever
+  // side succeeded. Distinct from a repo confirmed to have zero grants.
+  fetchFailed: boolean;
   principals: PrincipalEntry[];
   readCount: number;
   writeCount: number;

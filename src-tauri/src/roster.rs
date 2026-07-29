@@ -8,9 +8,11 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::Connection;
 use serde::Serialize;
 
-use crate::diff::{diff_snapshots, DiffResult, LevelChangeKind, RecordDiff, Snapshot};
-use crate::model::{AccessType, Permission, PermissionRecord, RepoFetchStatus, RepoStatus};
-use crate::storage::load_snapshot;
+use crate::diff::{diff_snapshots, DiffResult, LevelChangeKind, RecordDiff, Side, Snapshot};
+use crate::model::{
+    AccessType, GroupMembershipStatus, Permission, PermissionRecord, RepoFetchStatus, RepoStatus,
+};
+use crate::storage::{load_group_membership_statuses, load_snapshot};
 
 /// Mirrors `diff.rs`'s private record key exactly, so a record counted as "changed" by the
 /// diff engine is never also folded in again as unchanged.
@@ -49,6 +51,14 @@ pub struct PrincipalEntry {
     /// grant does not make it a user). Attached to every row for that Principal across every
     /// repo, not just the ones where its access changed on this particular repo.
     pub workspace_state: Option<WorkspaceState>,
+    /// Unresolvable membership (CONTEXT.md): `None` for `Direct`/`Member` entries — only a
+    /// `Group`'s own grant carries this. `Some(false)` means the group's own grant was fetched
+    /// but its member list could not be, distinct from `Some(true)` (a confirmed, possibly
+    /// empty, member list) — both states have zero derived `Member` rows in this tree, so this
+    /// field is the only thing that tells them apart. Sourced from whichever Snapshot side this
+    /// entry's `permission` was read from (B for Grant/None/LevelChange, A for Revoke), mirroring
+    /// that field's own side selection.
+    pub members_resolved: Option<bool>,
 }
 
 /// Repo arrival / absence (CONTEXT.md): whether this repo's discovery — independent of
@@ -87,6 +97,13 @@ pub struct RepoNode {
     pub status_a: Option<RepoStatus>,
     pub status_b: Option<RepoStatus>,
     pub discovery_state: RepoDiscoveryState,
+    /// Fetch failure (CONTEXT.md): true when either side's permissions call for this repo
+    /// failed. `principals` is forced empty whenever this is true — a fetch failure yields no
+    /// reliable data to diff, so the raw diff engine's output for this repo (which would
+    /// otherwise read as a pile of spurious Grants/Revokes against the side that succeeded) is
+    /// discarded in favour of rendering nothing, distinct from a repo confirmed to have zero
+    /// grants.
+    pub fetch_failed: bool,
     pub principals: Vec<PrincipalEntry>,
     /// Counts reflect currently-held access (i.e. exclude Revoked entries) — a Grant, an
     /// unchanged record, and the "to" side of a Level change all count; a Revoke does not,
@@ -95,7 +112,7 @@ pub struct RepoNode {
     pub write_count: usize,
     pub admin_count: usize,
     /// Count of Grant + Revoke + Level-change entries in this repo. Zero whenever A and B
-    /// are the same Snapshot.
+    /// are the same Snapshot, and forced to zero when `fetch_failed` is true.
     pub change_count: usize,
 }
 
@@ -160,6 +177,19 @@ fn repo_status_map(statuses: &[RepoFetchStatus]) -> HashMap<RepoKey, RepoStatus>
     statuses
         .iter()
         .map(|s| ((s.repo_project.clone(), s.repo.clone()), s.status))
+        .collect()
+}
+
+type GroupKey = (String, String, String);
+
+/// Keyed on `(repo_project, repo, group_id)` — a `Group` grant's own membership-resolution
+/// fact for one Snapshot side. `normalize_repo_group_permissions` always writes exactly one of
+/// these alongside a `Group` `PermissionRecord`, so a lookup miss should not happen in
+/// practice; `resolved_or_default` treats it as resolved rather than surfacing a phantom tag.
+fn membership_status_map(statuses: &[GroupMembershipStatus]) -> HashMap<GroupKey, bool> {
+    statuses
+        .iter()
+        .map(|s| ((s.repo_project.clone(), s.repo.clone(), s.group_id.clone()), s.members_resolved))
         .collect()
 }
 
@@ -235,7 +265,13 @@ fn pair_stats(diff: &DiffResult, a: &Snapshot, b: &Snapshot) -> PairStats {
     PairStats { added, revoked, changed, escalations, repos_hit: repos_hit.len(), net }
 }
 
-fn build_roster_tree(a: &Snapshot, b: &Snapshot, diff: &DiffResult) -> RosterTree {
+fn build_roster_tree(
+    a: &Snapshot,
+    b: &Snapshot,
+    diff: &DiffResult,
+    membership_a: &[GroupMembershipStatus],
+    membership_b: &[GroupMembershipStatus],
+) -> RosterTree {
     // Workspace departure/arrival (CONTEXT.md) is scoped to user Principals: a Principal
     // holding at least one Direct/Member grant anywhere in one Snapshot and none anywhere in
     // the other. Computed once, up front, over the whole Snapshot — never per-repo — so that
@@ -257,6 +293,27 @@ fn build_roster_tree(a: &Snapshot, b: &Snapshot, diff: &DiffResult) -> RosterTre
         }
     };
 
+    let membership_map_a = membership_status_map(membership_a);
+    let membership_map_b = membership_status_map(membership_b);
+    // A `Group`'s own grant has no group id in `AccessType::Group` itself — for that access
+    // type, `principal.id` *is* the group's slug (model.rs). Mirrors `permission`'s own side
+    // selection (B for Grant/None/LevelChange, A for Revoke) — the membership fact travels with
+    // whichever side's value is on display.
+    let members_resolved =
+        |access_type: &AccessType, principal_id: &str, repo_project: &str, repo: &str, side: Side| -> Option<bool> {
+            match access_type {
+                AccessType::Group => {
+                    let map = match side {
+                        Side::B => &membership_map_b,
+                        Side::A => &membership_map_a,
+                    };
+                    let key = (repo_project.to_string(), repo.to_string(), principal_id.to_string());
+                    Some(map.get(&key).copied().unwrap_or(true))
+                }
+                AccessType::Direct | AccessType::Member(_) => None,
+            }
+        };
+
     let mut by_repo: HashMap<(String, String), Vec<PrincipalEntry>> = HashMap::new();
     let mut changed_keys: HashSet<RecordKey> = HashSet::new();
 
@@ -273,6 +330,13 @@ fn build_roster_tree(a: &Snapshot, b: &Snapshot, diff: &DiffResult) -> RosterTre
                         permission: r.permission,
                         diff_status: DiffStatus::Grant,
                         workspace_state: workspace_state(&r.access_type, &r.principal.id),
+                        members_resolved: members_resolved(
+                            &r.access_type,
+                            &r.principal.id,
+                            &r.repo_project,
+                            &r.repo,
+                            Side::B,
+                        ),
                     },
                 )
             }
@@ -287,6 +351,13 @@ fn build_roster_tree(a: &Snapshot, b: &Snapshot, diff: &DiffResult) -> RosterTre
                         permission: r.permission,
                         diff_status: DiffStatus::Revoke,
                         workspace_state: workspace_state(&r.access_type, &r.principal.id),
+                        members_resolved: members_resolved(
+                            &r.access_type,
+                            &r.principal.id,
+                            &r.repo_project,
+                            &r.repo,
+                            Side::A,
+                        ),
                     },
                 )
             }
@@ -301,6 +372,7 @@ fn build_roster_tree(a: &Snapshot, b: &Snapshot, diff: &DiffResult) -> RosterTre
                         permission: *to,
                         diff_status: DiffStatus::LevelChange { from: *from, to: *to, kind: *kind },
                         workspace_state: workspace_state(access_type, &principal.id),
+                        members_resolved: members_resolved(access_type, &principal.id, repo_project, repo, Side::B),
                     },
                 )
             }
@@ -320,6 +392,7 @@ fn build_roster_tree(a: &Snapshot, b: &Snapshot, diff: &DiffResult) -> RosterTre
             permission: r.permission,
             diff_status: DiffStatus::None,
             workspace_state: workspace_state(&r.access_type, &r.principal.id),
+            members_resolved: members_resolved(&r.access_type, &r.principal.id, &r.repo_project, &r.repo, Side::B),
         });
     }
 
@@ -335,7 +408,16 @@ fn build_roster_tree(a: &Snapshot, b: &Snapshot, diff: &DiffResult) -> RosterTre
 
     for key in repo_keys {
         let (repo_project, repo) = key.clone();
-        let mut principals = by_repo.remove(&key).unwrap_or_default();
+
+        // Fetch failure (CONTEXT.md): either side's permissions call for this repo errored.
+        // The diff engine has no way to know that — a repo Ok on one side and FetchFailed on
+        // the other produces a pile of spurious Grant/Revoke entries against the side that
+        // succeeded, which would misrepresent an API failure as real access changes. Discard
+        // whatever `by_repo` computed for this key and render nothing.
+        let fetch_failed = matches!(status_a.get(&key), Some(RepoStatus::FetchFailed))
+            || matches!(status_b.get(&key), Some(RepoStatus::FetchFailed));
+
+        let mut principals = if fetch_failed { Vec::new() } else { by_repo.remove(&key).unwrap_or_default() };
         principals.sort_by(|x, y| {
             x.principal.label.cmp(&y.principal.label).then(x.principal.id.cmp(&y.principal.id))
         });
@@ -370,6 +452,7 @@ fn build_roster_tree(a: &Snapshot, b: &Snapshot, diff: &DiffResult) -> RosterTre
             status_a: status_a.get(&key).copied(),
             status_b: status_b.get(&key).copied(),
             discovery_state,
+            fetch_failed,
             principals,
             read_count,
             write_count,
@@ -403,8 +486,11 @@ pub fn get_roster_tree(
     let b = load_snapshot(conn, snapshot_b_id)?;
     let diff = diff_snapshots(&a, &b);
 
+    let membership_a = load_group_membership_statuses(conn, snapshot_a_id)?;
+    let membership_b = load_group_membership_statuses(conn, snapshot_b_id)?;
+
     Ok(RosterTreeResult {
-        tree: build_roster_tree(&a, &b, &diff),
+        tree: build_roster_tree(&a, &b, &diff, &membership_a, &membership_b),
         comparison: comparison_summary(&b),
         pair: pair_stats(&diff, &a, &b),
     })
@@ -476,6 +562,28 @@ mod tests {
             repo_project: repo_project.to_string(),
             repo: repo.to_string(),
             status: RepoStatus::Ok,
+        }
+    }
+
+    fn fetch_failed_status(repo_project: &str, repo: &str) -> RepoFetchStatus {
+        RepoFetchStatus {
+            repo_project: repo_project.to_string(),
+            repo: repo.to_string(),
+            status: RepoStatus::FetchFailed,
+        }
+    }
+
+    fn membership_status(
+        repo_project: &str,
+        repo: &str,
+        group_id: &str,
+        members_resolved: bool,
+    ) -> GroupMembershipStatus {
+        GroupMembershipStatus {
+            repo_project: repo_project.to_string(),
+            repo: repo.to_string(),
+            group_id: group_id.to_string(),
+            members_resolved,
         }
     }
 
@@ -765,5 +873,111 @@ mod tests {
             .principals
             .iter()
             .all(|p| p.workspace_state == Some(WorkspaceState::Present)));
+    }
+
+    #[test]
+    fn repo_fetch_failed_on_comparison_side_renders_empty_roster_not_spurious_revokes() {
+        let mut conn = open_conn();
+        let a = Snapshot {
+            records: vec![
+                record("TEAM", "repo-a", "acct-1", "Ada", Permission::Read),
+                record("TEAM", "repo-a", "acct-2", "Grace", Permission::Admin),
+            ],
+            repo_statuses: vec![ok_status("TEAM", "repo-a")],
+        };
+        // The permissions call for repo-a failed this run — no records collected for it, but
+        // the repo was still discovered, so it gets a FetchFailed status, not an absent one.
+        let b = Snapshot { records: vec![], repo_statuses: vec![fetch_failed_status("TEAM", "repo-a")] };
+
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+
+        let result = get_roster_tree(&conn, a_id, b_id).unwrap();
+        let repo = repo_node(&result.tree, "TEAM", "repo-a");
+
+        assert!(repo.fetch_failed);
+        // Without the fetch-failed override, Ada and Grace would show as two Revokes — the
+        // whole point of this state is that we don't actually know that.
+        assert!(repo.principals.is_empty());
+        assert_eq!(repo.change_count, 0);
+        assert_eq!(repo.read_count, 0);
+        assert_eq!(repo.admin_count, 0);
+        assert_eq!(repo.discovery_state, RepoDiscoveryState::Present);
+    }
+
+    #[test]
+    fn repo_ok_with_zero_grants_is_distinct_from_a_fetch_failed_repo() {
+        let mut conn = open_conn();
+        let snapshot = Snapshot { records: vec![], repo_statuses: vec![ok_status("TEAM", "repo-a")] };
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[]).unwrap();
+
+        let result = get_roster_tree(&conn, id, id).unwrap();
+        let repo = repo_node(&result.tree, "TEAM", "repo-a");
+
+        assert!(!repo.fetch_failed);
+        assert!(repo.principals.is_empty());
+    }
+
+    #[test]
+    fn group_with_unresolvable_membership_is_flagged_on_its_own_row() {
+        let mut conn = open_conn();
+        let a = Snapshot::default();
+        let b = Snapshot {
+            records: vec![group_record("TEAM", "repo-a", "locked-group", "Locked Group", Permission::Read)],
+            repo_statuses: vec![ok_status("TEAM", "repo-a")],
+        };
+        let membership_b = vec![membership_status("TEAM", "repo-a", "locked-group", false)];
+
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &membership_b).unwrap();
+
+        let result = get_roster_tree(&conn, a_id, b_id).unwrap();
+        let repo = repo_node(&result.tree, "TEAM", "repo-a");
+
+        assert_eq!(principal_entry(repo, "Locked Group").members_resolved, Some(false));
+    }
+
+    #[test]
+    fn group_with_confirmed_membership_is_distinct_from_an_unresolved_one() {
+        let mut conn = open_conn();
+        let snapshot = Snapshot {
+            records: vec![group_record("TEAM", "repo-a", "empty-group", "Empty Group", Permission::Read)],
+            repo_statuses: vec![ok_status("TEAM", "repo-a")],
+        };
+        let membership = vec![membership_status("TEAM", "repo-a", "empty-group", true)];
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &membership).unwrap();
+
+        let result = get_roster_tree(&conn, id, id).unwrap();
+        let repo = repo_node(&result.tree, "TEAM", "repo-a");
+
+        // Both states render zero Member rows beneath the group — `members_resolved` is the
+        // only thing distinguishing "confirmed empty" from "couldn't check".
+        assert_eq!(principal_entry(repo, "Empty Group").members_resolved, Some(true));
+        assert!(!repo.principals.iter().any(|p| matches!(p.access_type, AccessType::Member(_))));
+    }
+
+    #[test]
+    fn direct_and_member_entries_never_carry_a_membership_resolution_fact() {
+        let mut conn = open_conn();
+        let snapshot = Snapshot {
+            records: vec![
+                record("TEAM", "repo-a", "acct-1", "Ada", Permission::Read),
+                group_record("TEAM", "repo-a", "platform-eng", "Platform Engineering", Permission::Write),
+                member_record("TEAM", "repo-a", "platform-eng", "acct-2", "Grace", Permission::Write),
+            ],
+            repo_statuses: vec![ok_status("TEAM", "repo-a")],
+        };
+        let membership = vec![membership_status("TEAM", "repo-a", "platform-eng", true)];
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &membership).unwrap();
+
+        let result = get_roster_tree(&conn, id, id).unwrap();
+        let repo = repo_node(&result.tree, "TEAM", "repo-a");
+
+        assert_eq!(principal_entry(repo, "Ada").members_resolved, None);
+        assert_eq!(principal_entry(repo, "Grace").members_resolved, None);
+        assert_eq!(
+            principal_entry(repo, "Platform Engineering").members_resolved,
+            Some(true)
+        );
     }
 }

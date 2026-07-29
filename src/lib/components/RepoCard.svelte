@@ -171,6 +171,11 @@
     border-color: var(--tag-new-border);
     color: var(--tag-new-ink);
   }
+  .tag-failed {
+    background: var(--tag-neutral-bg);
+    border-color: var(--tag-neutral-border);
+    color: var(--tag-neutral-ink);
+  }
 
   .roster {
     display: flex;
