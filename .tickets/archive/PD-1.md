@@ -5,11 +5,11 @@ id: PD-1
 links: []
 mode: afk
 priority: 2
-status: open
+status: closed
 tags: []
 title: Permission normalization & diff engine (Principal model)
 type: feature
-updated: "2026-07-28T17:56:50Z"
+updated: "2026-07-29T01:43:48Z"
 ---
 
 ## Problem Statement

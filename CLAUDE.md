@@ -11,7 +11,8 @@ The codebase is currently the stock `pnpm create tauri-app` scaffold — no app-
 - `.references/PRD.md` — full product spec (functional requirements, data model, non-goals). Read this before implementing any feature.
 - `.references/project-ref.md` — IA rationale (why "grouped by repo" won over other layouts).
 - `.references/main.py` — the Python script whose data-collection logic must be ported (repo discovery, direct/group permission fetch, per-repo 404 handling).
-- `.references/dashboard_designs.html` — finalized visual design with prototyped states (`1a`–`1i`) for the roster/diff dashboard.
+- `.references/dashboard_designs.html` — finalized visual design with prototyped states (`1a`–`1i`) for the roster/diff dashboard, all in one file.
+- `.references/standalone/` — the same prototyped states split one file per state (e.g. `1a Default access.html`, `1b Collapsed overview.html`, ... `1i No matches.html`) — prefer these when working on a single state to avoid loading the whole combined file.
 
 Work is tracked in taskr (`.tickets/`, prefix `PD`). Run `taskr ready` to see unblocked work and `taskr show <id>` before starting any ticket.
 

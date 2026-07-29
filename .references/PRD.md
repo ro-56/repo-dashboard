@@ -106,4 +106,4 @@ Diff between two snapshots is computed at query time (not stored), keyed on `(re
 ## 9. Traceability
 - IA rationale and scope boundaries: `.references/project-ref.md`
 - Current data-collection logic to port: `.references/main.py`
-- Finalized visual design + prototyped states (`1a`–`1i`): `.references/dashboard_designs.html`
+- Finalized visual design + prototyped states (`1a`–`1i`): `.references/dashboard_designs.html` (combined) or `.references/standalone/` (split one-file-per-state, e.g. `1a Default access.html`)

@@ -59,6 +59,10 @@
       <p>{runResult}</p>
     {/if}
   </section>
+
+  <section>
+    <a href="/dashboard">View roster dashboard →</a>
+  </section>
 </main>
 
 <style>
