@@ -48,6 +48,18 @@ pub trait BitbucketClient {
         workspace: &str,
         group_slug: &str,
     ) -> impl std::future::Future<Output = Result<Vec<RawMember>, ClientError>> + Send;
+
+    fn list_project_direct_permissions(
+        &self,
+        workspace: &str,
+        project_key: &str,
+    ) -> impl std::future::Future<Output = Result<Vec<RawUserPermission>, ClientError>> + Send;
+
+    fn list_project_group_permissions(
+        &self,
+        workspace: &str,
+        project_key: &str,
+    ) -> impl std::future::Future<Output = Result<Vec<RawGroupPermission>, ClientError>> + Send;
 }
 
 const RETRY_BACKOFF: std::time::Duration = std::time::Duration::from_millis(500);
@@ -196,6 +208,54 @@ impl BitbucketClient for RealBitbucketClient {
                 Some(RawMember {
                     account_id: v.get("account_id")?.as_str()?.to_string(),
                     display_name: v.get("display_name")?.as_str()?.to_string(),
+                })
+            })
+            .collect())
+    }
+
+    async fn list_project_direct_permissions(
+        &self,
+        workspace: &str,
+        project_key: &str,
+    ) -> Result<Vec<RawUserPermission>, ClientError> {
+        let url = format!(
+            "https://api.bitbucket.org/2.0/workspaces/{workspace}/projects/{project_key}/permissions-config/users"
+        );
+        let values = self.get_paginated(url).await?;
+        Ok(values
+            .into_iter()
+            .filter_map(|v| {
+                let user = v.get("user")?;
+                Some(RawUserPermission {
+                    account_id: user.get("account_id")?.as_str()?.to_string(),
+                    display_name: user.get("display_name")?.as_str()?.to_string(),
+                    permission: v.get("permission")?.as_str()?.to_string(),
+                })
+            })
+            .collect())
+    }
+
+    async fn list_project_group_permissions(
+        &self,
+        workspace: &str,
+        project_key: &str,
+    ) -> Result<Vec<RawGroupPermission>, ClientError> {
+        let url = format!(
+            "https://api.bitbucket.org/2.0/workspaces/{workspace}/projects/{project_key}/permissions-config/groups"
+        );
+        let values = self.get_paginated(url).await?;
+        Ok(values
+            .into_iter()
+            .filter_map(|v| {
+                let group = v.get("group")?;
+                Some(RawGroupPermission {
+                    group_slug: group.get("slug")?.as_str()?.to_string(),
+                    group_name: group.get("name")?.as_str()?.to_string(),
+                    permission: v.get("permission")?.as_str()?.to_string(),
+                    // Placeholder — `collect_and_store` resolves each group's members
+                    // separately (once per Run, cached by group id, shared with repo-level
+                    // group resolution) and overwrites this field before normalization.
+                    members: RawGroupMembersResponse::FetchFailed,
                 })
             })
             .collect())

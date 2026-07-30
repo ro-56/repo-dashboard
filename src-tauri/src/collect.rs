@@ -12,12 +12,15 @@ use rusqlite::Connection;
 
 use crate::client::{BitbucketClient, ClientError};
 use crate::diff::Snapshot;
-use crate::model::{GroupMembershipStatus, PermissionRecord, RepoFetchStatus, RepoStatus};
+use crate::model::{
+    GroupMembershipStatus, PermissionRecord, ProjectFetchStatus, RepoFetchStatus, RepoStatus,
+};
 use crate::normalize::{
+    normalize_project_group_permissions, normalize_project_permissions,
     normalize_repo_group_permissions, normalize_repo_permissions, RawGroupMembersResponse,
     RawGroupPermission, RawGroupsResponse, RawMember, RawUsersResponse,
 };
-use crate::storage::save_snapshot;
+use crate::storage::{save_project_fetch_statuses, save_snapshot};
 
 /// A Discovery failure (glossary, `CONTEXT.md`) aborts before any Snapshot row exists.
 /// `CredentialRejected` covers a 401 at any point in the Run — discovery or a later call —
@@ -54,10 +57,16 @@ pub async fn collect_and_store<C: BitbucketClient>(
     let mut records: Vec<PermissionRecord> = Vec::new();
     let mut repo_statuses: Vec<RepoFetchStatus> = Vec::new();
     let mut group_membership_statuses: Vec<GroupMembershipStatus> = Vec::new();
+    let mut project_statuses: Vec<ProjectFetchStatus> = Vec::new();
     // Caches each group's resolved membership by group id for the lifetime of this Run, so a
     // group granting access to many repos only costs one `list_group_members` call (the
-    // caching improvement agreed in the PD-5 design session).
+    // caching improvement agreed in the PD-5 design session). Shared between repo-level and
+    // Project-level group resolution since both draw from the same group id space.
     let mut member_cache: HashMap<String, Result<Vec<RawMember>, ClientError>> = HashMap::new();
+    // Caches each Project's raw Direct/Group responses by project key, so a Project owning
+    // many repos only costs one `list_project_direct_permissions` and one
+    // `list_project_group_permissions` call (PD-29), mirroring `member_cache` above.
+    let mut project_cache: HashMap<String, (RawUsersResponse, RawGroupsResponse)> = HashMap::new();
 
     for repo in repos {
         let raw = match client.list_direct_permissions(workspace, &repo.repo).await {
@@ -107,6 +116,88 @@ pub async fn collect_and_store<C: BitbucketClient>(
         records.append(&mut group_records);
         group_membership_statuses.append(&mut membership_statuses);
 
+        if !project_cache.contains_key(&repo.repo_project) {
+            let raw_project_users = match client
+                .list_project_direct_permissions(workspace, &repo.repo_project)
+                .await
+            {
+                Ok(perms) => RawUsersResponse::Ok(perms),
+                Err(ClientError::Unauthorized) => return Err(RunError::CredentialRejected),
+                Err(ClientError::RateLimited) | Err(ClientError::Other(_)) => {
+                    RawUsersResponse::FetchFailed
+                }
+            };
+
+            let raw_project_groups = match client
+                .list_project_group_permissions(workspace, &repo.repo_project)
+                .await
+            {
+                Ok(groups) => {
+                    let mut resolved = Vec::with_capacity(groups.len());
+                    for group in groups {
+                        let members_result = match member_cache.get(&group.group_slug) {
+                            Some(cached) => cached.clone(),
+                            None => {
+                                let result = client
+                                    .list_group_members(workspace, &group.group_slug)
+                                    .await;
+                                member_cache.insert(group.group_slug.clone(), result.clone());
+                                result
+                            }
+                        };
+                        let members = match members_result {
+                            Ok(members) => RawGroupMembersResponse::Ok(members),
+                            Err(ClientError::Unauthorized) => {
+                                return Err(RunError::CredentialRejected)
+                            }
+                            Err(ClientError::RateLimited) | Err(ClientError::Other(_)) => {
+                                RawGroupMembersResponse::FetchFailed
+                            }
+                        };
+                        resolved.push(RawGroupPermission { members, ..group });
+                    }
+                    RawGroupsResponse::Ok(resolved)
+                }
+                Err(ClientError::Unauthorized) => return Err(RunError::CredentialRejected),
+                Err(ClientError::RateLimited) | Err(ClientError::Other(_)) => {
+                    RawGroupsResponse::FetchFailed
+                }
+            };
+
+            let project_status = if matches!(raw_project_users, RawUsersResponse::FetchFailed)
+                || matches!(raw_project_groups, RawGroupsResponse::FetchFailed)
+            {
+                RepoStatus::FetchFailed
+            } else {
+                RepoStatus::Ok
+            };
+            project_statuses.push(ProjectFetchStatus {
+                project_key: repo.repo_project.clone(),
+                status: project_status,
+            });
+
+            project_cache
+                .insert(repo.repo_project.clone(), (raw_project_users, raw_project_groups));
+        }
+
+        let (cached_project_users, cached_project_groups) = project_cache
+            .get(&repo.repo_project)
+            .expect("just populated above if it was missing");
+        let (mut project_direct_records, _) = normalize_project_permissions(
+            &repo.repo_project,
+            &repo.repo,
+            cached_project_users.clone(),
+        );
+        records.append(&mut project_direct_records);
+        let (mut project_group_records, mut project_membership_statuses) =
+            normalize_project_group_permissions(
+                &repo.repo_project,
+                &repo.repo,
+                cached_project_groups.clone(),
+            );
+        records.append(&mut project_group_records);
+        group_membership_statuses.append(&mut project_membership_statuses);
+
         let status = if direct_status.status == RepoStatus::FetchFailed || group_fetch_failed {
             RepoStatus::FetchFailed
         } else {
@@ -120,8 +211,11 @@ pub async fn collect_and_store<C: BitbucketClient>(
     }
 
     let snapshot = Snapshot { records, repo_statuses };
-    save_snapshot(conn, run_at, &snapshot, &group_membership_statuses)
-        .map_err(|e| RunError::StorageFailed(e.to_string()))
+    let snapshot_id = save_snapshot(conn, run_at, &snapshot, &group_membership_statuses)
+        .map_err(|e| RunError::StorageFailed(e.to_string()))?;
+    save_project_fetch_statuses(conn, snapshot_id, &project_statuses)
+        .map_err(|e| RunError::StorageFailed(e.to_string()))?;
+    Ok(snapshot_id)
 }
 
 #[cfg(test)]
@@ -130,7 +224,9 @@ mod tests {
     use crate::client::RepoInfo;
     use crate::model::RepoStatus;
     use crate::normalize::{RawGroupMembersResponse, RawGroupPermission, RawUserPermission};
-    use crate::storage::{init_schema, load_group_membership_statuses, load_snapshot};
+    use crate::storage::{
+        init_schema, load_group_membership_statuses, load_project_fetch_statuses, load_snapshot,
+    };
     use std::collections::HashMap;
     use std::sync::Mutex;
 
@@ -140,6 +236,10 @@ mod tests {
         group_permissions: HashMap<String, Result<Vec<RawGroupPermission>, ClientError>>,
         group_members: HashMap<String, Result<Vec<RawMember>, ClientError>>,
         group_members_call_counts: Mutex<HashMap<String, u32>>,
+        project_direct_permissions: HashMap<String, Result<Vec<RawUserPermission>, ClientError>>,
+        project_group_permissions: HashMap<String, Result<Vec<RawGroupPermission>, ClientError>>,
+        project_direct_permissions_call_counts: Mutex<HashMap<String, u32>>,
+        project_group_permissions_call_counts: Mutex<HashMap<String, u32>>,
     }
 
     impl FakeBitbucketClient {
@@ -150,6 +250,10 @@ mod tests {
                 group_permissions: HashMap::new(),
                 group_members: HashMap::new(),
                 group_members_call_counts: Mutex::new(HashMap::new()),
+                project_direct_permissions: HashMap::new(),
+                project_group_permissions: HashMap::new(),
+                project_direct_permissions_call_counts: Mutex::new(HashMap::new()),
+                project_group_permissions_call_counts: Mutex::new(HashMap::new()),
             }
         }
 
@@ -186,6 +290,42 @@ mod tests {
                 .lock()
                 .unwrap()
                 .get(group_slug)
+                .unwrap_or(&0)
+        }
+
+        fn with_project_direct_permissions(
+            mut self,
+            project_key: &str,
+            result: Result<Vec<RawUserPermission>, ClientError>,
+        ) -> Self {
+            self.project_direct_permissions.insert(project_key.to_string(), result);
+            self
+        }
+
+        fn with_project_group_permissions(
+            mut self,
+            project_key: &str,
+            result: Result<Vec<RawGroupPermission>, ClientError>,
+        ) -> Self {
+            self.project_group_permissions.insert(project_key.to_string(), result);
+            self
+        }
+
+        fn project_direct_permissions_call_count(&self, project_key: &str) -> u32 {
+            *self
+                .project_direct_permissions_call_counts
+                .lock()
+                .unwrap()
+                .get(project_key)
+                .unwrap_or(&0)
+        }
+
+        fn project_group_permissions_call_count(&self, project_key: &str) -> u32 {
+            *self
+                .project_group_permissions_call_counts
+                .lock()
+                .unwrap()
+                .get(project_key)
                 .unwrap_or(&0)
         }
     }
@@ -230,6 +370,40 @@ mod tests {
                 .or_insert(0) += 1;
             self.group_members
                 .get(group_slug)
+                .cloned()
+                .unwrap_or(Ok(Vec::new()))
+        }
+
+        async fn list_project_direct_permissions(
+            &self,
+            _workspace: &str,
+            project_key: &str,
+        ) -> Result<Vec<RawUserPermission>, ClientError> {
+            *self
+                .project_direct_permissions_call_counts
+                .lock()
+                .unwrap()
+                .entry(project_key.to_string())
+                .or_insert(0) += 1;
+            self.project_direct_permissions
+                .get(project_key)
+                .cloned()
+                .unwrap_or(Ok(Vec::new()))
+        }
+
+        async fn list_project_group_permissions(
+            &self,
+            _workspace: &str,
+            project_key: &str,
+        ) -> Result<Vec<RawGroupPermission>, ClientError> {
+            *self
+                .project_group_permissions_call_counts
+                .lock()
+                .unwrap()
+                .entry(project_key.to_string())
+                .or_insert(0) += 1;
+            self.project_group_permissions
+                .get(project_key)
                 .cloned()
                 .unwrap_or(Ok(Vec::new()))
         }
@@ -615,5 +789,216 @@ mod tests {
             .records
             .iter()
             .any(|r| matches!(r.access_type, crate::model::AccessType::Member(_))));
+    }
+
+    #[tokio::test]
+    async fn project_direct_grant_is_scoped_to_project_and_persisted_for_its_repo() {
+        let client = FakeBitbucketClient::new(Ok(vec![repo("TEAM", "repo-a")]))
+            .with_project_direct_permissions("TEAM", Ok(vec![user("acct-9", "Static", "read")]));
+
+        let mut conn = open_conn();
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+            .await
+            .unwrap();
+
+        let loaded = load_snapshot(&conn, snapshot_id).unwrap();
+        let project_record = loaded
+            .records
+            .iter()
+            .find(|r| r.scope == crate::model::GrantScope::Project)
+            .expect("project-scoped record should be persisted");
+        assert_eq!(project_record.repo, "repo-a");
+        assert_eq!(project_record.principal.id, "acct-9");
+
+        let statuses = load_project_fetch_statuses(&conn, snapshot_id).unwrap();
+        assert_eq!(statuses.len(), 1);
+        assert_eq!(statuses[0].project_key, "TEAM");
+        assert_eq!(statuses[0].status, RepoStatus::Ok);
+    }
+
+    #[tokio::test]
+    async fn project_shared_by_multiple_repos_is_fetched_once_and_flattened_to_each_repo() {
+        let client = FakeBitbucketClient::new(Ok(vec![
+            repo("TEAM", "repo-a"),
+            repo("TEAM", "repo-b"),
+        ]))
+        .with_project_direct_permissions("TEAM", Ok(vec![user("acct-9", "Static", "read")]));
+
+        let mut conn = open_conn();
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+            .await
+            .unwrap();
+
+        assert_eq!(client.project_direct_permissions_call_count("TEAM"), 1);
+
+        let loaded = load_snapshot(&conn, snapshot_id).unwrap();
+        let project_records: Vec<_> = loaded
+            .records
+            .iter()
+            .filter(|r| r.scope == crate::model::GrantScope::Project)
+            .collect();
+        assert_eq!(project_records.len(), 2);
+        assert!(project_records.iter().any(|r| r.repo == "repo-a"));
+        assert!(project_records.iter().any(|r| r.repo == "repo-b"));
+
+        let statuses = load_project_fetch_statuses(&conn, snapshot_id).unwrap();
+        assert_eq!(statuses.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn project_group_members_are_resolved_through_the_shared_group_member_cache() {
+        let client = FakeBitbucketClient::new(Ok(vec![repo("TEAM", "repo-a")]))
+            .with_group_permissions(
+                "repo-a",
+                Ok(vec![group_perm("platform-eng", "Platform Engineering", "write")]),
+            )
+            .with_project_group_permissions(
+                "TEAM",
+                Ok(vec![group_perm("platform-eng", "Platform Engineering", "read")]),
+            )
+            .with_group_members("platform-eng", Ok(vec![member("acct-1", "Ada")]));
+
+        let mut conn = open_conn();
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+            .await
+            .unwrap();
+
+        assert_eq!(client.group_members_call_count("platform-eng"), 1);
+        assert_eq!(client.project_group_permissions_call_count("TEAM"), 1);
+
+        let loaded = load_snapshot(&conn, snapshot_id).unwrap();
+        assert!(loaded
+            .records
+            .iter()
+            .any(|r| r.scope == crate::model::GrantScope::Project
+                && r.access_type == crate::model::AccessType::Group));
+        assert!(loaded.records.iter().any(|r| r.scope == crate::model::GrantScope::Project
+            && matches!(r.access_type, crate::model::AccessType::Member(_))));
+    }
+
+    #[tokio::test]
+    async fn project_level_failure_marks_that_project_fetch_failed_only_and_run_continues() {
+        let client = FakeBitbucketClient::new(Ok(vec![
+            repo("TEAM", "repo-a"),
+            repo("OTHER", "repo-b"),
+        ]))
+        .with_project_direct_permissions("TEAM", Err(ClientError::Other("boom".to_string())))
+        .with_project_direct_permissions("OTHER", Ok(vec![user("acct-9", "Static", "read")]))
+        .with_direct_permissions("repo-a", Ok(vec![user("acct-1", "Ada", "admin")]));
+
+        let mut conn = open_conn();
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+            .await
+            .unwrap();
+
+        let loaded = load_snapshot(&conn, snapshot_id).unwrap();
+        // repo-a's own RepoStatus is unaffected by its project's fetch failure.
+        assert_eq!(
+            loaded.repo_statuses.iter().find(|s| s.repo == "repo-a").unwrap().status,
+            RepoStatus::Ok
+        );
+        // No project-scoped record for the failing project, but the direct grant still landed.
+        assert!(loaded.records.iter().any(|r| r.repo == "repo-a"
+            && r.scope == crate::model::GrantScope::Repo));
+        assert!(!loaded
+            .records
+            .iter()
+            .any(|r| r.repo == "repo-a" && r.scope == crate::model::GrantScope::Project));
+
+        let statuses = load_project_fetch_statuses(&conn, snapshot_id).unwrap();
+        assert_eq!(
+            statuses.iter().find(|s| s.project_key == "TEAM").unwrap().status,
+            RepoStatus::FetchFailed
+        );
+        assert_eq!(
+            statuses.iter().find(|s| s.project_key == "OTHER").unwrap().status,
+            RepoStatus::Ok
+        );
+    }
+
+    #[tokio::test]
+    async fn unauthorized_on_project_direct_permissions_aborts_the_whole_run() {
+        let client = FakeBitbucketClient::new(Ok(vec![repo("TEAM", "repo-a")]))
+            .with_project_direct_permissions("TEAM", Err(ClientError::Unauthorized));
+
+        let mut conn = open_conn();
+        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z").await;
+
+        assert_eq!(result, Err(RunError::CredentialRejected));
+        assert_eq!(snapshot_count(&conn), 0);
+    }
+
+    #[tokio::test]
+    async fn unauthorized_on_project_group_permissions_aborts_the_whole_run() {
+        let client = FakeBitbucketClient::new(Ok(vec![repo("TEAM", "repo-a")]))
+            .with_project_group_permissions("TEAM", Err(ClientError::Unauthorized));
+
+        let mut conn = open_conn();
+        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z").await;
+
+        assert_eq!(result, Err(RunError::CredentialRejected));
+        assert_eq!(snapshot_count(&conn), 0);
+    }
+
+    #[tokio::test]
+    async fn unauthorized_on_a_project_group_members_call_aborts_the_whole_run() {
+        let client = FakeBitbucketClient::new(Ok(vec![repo("TEAM", "repo-a")]))
+            .with_project_group_permissions(
+                "TEAM",
+                Ok(vec![group_perm("locked-group", "Locked Group", "read")]),
+            )
+            .with_group_members("locked-group", Err(ClientError::Unauthorized));
+
+        let mut conn = open_conn();
+        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z").await;
+
+        assert_eq!(result, Err(RunError::CredentialRejected));
+        assert_eq!(snapshot_count(&conn), 0);
+    }
+
+    #[tokio::test]
+    async fn mixed_healthy_and_failing_projects_persist_correctly_in_one_run() {
+        let client = FakeBitbucketClient::new(Ok(vec![
+            repo("HEALTHY", "repo-a"),
+            repo("HEALTHY", "repo-b"),
+            repo("FAILING", "repo-c"),
+        ]))
+        .with_project_direct_permissions("HEALTHY", Ok(vec![user("acct-9", "Static", "read")]))
+        .with_project_direct_permissions("FAILING", Err(ClientError::Other("boom".to_string())))
+        .with_direct_permissions("repo-c", Ok(vec![user("acct-1", "Ada", "admin")]));
+
+        let mut conn = open_conn();
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+            .await
+            .unwrap();
+
+        assert_eq!(client.project_direct_permissions_call_count("HEALTHY"), 1);
+        assert_eq!(client.project_direct_permissions_call_count("FAILING"), 1);
+
+        let loaded = load_snapshot(&conn, snapshot_id).unwrap();
+        let healthy_project_records: Vec<_> = loaded
+            .records
+            .iter()
+            .filter(|r| r.scope == crate::model::GrantScope::Project)
+            .collect();
+        assert_eq!(healthy_project_records.len(), 2);
+        // repo-c's own grant still made it in even though its project failed.
+        assert!(loaded.records.iter().any(|r| r.repo == "repo-c"
+            && r.scope == crate::model::GrantScope::Repo));
+        assert_eq!(
+            loaded.repo_statuses.iter().find(|s| s.repo == "repo-c").unwrap().status,
+            RepoStatus::Ok
+        );
+
+        let statuses = load_project_fetch_statuses(&conn, snapshot_id).unwrap();
+        assert_eq!(statuses.len(), 2);
+        assert_eq!(
+            statuses.iter().find(|s| s.project_key == "HEALTHY").unwrap().status,
+            RepoStatus::Ok
+        );
+        assert_eq!(
+            statuses.iter().find(|s| s.project_key == "FAILING").unwrap().status,
+            RepoStatus::FetchFailed
+        );
     }
 }
