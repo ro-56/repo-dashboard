@@ -15,6 +15,7 @@
     display: flex;
     gap: var(--s-5);
     align-items: center;
+    min-width: 0;
     font-family: var(--font-mono);
     font-weight: 500;
     font-size: var(--t-meta);

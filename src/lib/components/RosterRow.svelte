@@ -162,6 +162,7 @@
     display: flex;
     gap: var(--s-3);
     align-items: center;
+    min-width: 0;
   }
   .tag {
     display: inline-flex;
