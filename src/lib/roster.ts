@@ -8,6 +8,10 @@ export interface Principal {
 
 export type AccessType = { type: "Direct" } | { type: "Group" } | { type: "Member"; group_id: string };
 
+// Where a grant lives (ADR-0012) — a Repo-level and a Project-level row for the same
+// Principal + access type are always two distinct rows, never merged (PD-30).
+export type GrantScope = "Repo" | "Project";
+
 export type Permission = "Read" | "Write" | "Admin";
 
 export type RepoStatus = "Ok" | "FetchFailed";
@@ -29,6 +33,7 @@ export type RepoDiscoveryState = "present" | "absent" | "arrived";
 export interface PrincipalEntry {
   principal: Principal;
   accessType: AccessType;
+  scope: GrantScope;
   permission: Permission;
   diffStatus: DiffStatus;
   workspaceState: WorkspaceState | null;

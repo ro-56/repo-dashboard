@@ -20,7 +20,7 @@ use crate::normalize::{
     normalize_repo_group_permissions, normalize_repo_permissions, RawGroupMembersResponse,
     RawGroupPermission, RawGroupsResponse, RawMember, RawUsersResponse,
 };
-use crate::storage::{save_project_fetch_statuses, save_snapshot};
+use crate::storage::save_snapshot;
 
 /// A Discovery failure (glossary, `CONTEXT.md`) aborts before any Snapshot row exists.
 /// `CredentialRejected` covers a 401 at any point in the Run — discovery or a later call —
@@ -211,10 +211,14 @@ pub async fn collect_and_store<C: BitbucketClient>(
     }
 
     let snapshot = Snapshot { records, repo_statuses };
-    let snapshot_id = save_snapshot(conn, run_at, &snapshot, &group_membership_statuses)
-        .map_err(|e| RunError::StorageFailed(e.to_string()))?;
-    save_project_fetch_statuses(conn, snapshot_id, &project_statuses)
-        .map_err(|e| RunError::StorageFailed(e.to_string()))?;
+    let snapshot_id = save_snapshot(
+        conn,
+        run_at,
+        &snapshot,
+        &group_membership_statuses,
+        &project_statuses,
+    )
+    .map_err(|e| RunError::StorageFailed(e.to_string()))?;
     Ok(snapshot_id)
 }
 
@@ -1001,4 +1005,58 @@ mod tests {
             RepoStatus::FetchFailed
         );
     }
+
+    #[tokio::test]
+    async fn a_fresh_install_first_run_is_visible_through_list_and_roster_tree() {
+        let client = FakeBitbucketClient::new(Ok(vec![repo("TEAM", "repo-a")]))
+            .with_direct_permissions("repo-a", Ok(vec![user("acct-1", "Ada", "admin")]));
+
+        let mut conn = open_conn();
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+            .await
+            .expect("collect_and_store should succeed against a fresh db");
+
+        let snapshots = crate::storage::list_snapshots(&conn).expect("list_snapshots should succeed");
+        assert_eq!(
+            snapshots.len(),
+            1,
+            "the snapshot just saved should be visible to list_snapshots, matching what \
+             the side drawer's SnapshotsPanel renders"
+        );
+        assert_eq!(snapshots[0].id, snapshot_id);
+
+        // First-ever run: baseline/comparison both fall back to this one snapshot, exactly
+        // as +page.ts computes latestId/previousId when there's only one row.
+        let result = crate::roster::get_roster_tree(&conn, snapshot_id, snapshot_id)
+            .expect("get_roster_tree should succeed comparing the fresh snapshot to itself");
+        assert!(!result.tree.is_empty(), "the roster tree should show the freshly fetched data");
+    }
+
+    #[tokio::test]
+    async fn a_failure_writing_project_fetch_statuses_rolls_back_the_whole_snapshot() {
+        // Regression test for the "data is in the database but the screen shows nothing" bug:
+        // project_fetch_statuses used to be written by a separate call *after* save_snapshot's
+        // own transaction had already committed, so a failure there left a real, permanent
+        // Snapshot behind while collect_and_store still reported the Run as failed — the
+        // frontend (RunPanel.svelte), seeing an Err, never navigates/invalidates, so the UI
+        // never learns the snapshot exists. Now that project_statuses is written inside
+        // save_snapshot's single transaction, the same failure must roll back everything.
+        let client = FakeBitbucketClient::new(Ok(vec![repo("TEAM", "repo-a")]))
+            .with_direct_permissions("repo-a", Ok(vec![user("acct-1", "Ada", "admin")]));
+
+        let conn = open_conn();
+        conn.execute("DROP TABLE project_fetch_statuses", []).unwrap();
+        let mut conn = conn;
+
+        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z").await;
+        assert!(result.is_err(), "expected the run to report failure");
+
+        let snapshots = crate::storage::list_snapshots(&conn).unwrap();
+        assert_eq!(
+            snapshots.len(),
+            0,
+            "a failed Run must never leave a partially-committed Snapshot behind"
+        );
+    }
 }
+

@@ -545,7 +545,7 @@ pub fn get_roster_tree(
 mod tests {
     use super::*;
     use crate::model::{GrantScope, Principal};
-    use crate::storage::{init_schema, save_project_fetch_statuses, save_snapshot};
+    use crate::storage::{init_schema, save_snapshot};
 
     fn open_conn() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
@@ -696,8 +696,8 @@ mod tests {
             repo_statuses: vec![ok_status("TEAM", "repo-a")],
         };
 
-        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
-        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[], &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[], &[]).unwrap();
 
         let result = get_roster_tree(&conn, a_id, b_id).unwrap();
         let tree = result.tree;
@@ -735,7 +735,7 @@ mod tests {
             ],
             repo_statuses: vec![ok_status("TEAM", "repo-a")],
         };
-        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[]).unwrap();
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[], &[]).unwrap();
 
         let result = get_roster_tree(&conn, id, id).unwrap();
         let repo = repo_node(&result.tree, "TEAM", "repo-a");
@@ -759,8 +759,8 @@ mod tests {
             repo_statuses: vec![ok_status("TEAM", "repo-a")],
         };
 
-        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
-        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[], &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[], &[]).unwrap();
 
         let result = get_roster_tree(&conn, a_id, b_id).unwrap();
         let repo_a = repo_node(&result.tree, "TEAM", "repo-a");
@@ -782,8 +782,8 @@ mod tests {
             repo_statuses: vec![ok_status("TEAM", "repo-a"), ok_status("TEAM", "repo-c")],
         };
 
-        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
-        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[], &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[], &[]).unwrap();
 
         let result = get_roster_tree(&conn, a_id, b_id).unwrap();
         let repo_c = repo_node(&result.tree, "TEAM", "repo-c");
@@ -806,8 +806,8 @@ mod tests {
             ],
             repo_statuses: vec![ok_status("TEAM", "repo-a")],
         };
-        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[]).unwrap();
-        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[], &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[], &[]).unwrap();
 
         let result = get_roster_tree(&conn, a_id, b_id).unwrap();
 
@@ -836,8 +836,8 @@ mod tests {
             repo_statuses: vec![ok_status("TEAM", "repo-a")],
         };
 
-        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
-        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[], &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[], &[]).unwrap();
 
         let result = get_roster_tree(&conn, a_id, b_id).unwrap();
 
@@ -861,8 +861,8 @@ mod tests {
             repo_statuses: vec![ok_status("TEAM", "repo-a"), ok_status("TEAM", "repo-b")],
         };
 
-        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
-        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[], &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[], &[]).unwrap();
 
         let result = get_roster_tree(&conn, a_id, b_id).unwrap();
         let repo_a = repo_node(&result.tree, "TEAM", "repo-a");
@@ -887,8 +887,8 @@ mod tests {
             repo_statuses: vec![ok_status("TEAM", "repo-a"), ok_status("TEAM", "repo-b")],
         };
 
-        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
-        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[], &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[], &[]).unwrap();
 
         let result = get_roster_tree(&conn, a_id, b_id).unwrap();
         let repo_a = repo_node(&result.tree, "TEAM", "repo-a");
@@ -914,8 +914,8 @@ mod tests {
             repo_statuses: vec![ok_status("TEAM", "repo-a")],
         };
 
-        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
-        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[], &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[], &[]).unwrap();
 
         let result = get_roster_tree(&conn, a_id, b_id).unwrap();
         let repo_a = repo_node(&result.tree, "TEAM", "repo-a");
@@ -934,7 +934,7 @@ mod tests {
             ],
             repo_statuses: vec![ok_status("TEAM", "repo-a")],
         };
-        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[]).unwrap();
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[], &[]).unwrap();
 
         let result = get_roster_tree(&conn, id, id).unwrap();
 
@@ -963,8 +963,8 @@ mod tests {
         // the repo was still discovered, so it gets a FetchFailed status, not an absent one.
         let b = Snapshot { records: vec![], repo_statuses: vec![fetch_failed_status("TEAM", "repo-a")] };
 
-        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
-        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[], &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[], &[]).unwrap();
 
         let result = get_roster_tree(&conn, a_id, b_id).unwrap();
         let repo = repo_node(&result.tree, "TEAM", "repo-a");
@@ -983,7 +983,7 @@ mod tests {
     fn repo_ok_with_zero_grants_is_distinct_from_a_fetch_failed_repo() {
         let mut conn = open_conn();
         let snapshot = Snapshot { records: vec![], repo_statuses: vec![ok_status("TEAM", "repo-a")] };
-        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[]).unwrap();
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[], &[]).unwrap();
 
         let result = get_roster_tree(&conn, id, id).unwrap();
         let repo = repo_node(&result.tree, "TEAM", "repo-a");
@@ -1002,8 +1002,8 @@ mod tests {
         };
         let membership_b = vec![membership_status("TEAM", "repo-a", "locked-group", false)];
 
-        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
-        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &membership_b).unwrap();
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[], &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &membership_b, &[]).unwrap();
 
         let result = get_roster_tree(&conn, a_id, b_id).unwrap();
         let repo = repo_node(&result.tree, "TEAM", "repo-a");
@@ -1019,7 +1019,7 @@ mod tests {
             repo_statuses: vec![ok_status("TEAM", "repo-a")],
         };
         let membership = vec![membership_status("TEAM", "repo-a", "empty-group", true)];
-        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &membership).unwrap();
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &membership, &[]).unwrap();
 
         let result = get_roster_tree(&conn, id, id).unwrap();
         let repo = repo_node(&result.tree, "TEAM", "repo-a");
@@ -1042,7 +1042,7 @@ mod tests {
             repo_statuses: vec![ok_status("TEAM", "repo-a")],
         };
         let membership = vec![membership_status("TEAM", "repo-a", "platform-eng", true)];
-        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &membership).unwrap();
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &membership, &[]).unwrap();
 
         let result = get_roster_tree(&conn, id, id).unwrap();
         let repo = repo_node(&result.tree, "TEAM", "repo-a");
@@ -1065,7 +1065,7 @@ mod tests {
             ],
             repo_statuses: vec![ok_status("TEAM", "repo-a")],
         };
-        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[]).unwrap();
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[], &[]).unwrap();
 
         let result = get_roster_tree(&conn, id, id).unwrap();
         let repo = repo_node(&result.tree, "TEAM", "repo-a");
@@ -1087,8 +1087,14 @@ mod tests {
             ],
             repo_statuses: vec![ok_status("TEAM", "repo-a"), ok_status("TEAM", "repo-b")],
         };
-        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[]).unwrap();
-        save_project_fetch_statuses(&conn, id, &[project_fetch_failed_status("TEAM")]).unwrap();
+        let id = save_snapshot(
+            &mut conn,
+            "2026-01-01T00:00:00Z",
+            &snapshot,
+            &[],
+            &[project_fetch_failed_status("TEAM")],
+        )
+        .unwrap();
 
         let result = get_roster_tree(&conn, id, id).unwrap();
         let repo_a = repo_node(&result.tree, "TEAM", "repo-a");
@@ -1110,8 +1116,14 @@ mod tests {
         let mut conn = open_conn();
         let snapshot =
             Snapshot { records: vec![], repo_statuses: vec![ok_status("TEAM", "repo-a")] };
-        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[]).unwrap();
-        save_project_fetch_statuses(&conn, id, &[project_ok_status("TEAM")]).unwrap();
+        let id = save_snapshot(
+            &mut conn,
+            "2026-01-01T00:00:00Z",
+            &snapshot,
+            &[],
+            &[project_ok_status("TEAM")],
+        )
+        .unwrap();
 
         let result = get_roster_tree(&conn, id, id).unwrap();
         let repo = repo_node(&result.tree, "TEAM", "repo-a");
@@ -1131,8 +1143,8 @@ mod tests {
             repo_statuses: vec![ok_status("TEAM", "repo-a")],
         };
 
-        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
-        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[], &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[], &[]).unwrap();
 
         let result = get_roster_tree(&conn, a_id, b_id).unwrap();
         let repo = repo_node(&result.tree, "TEAM", "repo-a");
@@ -1162,8 +1174,8 @@ mod tests {
             repo_statuses: vec![ok_status("TEAM", "repo-a")],
         };
 
-        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
-        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[], &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[], &[]).unwrap();
 
         let result = get_roster_tree(&conn, a_id, b_id).unwrap();
         let repo = repo_node(&result.tree, "TEAM", "repo-a");
@@ -1193,8 +1205,8 @@ mod tests {
             repo_statuses: vec![ok_status("TEAM", "repo-a")],
         };
 
-        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
-        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[], &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[], &[]).unwrap();
 
         let result = get_roster_tree(&conn, a_id, b_id).unwrap();
         let repo = repo_node(&result.tree, "TEAM", "repo-a");

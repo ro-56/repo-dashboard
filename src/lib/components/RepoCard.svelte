@@ -40,11 +40,12 @@
   let sorted = $derived(sortedPrincipals(repo.principals));
   let roster = $derived(viewMode === "changes" ? sorted.filter(hasDiff) : sorted);
 
-  // A principal can appear more than once per repo (e.g. Direct plus Member-of-group-X),
-  // so the key needs the access type — and, for Member, the group_id — to stay unique.
+  // A principal can appear more than once per repo (e.g. Direct plus Member-of-group-X, or
+  // the same access type at both Repo and Project scope per PD-30), so the key needs the
+  // access type — and, for Member, the group_id — and the scope to stay unique.
   function principalEntryKey(entry: PrincipalEntry): string {
     const groupId = entry.accessType.type === "Member" ? entry.accessType.group_id : "";
-    return `${entry.principal.id}::${entry.accessType.type}::${groupId}`;
+    return `${entry.principal.id}::${entry.accessType.type}::${groupId}::${entry.scope}`;
   }
 </script>
 

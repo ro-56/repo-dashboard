@@ -89,16 +89,37 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
         CREATE INDEX IF NOT EXISTS idx_group_membership_statuses_snapshot_id
             ON group_membership_statuses(snapshot_id);
         ",
-    )
+    )?;
+
+    // `CREATE TABLE IF NOT EXISTS` is a no-op on a database that already has
+    // `permission_records` from before PD-28 (ADR-0012), so it never gains the `scope`
+    // column that save_snapshot/load_snapshot now require. Backfill it explicitly: every
+    // row written before PD-28 predates Project-scoped grants entirely, so `repo` (see
+    // `encode_scope`) is the only correct value for it.
+    let has_scope_column = conn
+        .prepare("SELECT scope FROM permission_records LIMIT 0")
+        .is_ok();
+    if !has_scope_column {
+        conn.execute(
+            "ALTER TABLE permission_records ADD COLUMN scope TEXT NOT NULL DEFAULT 'repo'",
+            [],
+        )?;
+    }
+
+    Ok(())
 }
 
-/// Persists a full snapshot (all four tables) inside a single transaction, returning the
+/// Persists a full snapshot (all five tables) inside a single transaction, returning the
 /// new `snapshots.id`. `run_at` is an RFC3339 timestamp string, passed through verbatim.
+/// `project_statuses` is folded in here (rather than left to the separate
+/// `save_project_fetch_statuses` PD-28 originally shipped it as) so a Run's Snapshot can
+/// never be durably committed while the overall Run is reported to the caller as failed.
 pub fn save_snapshot(
     conn: &mut Connection,
     run_at: &str,
     snapshot: &Snapshot,
     group_membership_statuses: &[GroupMembershipStatus],
+    project_statuses: &[ProjectFetchStatus],
 ) -> rusqlite::Result<i64> {
     let tx = conn.transaction()?;
 
@@ -157,6 +178,16 @@ pub fn save_snapshot(
                 g.group_id,
                 g.members_resolved,
             ])?;
+        }
+    }
+
+    {
+        let mut stmt = tx.prepare(
+            "INSERT INTO project_fetch_statuses (snapshot_id, project_key, status)
+             VALUES (?1, ?2, ?3)",
+        )?;
+        for s in project_statuses {
+            stmt.execute(params![snapshot_id, s.project_key, repo_status_to_str(s.status)])?;
         }
     }
 
@@ -231,24 +262,6 @@ pub fn load_group_membership_statuses(
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(rows)
-}
-
-/// Persists a Snapshot's `ProjectFetchStatus` rows. Separate from `save_snapshot` (rather than
-/// an added parameter to it) since no orchestration code produces these yet (ADR-0012) — call
-/// this after `save_snapshot` with the same `snapshot_id` once a caller has one to persist.
-pub fn save_project_fetch_statuses(
-    conn: &Connection,
-    snapshot_id: i64,
-    statuses: &[ProjectFetchStatus],
-) -> rusqlite::Result<()> {
-    let mut stmt = conn.prepare(
-        "INSERT INTO project_fetch_statuses (snapshot_id, project_key, status)
-         VALUES (?1, ?2, ?3)",
-    )?;
-    for s in statuses {
-        stmt.execute(params![snapshot_id, s.project_key, repo_status_to_str(s.status)])?;
-    }
-    Ok(())
 }
 
 /// Loads the `project_fetch_statuses` rows for a snapshot, mirroring
@@ -432,7 +445,7 @@ mod tests {
             repo_statuses: vec![],
         };
 
-        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[]).unwrap();
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[], &[]).unwrap();
         let loaded = load_snapshot(&conn, id).unwrap();
 
         assert_eq!(loaded, snapshot);
@@ -466,7 +479,7 @@ mod tests {
             repo_statuses: vec![],
         };
 
-        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[]).unwrap();
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[], &[]).unwrap();
         let loaded = load_snapshot(&conn, id).unwrap();
 
         assert_eq!(loaded, snapshot);
@@ -477,13 +490,12 @@ mod tests {
     #[test]
     fn project_fetch_status_round_trips_through_save_and_load() {
         let mut conn = open_conn();
-        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[]).unwrap();
-
         let statuses = vec![
             ProjectFetchStatus { project_key: "TEAM".to_string(), status: RepoStatus::Ok },
             ProjectFetchStatus { project_key: "OTHER".to_string(), status: RepoStatus::FetchFailed },
         ];
-        save_project_fetch_statuses(&conn, id, &statuses).unwrap();
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[], &statuses)
+            .unwrap();
 
         let loaded = load_project_fetch_statuses(&conn, id).unwrap();
         assert_eq!(loaded, statuses);
@@ -492,15 +504,16 @@ mod tests {
     #[test]
     fn project_fetch_statuses_are_scoped_to_their_own_snapshot() {
         let mut conn = open_conn();
-        let first_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[]).unwrap();
-        let second_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &Snapshot::default(), &[]).unwrap();
-
-        save_project_fetch_statuses(
-            &conn,
-            first_id,
+        save_snapshot(
+            &mut conn,
+            "2026-01-01T00:00:00Z",
+            &Snapshot::default(),
+            &[],
             &[ProjectFetchStatus { project_key: "TEAM".to_string(), status: RepoStatus::Ok }],
         )
         .unwrap();
+        let second_id =
+            save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &Snapshot::default(), &[], &[]).unwrap();
 
         assert!(load_project_fetch_statuses(&conn, second_id).unwrap().is_empty());
     }
@@ -524,7 +537,7 @@ mod tests {
             ],
         };
 
-        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[]).unwrap();
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[], &[]).unwrap();
         let loaded = load_snapshot(&conn, id).unwrap();
 
         assert_eq!(loaded, snapshot);
@@ -548,7 +561,7 @@ mod tests {
             },
         ];
 
-        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &statuses).unwrap();
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &statuses, &[]).unwrap();
         let loaded = load_group_membership_statuses(&conn, id).unwrap();
 
         assert_eq!(loaded, statuses);
@@ -572,7 +585,7 @@ mod tests {
             members_resolved: true,
         }];
 
-        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &group_statuses).unwrap();
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &group_statuses, &[]).unwrap();
 
         let permission_count: i64 = conn
             .query_row(
@@ -633,8 +646,8 @@ mod tests {
         let expected = diff_snapshots(&a, &b);
 
         let mut conn = open_conn();
-        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
-        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[], &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[], &[]).unwrap();
 
         let a_loaded = load_snapshot(&conn, a_id).unwrap();
         let b_loaded = load_snapshot(&conn, b_id).unwrap();
@@ -646,15 +659,15 @@ mod tests {
     #[test]
     fn snapshot_ids_are_distinct_and_increasing_across_saves() {
         let mut conn = open_conn();
-        let first = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[]).unwrap();
-        let second = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &Snapshot::default(), &[]).unwrap();
+        let first = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[], &[]).unwrap();
+        let second = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &Snapshot::default(), &[], &[]).unwrap();
         assert!(second > first);
     }
 
     #[test]
     fn delete_snapshot_removes_the_snapshot_and_all_associated_rows_but_spares_other_snapshots() {
         let mut conn = open_conn();
-        let survivor = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[]).unwrap();
+        let survivor = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[], &[]).unwrap();
 
         let snapshot = Snapshot {
             records: sample_records(),
@@ -670,10 +683,11 @@ mod tests {
             group_id: "platform-eng".to_string(),
             members_resolved: true,
         }];
-        let id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &snapshot, &group_statuses).unwrap();
-        save_project_fetch_statuses(
-            &conn,
-            id,
+        let id = save_snapshot(
+            &mut conn,
+            "2026-01-02T00:00:00Z",
+            &snapshot,
+            &group_statuses,
             &[ProjectFetchStatus { project_key: "TEAM".to_string(), status: RepoStatus::Ok }],
         )
         .unwrap();
@@ -719,8 +733,8 @@ mod tests {
     #[test]
     fn delete_snapshot_excludes_it_from_list_snapshots() {
         let mut conn = open_conn();
-        let kept = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[]).unwrap();
-        let deleted = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &Snapshot::default(), &[]).unwrap();
+        let kept = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[], &[]).unwrap();
+        let deleted = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &Snapshot::default(), &[], &[]).unwrap();
 
         delete_snapshot(&mut conn, deleted).unwrap();
 
@@ -741,8 +755,8 @@ mod tests {
     #[test]
     fn list_snapshots_returns_every_snapshot_newest_first() {
         let mut conn = open_conn();
-        let first = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[]).unwrap();
-        let second = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &Snapshot::default(), &[]).unwrap();
+        let first = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[], &[]).unwrap();
+        let second = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &Snapshot::default(), &[], &[]).unwrap();
 
         let listed = list_snapshots(&conn).unwrap();
 
@@ -753,5 +767,95 @@ mod tests {
                 SnapshotSummary { id: first, run_at: "2026-01-01T00:00:00Z".to_string() },
             ]
         );
+    }
+}
+
+#[cfg(test)]
+mod legacy_schema_upgrade_tests {
+    use super::*;
+
+    fn open_pre_pd28_conn() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "
+            PRAGMA foreign_keys = ON;
+            CREATE TABLE snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_at TEXT NOT NULL
+            );
+            CREATE TABLE permission_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),
+                repo_project TEXT NOT NULL,
+                repo TEXT NOT NULL,
+                principal_id TEXT NOT NULL,
+                principal_label TEXT NOT NULL,
+                access_type TEXT NOT NULL,
+                member_group_id TEXT,
+                permission TEXT NOT NULL
+            );
+            CREATE TABLE repo_fetch_statuses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),
+                repo_project TEXT NOT NULL,
+                repo TEXT NOT NULL,
+                status TEXT NOT NULL
+            );
+            CREATE TABLE group_membership_statuses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),
+                repo_project TEXT NOT NULL,
+                repo TEXT NOT NULL,
+                group_id TEXT NOT NULL,
+                members_resolved INTEGER NOT NULL
+            );
+            INSERT INTO snapshots (id, run_at) VALUES (1, '2026-01-01T00:00:00Z');
+            INSERT INTO permission_records
+                (snapshot_id, repo_project, repo, principal_id, principal_label,
+                 access_type, member_group_id, permission)
+             VALUES (1, 'TEAM', 'repo-a', 'acct-1', 'Ada', 'direct', NULL, 'read');
+            ",
+        )
+        .unwrap();
+        conn
+    }
+
+    #[test]
+    fn init_schema_backfills_scope_on_a_pre_pd28_database() {
+        let mut conn = open_pre_pd28_conn();
+        init_schema(&conn).unwrap();
+
+        let snapshot = Snapshot { records: vec![], repo_statuses: vec![] };
+        save_snapshot(&mut conn, "2026-07-30T00:00:00Z", &snapshot, &[], &[])
+            .expect("save_snapshot should succeed against an upgraded legacy schema");
+
+        let scope: String = conn
+            .query_row(
+                "SELECT scope FROM permission_records WHERE principal_id = 'acct-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(scope, "repo");
+    }
+
+    #[test]
+    fn init_schema_is_idempotent_on_a_pre_pd28_database() {
+        let conn = open_pre_pd28_conn();
+        init_schema(&conn).unwrap();
+        init_schema(&conn).unwrap();
+    }
+
+    // Regression test for the blank-dashboard-on-relaunch bug: get_roster_tree calls
+    // load_snapshot on startup for whatever snapshots already exist, so a pre-PD28 snapshot
+    // must stay loadable after migration, not just writable by new saves.
+    #[test]
+    fn load_snapshot_reads_a_pre_pd28_row_after_migration() {
+        let conn = open_pre_pd28_conn();
+        init_schema(&conn).unwrap();
+
+        let snapshot = load_snapshot(&conn, 1).expect("loading a pre-PD28 snapshot should not error");
+        assert_eq!(snapshot.records.len(), 1);
+        assert_eq!(snapshot.records[0].scope, GrantScope::Repo);
     }
 }
