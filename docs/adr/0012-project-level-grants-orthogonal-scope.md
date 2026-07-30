@@ -1,0 +1,10 @@
+# Project-level grants are an orthogonal scope, flattened per repo
+
+Status: accepted
+
+`main.py`'s original bug was that permissions granted at the Bitbucket Project level (which cascade to every repo the Project owns) were never fetched — only repo-level Direct/Group grants were. We modeled "where a grant lives" (Repo vs Project) as an orthogonal `scope` field alongside the existing `AccessType` (Direct/Group/Member), rather than doubling `AccessType` into six variants (`ProjectDirect`/`ProjectGroup`/`ProjectMember`) — keeping "who holds the grant" and "where it lives" as two independent, composable questions instead of fusing them into one enum whose doc comment ("how a grant was made") doesn't anticipate a second concern.
+
+Consequences:
+- A Project's Direct/Group/Member grants are flattened into one `PermissionRecord` per repo the Project owns (matching how Group grants already flatten per ADR-0002), diffed independently per repo. A single Project-level Admin grant on a 20-repo Project surfaces as 20 independent Escalation rows if newly granted — one per repo — which is the correct audit signal (an auditor needs to see every repo's real exposure), not noise to suppress.
+- `scope` is part of the diff key, so a Repo-level and a Project-level grant of the same `AccessType`/level for the same Principal+repo are two separate records, never collapsed — extending ADR-0001's "diff per grant-source, not per effective permission" to this new dimension. A side effect already accepted by ADR-0001 applies here too: moving a grant from Repo-level to Project-level between two Runs (no real access change) shows as a Revoke + Grant pair, not a no-op.
+- A Project's own fetch (`permissions-config/users` and `/groups`) can fail independently of any of its repos' own fetches. This is tracked as a new per-Project status, computed/cached once per Project per Snapshot and joined onto every one of its repos at query time (same pattern as ADR-0004's per-request Roster tree computation) — replacing `main.py`'s approach of flattening an `ERRO AO ACESSAR PROJETO` marker row into every affected repo.

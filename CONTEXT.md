@@ -9,24 +9,36 @@ Anything that can hold a permission grant on a repository — a user or a group.
 _Avoid_: Grantee, subject
 
 **Direct grant**:
-A permission held by a user Principal, assigned to them individually rather than through a group.
+A permission held by a user Principal, assigned to them individually rather than through a group. Exists at either Grant scope (Repo-level or Project-level).
 _Avoid_: Individual permission
 
 **Group grant**:
-A permission held by a group Principal itself. Recorded whenever the group's own permission is fetched successfully, regardless of whether the group's membership can be resolved — "this group has admin access" is meaningful on its own.
+A permission held by a group Principal itself. Recorded whenever the group's own permission is fetched successfully, regardless of whether the group's membership can be resolved — "this group has admin access" is meaningful on its own. Exists at either Grant scope (Repo-level or Project-level).
 _Avoid_: Group permission (ambiguous with a member's group-derived permission)
 
 **Member grant**:
-A permission a user Principal holds because they belong to a group that holds a Group grant. Only recorded when the group's membership is resolvable. A user can simultaneously hold a Direct grant and one or more Member grants on the same repo — each is tracked as its own record, never collapsed into one.
+A permission a user Principal holds because they belong to a group that holds a Group grant. Only recorded when the group's membership is resolvable. A user can simultaneously hold a Direct grant and one or more Member grants on the same repo — each is tracked as its own record, never collapsed into one. Exists at either Grant scope (Repo-level or Project-level), following whichever scope the underlying Group grant was fetched at.
 _Avoid_: Inherited permission, indirect permission
+
+**Grant scope**:
+Whether a grant lives at the repo itself (Repo-level) or at its Project, cascading to every repo the Project owns (Project-level). Orthogonal to Direct/Group/Member, which describe *who* holds the grant — the same three grant kinds exist at either scope, and a Principal can simultaneously hold, e.g., a Repo-level Direct grant and a Project-level Direct grant on the same repo as two independent records, never collapsed (extends ADR-0001's per-grant-source diffing to this new dimension; see ADR-0012, `docs/adr/0012-project-level-grants-orthogonal-scope.md`).
+_Avoid_: Project permission (conflates the grant's scope with the Project entity itself), inherited permission (implies a weaker/derived status this tool doesn't distinguish — a Project-level grant is just as real as a Repo-level one)
+
+**Project**:
+The Bitbucket Project a repo belongs to. Previously just a grouping label surfaced in the Roster tree; now also a Grant scope in its own right — a Project can hold Direct and Group grants that cascade to every repo it owns, and its own fetch can succeed or fail independently of any one repo's fetch (see Project fetch failure).
+_Avoid_: Folder, category (a Project is a first-class permission-bearing entity here, not just an organizational grouping)
 
 **Unresolvable membership**:
 The state where a group's own grant was fetched successfully but its member list could not be — typically because the credential lacks the workspace-level scope required to list group members. Distinct from an empty group (member list fetched successfully, zero members). Only the Group grant is recorded in this state; no Member grants are derived for that group in that Snapshot.
 _Avoid_: Empty group, inaccessible group
 
 **Fetch failure**:
-A repo that was discovered, but whose permissions could not be retrieved this Run (e.g. the permissions-config call errored). Distinct from a repo absent from a Run (never discovered at all) and from a repo with zero grants (fetched successfully, empty result). Tracked as a per-repo status, not as a permission record, since there is no Principal to attach it to. Recoverable at the granularity of a single repo — the rest of the Run continues.
+A repo that was discovered, but whose own permissions could not be retrieved this Run (e.g. the repo-level permissions-config call errored). Distinct from a repo absent from a Run (never discovered at all), from a repo with zero grants (fetched successfully, empty result), and from a Project fetch failure (scoped to the Project, not this one repo — a repo can be fully Ok itself while its Project layer failed). Tracked as a per-repo status, not as a permission record, since there is no Principal to attach it to. Recoverable at the granularity of a single repo — the rest of the Run continues.
 _Avoid_: Inaccessible repo, "no access" (main.py's SEM ACESSO OU INACESSÍVEL conflated this with "zero grants")
+
+**Project fetch failure**:
+A Project's own permissions-config call failing for a Run (e.g. the credential lacks Project-level scope). Tracked once per Project per Snapshot, not duplicated across its repos — the Roster tree joins a Project's status onto every repo it owns at query time, the same way a Group grant is recorded once and referenced by its resolved Member grants. Distinct from a repo-level Fetch failure (one repo's own call failing) and from a Discovery failure (the workspace-wide call failing).
+_Avoid_: "ERRO AO ACESSAR PROJETO" (main.py's per-repo flattened marker row — replaced here by a first-class per-Project status, not a duplicated PermissionRecord)
 
 **Discovery failure**:
 The top-level list-repositories call for a Run failing outright (e.g. the credential itself is rejected with a 401) — as opposed to a Fetch failure, which is scoped to one already-discovered repo. A Discovery failure means there is no repo set to attach a Snapshot to, so it blocks the Run entirely: no Snapshot is saved, and the failure is surfaced to the user directly rather than appearing as a pile of per-repo statuses.
