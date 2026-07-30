@@ -17,16 +17,38 @@ use credentials::{Credentials, CredentialsState};
 /// `.await` points inside `collect_and_store`, and only an async-aware guard is `Send`.
 pub struct DbState(pub tokio::sync::Mutex<rusqlite::Connection>);
 
-/// Stores/replaces the workspace credential in memory only. Never written to disk, never
-/// returned to the frontend by this or any other command.
+/// Stores/replaces the workspace credential in the OS keychain. Never returned to the
+/// frontend by this or any other command.
 #[tauri::command]
 fn set_credentials(
     state: tauri::State<CredentialsState>,
     username: String,
     app_password: String,
     workspace: String,
-) {
-    *state.0.lock().unwrap() = Some(Credentials { username, app_password, workspace });
+) -> Result<(), String> {
+    state.0.set(&Credentials { username, app_password, workspace })
+}
+
+/// Reports whether credentials are set, and the username/workspace if so — never the app
+/// password. Lets the frontend render a "connected as X" state instead of a blank form.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CredentialsSummary {
+    username: Option<String>,
+    workspace: Option<String>,
+    has_credentials: bool,
+}
+
+#[tauri::command]
+fn get_credentials(state: tauri::State<CredentialsState>) -> Result<CredentialsSummary, String> {
+    Ok(match state.0.get()? {
+        Some(creds) => CredentialsSummary {
+            username: Some(creds.username),
+            workspace: Some(creds.workspace),
+            has_credentials: true,
+        },
+        None => CredentialsSummary { username: None, workspace: None, has_credentials: false },
+    })
 }
 
 /// Thin wrapper around `collect_and_store` — all meaningful logic lives there and is covered
@@ -37,12 +59,7 @@ async fn run_now(
     credentials: tauri::State<'_, CredentialsState>,
     db: tauri::State<'_, DbState>,
 ) -> Result<i64, String> {
-    let creds = credentials
-        .0
-        .lock()
-        .unwrap()
-        .clone()
-        .ok_or_else(|| "no credentials set".to_string())?;
+    let creds = credentials.0.get()?.ok_or_else(|| "no credentials set".to_string())?;
 
     let client = RealBitbucketClient::new(creds.username, creds.app_password);
     let run_at = chrono::Utc::now().to_rfc3339();
@@ -91,6 +108,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             set_credentials,
+            get_credentials,
             run_now,
             list_snapshots,
             get_roster_tree
