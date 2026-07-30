@@ -10,18 +10,19 @@ use serde::Serialize;
 
 use crate::diff::{diff_snapshots, DiffResult, LevelChangeKind, RecordDiff, Side, Snapshot};
 use crate::model::{
-    AccessType, GroupMembershipStatus, Permission, PermissionRecord, RepoFetchStatus, RepoStatus,
+    AccessType, GrantScope, GroupMembershipStatus, Permission, PermissionRecord, RepoFetchStatus,
+    RepoStatus,
 };
 use crate::storage::{load_group_membership_statuses, load_snapshot};
 
-/// Mirrors `diff.rs`'s private record key exactly, so a record counted as "changed" by the
-/// diff engine is never also folded in again as unchanged.
-type RecordKey = (String, String, AccessType);
+/// Mirrors `diff.rs`'s private record key exactly (ADR-0012: `scope` is part of it), so a
+/// record counted as "changed" by the diff engine is never also folded in again as unchanged.
+type RecordKey = (String, String, GrantScope, AccessType);
 
 type RepoKey = (String, String);
 
 fn record_key(r: &PermissionRecord) -> RecordKey {
-    (r.repo.clone(), r.principal.id.clone(), r.access_type.clone())
+    (r.repo.clone(), r.principal.id.clone(), r.scope, r.access_type.clone())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -361,8 +362,8 @@ fn build_roster_tree(
                     },
                 )
             }
-            RecordDiff::LevelChange { repo_project, repo, principal, access_type, from, to, kind } => {
-                changed_keys.insert((repo.clone(), principal.id.clone(), access_type.clone()));
+            RecordDiff::LevelChange { repo_project, repo, principal, access_type, scope, from, to, kind } => {
+                changed_keys.insert((repo.clone(), principal.id.clone(), *scope, access_type.clone()));
                 (
                     repo_project.clone(),
                     repo.clone(),
@@ -499,7 +500,7 @@ pub fn get_roster_tree(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::Principal;
+    use crate::model::{GrantScope, Principal};
     use crate::storage::{init_schema, save_snapshot};
 
     fn open_conn() -> Connection {
@@ -520,6 +521,7 @@ mod tests {
             repo: repo.to_string(),
             principal: Principal { id: account_id.to_string(), label: label.to_string() },
             access_type: AccessType::Direct,
+            scope: GrantScope::Repo,
             permission,
         }
     }
@@ -537,6 +539,7 @@ mod tests {
             repo: repo.to_string(),
             principal: Principal { id: account_id.to_string(), label: label.to_string() },
             access_type: AccessType::Member(group_id.to_string()),
+            scope: GrantScope::Repo,
             permission,
         }
     }
@@ -553,6 +556,7 @@ mod tests {
             repo: repo.to_string(),
             principal: Principal { id: group_id.to_string(), label: label.to_string() },
             access_type: AccessType::Group,
+            scope: GrantScope::Repo,
             permission,
         }
     }

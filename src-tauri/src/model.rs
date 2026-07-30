@@ -29,6 +29,16 @@ pub enum Permission {
     Admin,
 }
 
+/// Where a grant lives: directly on a repo, or on the Bitbucket Project that owns it (and so
+/// cascades to every repo under that Project). Orthogonal to `AccessType` (ADR-0012) — "who
+/// holds the grant" and "where it lives" are independent, composable questions, not fused into
+/// one enum.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+pub enum GrantScope {
+    Repo,
+    Project,
+}
+
 impl Permission {
     /// Parses Bitbucket's permission strings ("read" | "write" | "admin"), case-insensitively.
     pub fn parse(s: &str) -> Option<Self> {
@@ -47,6 +57,7 @@ pub struct PermissionRecord {
     pub repo: String,
     pub principal: Principal,
     pub access_type: AccessType,
+    pub scope: GrantScope,
     pub permission: Permission,
 }
 
@@ -62,6 +73,16 @@ pub enum RepoStatus {
 pub struct RepoFetchStatus {
     pub repo_project: String,
     pub repo: String,
+    pub status: RepoStatus,
+}
+
+/// Per-Project, per-snapshot fetch status (ADR-0012) — a Project's own `permissions-config`
+/// calls can fail independently of any of its repos' own fetches. Absent entirely (no row at
+/// all) means the Project wasn't encountered this run — a distinct condition from
+/// `FetchFailed`, mirroring `RepoFetchStatus`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectFetchStatus {
+    pub project_key: String,
     pub status: RepoStatus,
 }
 

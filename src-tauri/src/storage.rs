@@ -8,8 +8,8 @@ use serde::Serialize;
 
 use crate::diff::Snapshot;
 use crate::model::{
-    AccessType, GroupMembershipStatus, Permission, PermissionRecord, Principal, RepoFetchStatus,
-    RepoStatus,
+    AccessType, GrantScope, GroupMembershipStatus, Permission, PermissionRecord, Principal,
+    ProjectFetchStatus, RepoFetchStatus, RepoStatus,
 };
 
 /// A Snapshot's identity for populating run selectors — never its full record set.
@@ -53,6 +53,7 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
             principal_label TEXT NOT NULL,
             access_type TEXT NOT NULL,
             member_group_id TEXT,
+            scope TEXT NOT NULL,
             permission TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_permission_records_snapshot_id
@@ -67,6 +68,15 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
         );
         CREATE INDEX IF NOT EXISTS idx_repo_fetch_statuses_snapshot_id
             ON repo_fetch_statuses(snapshot_id);
+
+        CREATE TABLE IF NOT EXISTS project_fetch_statuses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),
+            project_key TEXT NOT NULL,
+            status TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_project_fetch_statuses_snapshot_id
+            ON project_fetch_statuses(snapshot_id);
 
         CREATE TABLE IF NOT EXISTS group_membership_statuses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -99,8 +109,8 @@ pub fn save_snapshot(
         let mut stmt = tx.prepare(
             "INSERT INTO permission_records
                 (snapshot_id, repo_project, repo, principal_id, principal_label,
-                 access_type, member_group_id, permission)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                 access_type, member_group_id, scope, permission)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         )?;
         for r in &snapshot.records {
             let (access_type, member_group_id) = encode_access_type(&r.access_type);
@@ -112,6 +122,7 @@ pub fn save_snapshot(
                 r.principal.label,
                 access_type,
                 member_group_id,
+                encode_scope(r.scope),
                 permission_to_str(r.permission),
             ])?;
         }
@@ -158,14 +169,15 @@ pub fn save_snapshot(
 pub fn load_snapshot(conn: &Connection, snapshot_id: i64) -> rusqlite::Result<Snapshot> {
     let mut records_stmt = conn.prepare(
         "SELECT repo_project, repo, principal_id, principal_label, access_type,
-                member_group_id, permission
+                member_group_id, scope, permission
          FROM permission_records WHERE snapshot_id = ?1 ORDER BY id",
     )?;
     let records = records_stmt
         .query_map(params![snapshot_id], |row| {
             let access_type: String = row.get(4)?;
             let member_group_id: Option<String> = row.get(5)?;
-            let permission: String = row.get(6)?;
+            let scope: String = row.get(6)?;
+            let permission: String = row.get(7)?;
             Ok(PermissionRecord {
                 repo_project: row.get(0)?,
                 repo: row.get(1)?,
@@ -174,6 +186,7 @@ pub fn load_snapshot(conn: &Connection, snapshot_id: i64) -> rusqlite::Result<Sn
                     label: row.get(3)?,
                 },
                 access_type: decode_access_type(&access_type, member_group_id),
+                scope: decode_scope(&scope),
                 permission: parse_permission(&permission),
             })
         })?
@@ -220,6 +233,46 @@ pub fn load_group_membership_statuses(
     Ok(rows)
 }
 
+/// Persists a Snapshot's `ProjectFetchStatus` rows. Separate from `save_snapshot` (rather than
+/// an added parameter to it) since no orchestration code produces these yet (ADR-0012) — call
+/// this after `save_snapshot` with the same `snapshot_id` once a caller has one to persist.
+pub fn save_project_fetch_statuses(
+    conn: &Connection,
+    snapshot_id: i64,
+    statuses: &[ProjectFetchStatus],
+) -> rusqlite::Result<()> {
+    let mut stmt = conn.prepare(
+        "INSERT INTO project_fetch_statuses (snapshot_id, project_key, status)
+         VALUES (?1, ?2, ?3)",
+    )?;
+    for s in statuses {
+        stmt.execute(params![snapshot_id, s.project_key, repo_status_to_str(s.status)])?;
+    }
+    Ok(())
+}
+
+/// Loads the `project_fetch_statuses` rows for a snapshot, mirroring
+/// `load_group_membership_statuses`.
+pub fn load_project_fetch_statuses(
+    conn: &Connection,
+    snapshot_id: i64,
+) -> rusqlite::Result<Vec<ProjectFetchStatus>> {
+    let mut stmt = conn.prepare(
+        "SELECT project_key, status FROM project_fetch_statuses
+         WHERE snapshot_id = ?1 ORDER BY id",
+    )?;
+    let rows = stmt
+        .query_map(params![snapshot_id], |row| {
+            let status: String = row.get(1)?;
+            Ok(ProjectFetchStatus {
+                project_key: row.get(0)?,
+                status: parse_repo_status(&status),
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(rows)
+}
+
 /// Deleting a Snapshot that never existed is an error, not a silent no-op (PD-25) — the
 /// frontend needs to know a delete request didn't correspond to anything real.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -229,10 +282,11 @@ pub enum DeleteSnapshotError {
 }
 
 /// Permanently removes a Snapshot and every row scoped to it (`permission_records`,
-/// `repo_fetch_statuses`, `group_membership_statuses`) inside one transaction. Child rows
-/// are deleted before the parent `snapshots` row since `PRAGMA foreign_keys = ON` rejects a
-/// parent delete while children still reference it. Per ADR-0011, this doesn't change
-/// `Snapshot`'s "immutable" meaning — deletion removes a Snapshot's existence, not its content.
+/// `repo_fetch_statuses`, `group_membership_statuses`, `project_fetch_statuses`) inside one
+/// transaction. Child rows are deleted before the parent `snapshots` row since
+/// `PRAGMA foreign_keys = ON` rejects a parent delete while children still reference it. Per
+/// ADR-0011, this doesn't change `Snapshot`'s "immutable" meaning — deletion removes a
+/// Snapshot's existence, not its content.
 pub fn delete_snapshot(conn: &mut Connection, snapshot_id: i64) -> Result<(), DeleteSnapshotError> {
     fn storage_err(e: rusqlite::Error) -> DeleteSnapshotError {
         DeleteSnapshotError::Storage(e.to_string())
@@ -245,6 +299,8 @@ pub fn delete_snapshot(conn: &mut Connection, snapshot_id: i64) -> Result<(), De
     tx.execute("DELETE FROM repo_fetch_statuses WHERE snapshot_id = ?1", params![snapshot_id])
         .map_err(storage_err)?;
     tx.execute("DELETE FROM group_membership_statuses WHERE snapshot_id = ?1", params![snapshot_id])
+        .map_err(storage_err)?;
+    tx.execute("DELETE FROM project_fetch_statuses WHERE snapshot_id = ?1", params![snapshot_id])
         .map_err(storage_err)?;
 
     let deleted = tx
@@ -274,6 +330,21 @@ fn decode_access_type(access_type: &str, member_group_id: Option<String>) -> Acc
             member_group_id.expect("member access_type row missing member_group_id"),
         ),
         other => panic!("unknown access_type in storage: {other}"),
+    }
+}
+
+fn encode_scope(scope: GrantScope) -> &'static str {
+    match scope {
+        GrantScope::Repo => "repo",
+        GrantScope::Project => "project",
+    }
+}
+
+fn decode_scope(s: &str) -> GrantScope {
+    match s {
+        "repo" => GrantScope::Repo,
+        "project" => GrantScope::Project,
+        other => panic!("unknown scope in storage: {other}"),
     }
 }
 
@@ -325,6 +396,7 @@ mod tests {
                     label: "Ada".to_string(),
                 },
                 access_type: AccessType::Direct,
+                scope: GrantScope::Repo,
                 permission: Permission::Read,
             },
             PermissionRecord {
@@ -335,6 +407,7 @@ mod tests {
                     label: "Platform Engineering".to_string(),
                 },
                 access_type: AccessType::Group,
+                scope: GrantScope::Project,
                 permission: Permission::Write,
             },
             PermissionRecord {
@@ -345,6 +418,7 @@ mod tests {
                     label: "Grace".to_string(),
                 },
                 access_type: AccessType::Member("platform-eng".to_string()),
+                scope: GrantScope::Repo,
                 permission: Permission::Write,
             },
         ]
@@ -362,6 +436,73 @@ mod tests {
         let loaded = load_snapshot(&conn, id).unwrap();
 
         assert_eq!(loaded, snapshot);
+    }
+
+    #[test]
+    fn scope_round_trips_independently_of_access_type() {
+        // sample_records() already mixes scope across access types (Direct=Repo, Group=Project,
+        // Member=Repo); this test pins down the orthogonal case explicitly: the same access_type
+        // at both scope values must round-trip to distinct, correct scopes.
+        let mut conn = open_conn();
+        let snapshot = Snapshot {
+            records: vec![
+                PermissionRecord {
+                    repo_project: "TEAM".to_string(),
+                    repo: "repo-a".to_string(),
+                    principal: Principal { id: "acct-1".to_string(), label: "Ada".to_string() },
+                    access_type: AccessType::Direct,
+                    scope: GrantScope::Repo,
+                    permission: Permission::Read,
+                },
+                PermissionRecord {
+                    repo_project: "TEAM".to_string(),
+                    repo: "repo-a".to_string(),
+                    principal: Principal { id: "acct-1".to_string(), label: "Ada".to_string() },
+                    access_type: AccessType::Direct,
+                    scope: GrantScope::Project,
+                    permission: Permission::Read,
+                },
+            ],
+            repo_statuses: vec![],
+        };
+
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[]).unwrap();
+        let loaded = load_snapshot(&conn, id).unwrap();
+
+        assert_eq!(loaded, snapshot);
+        assert_eq!(loaded.records[0].scope, GrantScope::Repo);
+        assert_eq!(loaded.records[1].scope, GrantScope::Project);
+    }
+
+    #[test]
+    fn project_fetch_status_round_trips_through_save_and_load() {
+        let mut conn = open_conn();
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[]).unwrap();
+
+        let statuses = vec![
+            ProjectFetchStatus { project_key: "TEAM".to_string(), status: RepoStatus::Ok },
+            ProjectFetchStatus { project_key: "OTHER".to_string(), status: RepoStatus::FetchFailed },
+        ];
+        save_project_fetch_statuses(&conn, id, &statuses).unwrap();
+
+        let loaded = load_project_fetch_statuses(&conn, id).unwrap();
+        assert_eq!(loaded, statuses);
+    }
+
+    #[test]
+    fn project_fetch_statuses_are_scoped_to_their_own_snapshot() {
+        let mut conn = open_conn();
+        let first_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[]).unwrap();
+        let second_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &Snapshot::default(), &[]).unwrap();
+
+        save_project_fetch_statuses(
+            &conn,
+            first_id,
+            &[ProjectFetchStatus { project_key: "TEAM".to_string(), status: RepoStatus::Ok }],
+        )
+        .unwrap();
+
+        assert!(load_project_fetch_statuses(&conn, second_id).unwrap().is_empty());
     }
 
     #[test]
@@ -530,6 +671,12 @@ mod tests {
             members_resolved: true,
         }];
         let id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &snapshot, &group_statuses).unwrap();
+        save_project_fetch_statuses(
+            &conn,
+            id,
+            &[ProjectFetchStatus { project_key: "TEAM".to_string(), status: RepoStatus::Ok }],
+        )
+        .unwrap();
 
         delete_snapshot(&mut conn, id).unwrap();
 
@@ -561,6 +708,7 @@ mod tests {
         assert_eq!(permission_count, 0);
         assert_eq!(repo_count, 0);
         assert_eq!(group_count, 0);
+        assert!(load_project_fetch_statuses(&conn, id).unwrap().is_empty());
 
         let survivor_count: i64 = conn
             .query_row("SELECT COUNT(*) FROM snapshots WHERE id = ?1", params![survivor], |row| row.get(0))

@@ -1,6 +1,6 @@
 use crate::model::{
-    AccessType, GroupMembershipStatus, Permission, PermissionRecord, Principal, RepoFetchStatus,
-    RepoStatus,
+    AccessType, GrantScope, GroupMembershipStatus, Permission, PermissionRecord, Principal,
+    ProjectFetchStatus, RepoFetchStatus, RepoStatus,
 };
 
 #[derive(Debug, Clone)]
@@ -45,6 +45,7 @@ pub fn normalize_repo_permissions(
                         label: p.display_name,
                     },
                     access_type: AccessType::Direct,
+                    scope: GrantScope::Repo,
                     permission: Permission::parse(&p.permission)
                         .unwrap_or_else(|| panic!("invalid permission string: {}", p.permission)),
                 })
@@ -54,6 +55,52 @@ pub fn normalize_repo_permissions(
                 RepoFetchStatus {
                     repo_project: repo_project.to_string(),
                     repo: repo.to_string(),
+                    status: RepoStatus::Ok,
+                },
+            )
+        }
+    }
+}
+
+/// Normalizes one Project's raw Direct-grant response (same shape as a repo's) into
+/// `PermissionRecord`s tagged `scope: Project` plus the Project's fetch status — mirrors
+/// `normalize_repo_permissions` exactly, save for that tag and `ProjectFetchStatus` in place of
+/// `RepoFetchStatus`. Callers attribute the result to one repo the Project owns; fanning a
+/// Project's grants out across every repo it owns is an orchestration concern, not this
+/// function's.
+pub fn normalize_project_permissions(
+    repo_project: &str,
+    repo: &str,
+    users: RawUsersResponse,
+) -> (Vec<PermissionRecord>, ProjectFetchStatus) {
+    match users {
+        RawUsersResponse::FetchFailed => (
+            Vec::new(),
+            ProjectFetchStatus {
+                project_key: repo_project.to_string(),
+                status: RepoStatus::FetchFailed,
+            },
+        ),
+        RawUsersResponse::Ok(perms) => {
+            let records = perms
+                .into_iter()
+                .map(|p| PermissionRecord {
+                    repo_project: repo_project.to_string(),
+                    repo: repo.to_string(),
+                    principal: Principal {
+                        id: p.account_id,
+                        label: p.display_name,
+                    },
+                    access_type: AccessType::Direct,
+                    scope: GrantScope::Project,
+                    permission: Permission::parse(&p.permission)
+                        .unwrap_or_else(|| panic!("invalid permission string: {}", p.permission)),
+                })
+                .collect();
+            (
+                records,
+                ProjectFetchStatus {
+                    project_key: repo_project.to_string(),
                     status: RepoStatus::Ok,
                 },
             )
@@ -121,6 +168,7 @@ pub fn normalize_repo_group_permissions(
                         label: p.group_name.clone(),
                     },
                     access_type: AccessType::Group,
+                    scope: GrantScope::Repo,
                     permission,
                 });
 
@@ -135,6 +183,70 @@ pub fn normalize_repo_group_permissions(
                                 label: m.display_name,
                             },
                             access_type: AccessType::Member(p.group_slug.clone()),
+                            scope: GrantScope::Repo,
+                            permission,
+                        }));
+                        true
+                    }
+                };
+
+                membership_statuses.push(GroupMembershipStatus {
+                    repo_project: repo_project.to_string(),
+                    repo: repo.to_string(),
+                    group_id: p.group_slug,
+                    members_resolved,
+                });
+            }
+
+            (records, membership_statuses)
+        }
+    }
+}
+
+/// Normalizes one Project's raw group-grant response (same shape as a repo's) into
+/// `PermissionRecord`s tagged `scope: Project` — mirrors `normalize_repo_group_permissions`
+/// exactly, reusing its group-membership-resolution logic and `GroupMembershipStatus` tracking
+/// unmodified. Each group still produces its own `Group` record, and, when membership is
+/// resolvable, one `Member(group_id)` record per member — both tagged `scope: Project` here.
+pub fn normalize_project_group_permissions(
+    repo_project: &str,
+    repo: &str,
+    groups: RawGroupsResponse,
+) -> (Vec<PermissionRecord>, Vec<GroupMembershipStatus>) {
+    match groups {
+        RawGroupsResponse::FetchFailed => (Vec::new(), Vec::new()),
+        RawGroupsResponse::Ok(perms) => {
+            let mut records = Vec::new();
+            let mut membership_statuses = Vec::new();
+
+            for p in perms {
+                let permission = Permission::parse(&p.permission)
+                    .unwrap_or_else(|| panic!("invalid permission string: {}", p.permission));
+
+                records.push(PermissionRecord {
+                    repo_project: repo_project.to_string(),
+                    repo: repo.to_string(),
+                    principal: Principal {
+                        id: p.group_slug.clone(),
+                        label: p.group_name.clone(),
+                    },
+                    access_type: AccessType::Group,
+                    scope: GrantScope::Project,
+                    permission,
+                });
+
+                let members_resolved = match p.members {
+                    RawGroupMembersResponse::FetchFailed => false,
+                    RawGroupMembersResponse::Ok(members) => {
+                        records.extend(members.into_iter().map(|m| PermissionRecord {
+                            repo_project: repo_project.to_string(),
+                            repo: repo.to_string(),
+                            principal: Principal {
+                                id: m.account_id,
+                                label: m.display_name,
+                            },
+                            access_type: AccessType::Member(p.group_slug.clone()),
+                            scope: GrantScope::Project,
                             permission,
                         }));
                         true
@@ -180,6 +292,7 @@ mod tests {
                     label: "Ada Lovelace".to_string(),
                 },
                 access_type: AccessType::Direct,
+                scope: GrantScope::Repo,
                 permission: Permission::Admin,
             }]
         );
@@ -264,6 +377,7 @@ mod tests {
                     label: "Platform Engineering".to_string(),
                 },
                 access_type: AccessType::Group,
+                scope: GrantScope::Repo,
                 permission: Permission::Write,
             }]
         );
@@ -328,6 +442,7 @@ mod tests {
                         label: "Platform Engineering".to_string(),
                     },
                     access_type: AccessType::Group,
+                    scope: GrantScope::Repo,
                     permission: Permission::Write,
                 },
                 PermissionRecord {
@@ -338,6 +453,7 @@ mod tests {
                         label: "Ada Lovelace".to_string(),
                     },
                     access_type: AccessType::Member("platform-eng".to_string()),
+                    scope: GrantScope::Repo,
                     permission: Permission::Write,
                 },
                 PermissionRecord {
@@ -348,6 +464,7 @@ mod tests {
                         label: "Grace Hopper".to_string(),
                     },
                     access_type: AccessType::Member("platform-eng".to_string()),
+                    scope: GrantScope::Repo,
                     permission: Permission::Write,
                 },
             ]
@@ -406,6 +523,146 @@ mod tests {
         // Only the group's own record — never conflated with a confirmed-empty group.
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].access_type, AccessType::Group);
+        assert_eq!(
+            statuses,
+            vec![GroupMembershipStatus {
+                repo_project: "TEAM".to_string(),
+                repo: "repo-a".to_string(),
+                group_id: "locked-group".to_string(),
+                members_resolved: false,
+            }]
+        );
+    }
+
+    #[test]
+    fn project_direct_grant_produces_project_scoped_record_and_ok_status() {
+        let (records, status) = normalize_project_permissions(
+            "TEAM",
+            "repo-a",
+            RawUsersResponse::Ok(vec![RawUserPermission {
+                account_id: "acct-1".to_string(),
+                display_name: "Ada Lovelace".to_string(),
+                permission: "admin".to_string(),
+            }]),
+        );
+
+        assert_eq!(
+            records,
+            vec![PermissionRecord {
+                repo_project: "TEAM".to_string(),
+                repo: "repo-a".to_string(),
+                principal: Principal {
+                    id: "acct-1".to_string(),
+                    label: "Ada Lovelace".to_string(),
+                },
+                access_type: AccessType::Direct,
+                scope: GrantScope::Project,
+                permission: Permission::Admin,
+            }]
+        );
+        assert_eq!(
+            status,
+            ProjectFetchStatus {
+                project_key: "TEAM".to_string(),
+                status: RepoStatus::Ok,
+            }
+        );
+    }
+
+    #[test]
+    fn project_direct_fetch_failure_produces_zero_records_and_fetch_failed_status() {
+        let (records, status) =
+            normalize_project_permissions("TEAM", "repo-a", RawUsersResponse::FetchFailed);
+
+        assert!(records.is_empty());
+        assert_eq!(
+            status,
+            ProjectFetchStatus {
+                project_key: "TEAM".to_string(),
+                status: RepoStatus::FetchFailed,
+            }
+        );
+    }
+
+    #[test]
+    fn project_group_grant_produces_group_and_member_records_scoped_to_project() {
+        let (records, statuses) = normalize_project_group_permissions(
+            "TEAM",
+            "repo-a",
+            RawGroupsResponse::Ok(vec![RawGroupPermission {
+                group_slug: "platform-eng".to_string(),
+                group_name: "Platform Engineering".to_string(),
+                permission: "write".to_string(),
+                members: RawGroupMembersResponse::Ok(vec![RawMember {
+                    account_id: "acct-1".to_string(),
+                    display_name: "Ada Lovelace".to_string(),
+                }]),
+            }]),
+        );
+
+        assert_eq!(
+            records,
+            vec![
+                PermissionRecord {
+                    repo_project: "TEAM".to_string(),
+                    repo: "repo-a".to_string(),
+                    principal: Principal {
+                        id: "platform-eng".to_string(),
+                        label: "Platform Engineering".to_string(),
+                    },
+                    access_type: AccessType::Group,
+                    scope: GrantScope::Project,
+                    permission: Permission::Write,
+                },
+                PermissionRecord {
+                    repo_project: "TEAM".to_string(),
+                    repo: "repo-a".to_string(),
+                    principal: Principal {
+                        id: "acct-1".to_string(),
+                        label: "Ada Lovelace".to_string(),
+                    },
+                    access_type: AccessType::Member("platform-eng".to_string()),
+                    scope: GrantScope::Project,
+                    permission: Permission::Write,
+                },
+            ]
+        );
+        assert_eq!(
+            statuses,
+            vec![GroupMembershipStatus {
+                repo_project: "TEAM".to_string(),
+                repo: "repo-a".to_string(),
+                group_id: "platform-eng".to_string(),
+                members_resolved: true,
+            }]
+        );
+    }
+
+    #[test]
+    fn project_group_fetch_failure_produces_zero_records_and_zero_statuses() {
+        let (records, statuses) =
+            normalize_project_group_permissions("TEAM", "repo-a", RawGroupsResponse::FetchFailed);
+
+        assert!(records.is_empty());
+        assert!(statuses.is_empty());
+    }
+
+    #[test]
+    fn project_group_with_unresolvable_membership_produces_zero_member_records_and_resolved_false() {
+        let (records, statuses) = normalize_project_group_permissions(
+            "TEAM",
+            "repo-a",
+            RawGroupsResponse::Ok(vec![RawGroupPermission {
+                group_slug: "locked-group".to_string(),
+                group_name: "Locked Group".to_string(),
+                permission: "read".to_string(),
+                members: RawGroupMembersResponse::FetchFailed,
+            }]),
+        );
+
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].access_type, AccessType::Group);
+        assert_eq!(records[0].scope, GrantScope::Project);
         assert_eq!(
             statuses,
             vec![GroupMembershipStatus {

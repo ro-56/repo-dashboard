@@ -2,7 +2,9 @@ use std::collections::{BTreeSet, HashMap};
 
 use serde::Serialize;
 
-use crate::model::{AccessType, Permission, PermissionRecord, Principal, RepoFetchStatus, RepoStatus};
+use crate::model::{
+    AccessType, GrantScope, Permission, PermissionRecord, Principal, RepoFetchStatus, RepoStatus,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Snapshot {
@@ -16,7 +18,7 @@ pub enum LevelChangeKind {
     Demotion,
 }
 
-/// A diff entry for one grant-source record, keyed on `(repo, principal_id, access_type)`.
+/// A diff entry for one grant-source record, keyed on `(repo, principal_id, scope, access_type)`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RecordDiff {
     Grant(PermissionRecord),
@@ -26,6 +28,7 @@ pub enum RecordDiff {
         repo: String,
         principal: Principal,
         access_type: AccessType,
+        scope: GrantScope,
         from: Permission,
         to: Permission,
         kind: LevelChangeKind,
@@ -61,10 +64,10 @@ pub struct DiffResult {
     pub repos: Vec<RepoDiff>,
 }
 
-type RecordKey = (String, String, AccessType);
+type RecordKey = (String, String, GrantScope, AccessType);
 
 fn record_key(r: &PermissionRecord) -> RecordKey {
-    (r.repo.clone(), r.principal.id.clone(), r.access_type.clone())
+    (r.repo.clone(), r.principal.id.clone(), r.scope, r.access_type.clone())
 }
 
 fn diff_records(a: &[PermissionRecord], b: &[PermissionRecord]) -> Vec<RecordDiff> {
@@ -93,6 +96,7 @@ fn diff_records(a: &[PermissionRecord], b: &[PermissionRecord]) -> Vec<RecordDif
                         repo: rb.repo.clone(),
                         principal: rb.principal.clone(),
                         access_type: rb.access_type.clone(),
+                        scope: rb.scope,
                         from: ra.permission,
                         to: rb.permission,
                         kind,
@@ -173,7 +177,15 @@ mod tests {
                 label: label.to_string(),
             },
             access_type: AccessType::Direct,
+            scope: GrantScope::Repo,
             permission,
+        }
+    }
+
+    fn project_record(account_id: &str, label: &str, permission: Permission) -> PermissionRecord {
+        PermissionRecord {
+            scope: GrantScope::Project,
+            ..record(account_id, label, permission)
         }
     }
 
@@ -186,6 +198,7 @@ mod tests {
                 label: label.to_string(),
             },
             access_type: AccessType::Group,
+            scope: GrantScope::Repo,
             permission,
         }
     }
@@ -199,6 +212,7 @@ mod tests {
                 label: label.to_string(),
             },
             access_type: AccessType::Member(group_id.to_string()),
+            scope: GrantScope::Repo,
             permission,
         }
     }
@@ -257,6 +271,7 @@ mod tests {
                     label: "Ada".to_string(),
                 },
                 access_type: AccessType::Direct,
+                scope: GrantScope::Repo,
                 from: Permission::Read,
                 to: Permission::Admin,
                 kind: LevelChangeKind::Escalation,
@@ -286,6 +301,7 @@ mod tests {
                     label: "Ada".to_string(),
                 },
                 access_type: AccessType::Direct,
+                scope: GrantScope::Repo,
                 from: Permission::Admin,
                 to: Permission::Write,
                 kind: LevelChangeKind::Demotion,
@@ -383,6 +399,7 @@ mod tests {
                     label: "Platform Engineering".to_string(),
                 },
                 access_type: AccessType::Group,
+                scope: GrantScope::Repo,
                 from: Permission::Read,
                 to: Permission::Admin,
                 kind: LevelChangeKind::Escalation,
@@ -412,6 +429,7 @@ mod tests {
                     label: "Platform Engineering".to_string(),
                 },
                 access_type: AccessType::Group,
+                scope: GrantScope::Repo,
                 from: Permission::Admin,
                 to: Permission::Write,
                 kind: LevelChangeKind::Demotion,
@@ -555,6 +573,7 @@ mod tests {
                     label: "Ada".to_string(),
                 },
                 access_type: AccessType::Member("platform-eng".to_string()),
+                scope: GrantScope::Repo,
                 from: Permission::Read,
                 to: Permission::Admin,
                 kind: LevelChangeKind::Escalation,
@@ -584,6 +603,7 @@ mod tests {
                     label: "Ada".to_string(),
                 },
                 access_type: AccessType::Member("platform-eng".to_string()),
+                scope: GrantScope::Repo,
                 from: Permission::Admin,
                 to: Permission::Write,
                 kind: LevelChangeKind::Demotion,
@@ -642,6 +662,87 @@ mod tests {
         assert_eq!(
             diff.records,
             vec![RecordDiff::Revoke(record("acct-1", "Ada", Permission::Write))]
+        );
+    }
+
+    #[test]
+    fn repo_and_project_grants_of_same_access_type_and_level_are_diffed_independently() {
+        // ADR-0012: scope is part of the diff key. A Repo-level and a Project-level Direct
+        // grant for the same principal+repo at the same level must surface as two independent
+        // Grant entries, never collapsed into one because their (access_type, permission) match.
+        let a = Snapshot::default();
+        let b = Snapshot {
+            records: vec![
+                record("acct-1", "Ada", Permission::Admin),
+                project_record("acct-1", "Ada", Permission::Admin),
+            ],
+            repo_statuses: vec![],
+        };
+
+        let diff = diff_snapshots(&a, &b);
+        assert_eq!(
+            diff.records,
+            vec![
+                RecordDiff::Grant(record("acct-1", "Ada", Permission::Admin)),
+                RecordDiff::Grant(project_record("acct-1", "Ada", Permission::Admin)),
+            ]
+        );
+    }
+
+    #[test]
+    fn repo_and_project_escalations_of_the_same_grant_source_are_distinguishable_by_scope() {
+        // RecordDiff::LevelChange must carry `scope` itself (not just Grant/Revoke, which carry
+        // the whole PermissionRecord) — otherwise two independent escalations that differ only by
+        // scope would produce two structurally-identical LevelChange values, indistinguishable to
+        // any consumer despite coming from different grant sources.
+        let a = Snapshot {
+            records: vec![
+                record("acct-1", "Ada", Permission::Read),
+                project_record("acct-1", "Ada", Permission::Read),
+            ],
+            repo_statuses: vec![],
+        };
+        let b = Snapshot {
+            records: vec![
+                record("acct-1", "Ada", Permission::Admin),
+                project_record("acct-1", "Ada", Permission::Admin),
+            ],
+            repo_statuses: vec![],
+        };
+
+        let diff = diff_snapshots(&a, &b);
+        let scopes: Vec<GrantScope> = diff
+            .records
+            .iter()
+            .map(|d| match d {
+                RecordDiff::LevelChange { scope, .. } => *scope,
+                other => panic!("expected LevelChange, got {other:?}"),
+            })
+            .collect();
+        assert_eq!(scopes, vec![GrantScope::Repo, GrantScope::Project]);
+    }
+
+    #[test]
+    fn grant_moving_from_repo_scope_to_project_scope_diffs_as_revoke_plus_grant() {
+        // Same principal, repo, access_type, and level — only scope changes between the two
+        // Snapshots. Per ADR-0012 this is not a no-op: it reads as a Revoke of the Repo-level
+        // record plus a Grant of the Project-level one.
+        let a = Snapshot {
+            records: vec![record("acct-1", "Ada", Permission::Write)],
+            repo_statuses: vec![],
+        };
+        let b = Snapshot {
+            records: vec![project_record("acct-1", "Ada", Permission::Write)],
+            repo_statuses: vec![],
+        };
+
+        let diff = diff_snapshots(&a, &b);
+        assert_eq!(
+            diff.records,
+            vec![
+                RecordDiff::Revoke(record("acct-1", "Ada", Permission::Write)),
+                RecordDiff::Grant(project_record("acct-1", "Ada", Permission::Write)),
+            ]
         );
     }
 }
