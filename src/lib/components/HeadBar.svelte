@@ -12,16 +12,20 @@
     onSelectBaseline,
     onSelectComparison,
     onSwap,
+    drawerOpen,
+    onToggleDrawer,
   }: {
     snapshots: SnapshotSummary[];
-    baselineId: number;
-    comparisonId: number;
-    comparison: ComparisonSummary;
-    pair: PairStats;
+    baselineId: number | null;
+    comparisonId: number | null;
+    comparison: ComparisonSummary | null;
+    pair: PairStats | null;
     same: boolean;
     onSelectBaseline: (id: number) => void;
     onSelectComparison: (id: number) => void;
     onSwap: () => void;
+    drawerOpen: boolean;
+    onToggleDrawer: () => void;
   } = $props();
 
   let seqs = $derived(snapshotSeqs(snapshots));
@@ -29,7 +33,9 @@
   let baseline = $derived(snapshots.find((s) => s.id === baselineId));
   let comparisonSnapshot = $derived(snapshots.find((s) => s.id === comparisonId));
   let note = $derived(
-    baseline && comparisonSnapshot ? spanNote(baseline, comparisonSnapshot, comparison, pair, same) : "",
+    baseline && comparisonSnapshot && comparison && pair
+      ? spanNote(baseline, comparisonSnapshot, comparison, pair, same)
+      : "",
   );
 
   function handleBaselineChange(event: Event) {
@@ -45,22 +51,33 @@
     <span class="brand">perm-diff</span>
     <span class="eyebrow">repository access audit</span>
   </div>
-  <div class="selectors">
-    <span class="selector-label">baseline</span>
-    <select class="selector" value={baselineId} onchange={handleBaselineChange}>
-      {#each options as option (option.id)}
-        <option value={option.id}>{option.label}</option>
-      {/each}
-    </select>
-    <button type="button" class="swap" onclick={onSwap} aria-label="Swap baseline and comparison">⇄</button>
-    <span class="selector-label">comparison</span>
-    <select class="selector" value={comparisonId} onchange={handleComparisonChange}>
-      {#each options as option (option.id)}
-        <option value={option.id}>{option.label}</option>
-      {/each}
-    </select>
-  </div>
+  {#if baseline && comparisonSnapshot}
+    <div class="selectors">
+      <span class="selector-label">baseline</span>
+      <select class="selector" value={baselineId} onchange={handleBaselineChange}>
+        {#each options as option (option.id)}
+          <option value={option.id}>{option.label}</option>
+        {/each}
+      </select>
+      <button type="button" class="swap" onclick={onSwap} aria-label="Swap baseline and comparison">⇄</button>
+      <span class="selector-label">comparison</span>
+      <select class="selector" value={comparisonId} onchange={handleComparisonChange}>
+        {#each options as option (option.id)}
+          <option value={option.id}>{option.label}</option>
+        {/each}
+      </select>
+    </div>
+  {/if}
   <span class="span-note">{note}</span>
+  <button
+    type="button"
+    class="drawer-toggle"
+    aria-expanded={drawerOpen}
+    aria-label={drawerOpen ? "Close settings drawer" : "Open settings drawer"}
+    onclick={onToggleDrawer}
+  >
+    ⚙
+  </button>
 </header>
 
 <style>
@@ -148,5 +165,21 @@
     font-family: var(--font-mono);
     font-size: var(--t-body-s);
     color: var(--ink-mute);
+  }
+
+  .drawer-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--control-edge);
+    border-radius: var(--radius);
+    background: var(--surface-sunken);
+    color: var(--ink-3);
+    font-size: var(--t-body);
+    line-height: 1;
+    cursor: pointer;
   }
 </style>

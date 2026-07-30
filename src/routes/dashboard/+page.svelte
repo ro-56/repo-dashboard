@@ -9,6 +9,8 @@
   import EmptyState from "$lib/components/EmptyState.svelte";
   import ProjectSection from "$lib/components/ProjectSection.svelte";
   import RosterColumnLabels from "$lib/components/RosterColumnLabels.svelte";
+  import SideDrawer from "$lib/components/SideDrawer.svelte";
+  import CredentialsPanel from "$lib/components/CredentialsPanel.svelte";
   import { isRepoOpen, treeHasAnyChanges } from "$lib/repoCard";
   import { snapshotSeqs } from "$lib/headBar";
   import {
@@ -22,6 +24,11 @@
   import { emptyStateFor } from "$lib/emptyState";
 
   let { data }: { data: PageData } = $props();
+
+  let drawerOpen = $state(false);
+  function toggleDrawer() {
+    drawerOpen = !drawerOpen;
+  }
 
   // Keys of repos the user has clicked away from their computed default-open state
   // (PD-16's default-expand rule) — not "which repos are open" directly, so that rule keeps
@@ -114,20 +121,22 @@
 </script>
 
 <main class="dashboard">
+  <HeadBar
+    snapshots={data.snapshots}
+    baselineId={data.baselineId}
+    comparisonId={data.comparisonId}
+    comparison={data.comparison}
+    pair={data.pair}
+    {same}
+    onSelectBaseline={selectBaseline}
+    onSelectComparison={selectComparison}
+    onSwap={swapPair}
+    {drawerOpen}
+    onToggleDrawer={toggleDrawer}
+  />
   {#if data.snapshots.length === 0}
-    <p class="empty-note">No runs recorded yet — use "Run now" on the home page first.</p>
+    <p class="empty-note">No runs recorded yet — open the settings drawer to connect Bitbucket credentials.</p>
   {:else}
-    <HeadBar
-      snapshots={data.snapshots}
-      baselineId={data.baselineId}
-      comparisonId={data.comparisonId}
-      comparison={data.comparison!}
-      pair={data.pair!}
-      {same}
-      onSelectBaseline={selectBaseline}
-      onSelectComparison={selectComparison}
-      onSwap={swapPair}
-    />
     <SummaryBar
       comparison={data.comparison!}
       pair={data.pair!}
@@ -166,6 +175,10 @@
     </div>
   {/if}
 </main>
+
+<SideDrawer open={drawerOpen} onClose={toggleDrawer}>
+  <CredentialsPanel />
+</SideDrawer>
 
 <style>
   .dashboard {
