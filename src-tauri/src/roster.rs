@@ -10,10 +10,12 @@ use serde::Serialize;
 
 use crate::diff::{diff_snapshots, DiffResult, LevelChangeKind, RecordDiff, Side, Snapshot};
 use crate::model::{
-    AccessType, GrantScope, GroupMembershipStatus, Permission, PermissionRecord, RepoFetchStatus,
-    RepoStatus,
+    AccessType, GrantScope, GroupMembershipStatus, Permission, PermissionRecord, ProjectFetchStatus,
+    RepoFetchStatus, RepoStatus,
 };
-use crate::storage::{load_group_membership_statuses, load_snapshot};
+use crate::storage::{
+    load_group_membership_statuses, load_project_fetch_statuses, load_snapshot,
+};
 
 /// Mirrors `diff.rs`'s private record key exactly (ADR-0012: `scope` is part of it), so a
 /// record counted as "changed" by the diff engine is never also folded in again as unchanged.
@@ -43,6 +45,10 @@ pub enum DiffStatus {
 pub struct PrincipalEntry {
     pub principal: crate::model::Principal,
     pub access_type: AccessType,
+    /// Where this grant lives (ADR-0012) — `Repo` or `Project`. Part of the diff key
+    /// (`diff.rs`), so a Repo-level and a Project-level row for the same Principal + access
+    /// type are always two distinct rows here, never merged.
+    pub scope: GrantScope,
     /// The permission currently on display: Snapshot B's value for Grant/None/LevelChange,
     /// Snapshot A's value for Revoke (there is no B-side value for a revoked record).
     pub permission: Permission,
@@ -105,6 +111,12 @@ pub struct RepoNode {
     /// discarded in favour of rendering nothing, distinct from a repo confirmed to have zero
     /// grants.
     pub fetch_failed: bool,
+    /// True when this repo's owning Project's own fetch (`ProjectFetchStatus::FetchFailed`,
+    /// ADR-0012) failed on either Snapshot side, joined at query time by `repo_project` (the
+    /// Project key). Independent of `status_a`/`status_b`/`fetch_failed` above, which describe
+    /// this repo's *own* fetch — a repo can be `Ok` at the repo level while its Project is
+    /// unknown, so unlike `fetch_failed` this never clears `principals`.
+    pub project_fetch_failed: bool,
     pub principals: Vec<PrincipalEntry>,
     /// Counts reflect currently-held access (i.e. exclude Revoked entries) — a Grant, an
     /// unchanged record, and the "to" side of a Level change all count; a Revoke does not,
@@ -179,6 +191,12 @@ fn repo_status_map(statuses: &[RepoFetchStatus]) -> HashMap<RepoKey, RepoStatus>
         .iter()
         .map(|s| ((s.repo_project.clone(), s.repo.clone()), s.status))
         .collect()
+}
+
+/// Keyed on `project_key` (== `repo_project`, ADR-0012) — a Project's own fetch outcome for
+/// one Snapshot side, joined onto every repo it owns at query time.
+fn project_status_map(statuses: &[ProjectFetchStatus]) -> HashMap<String, RepoStatus> {
+    statuses.iter().map(|s| (s.project_key.clone(), s.status)).collect()
 }
 
 type GroupKey = (String, String, String);
@@ -272,6 +290,8 @@ fn build_roster_tree(
     diff: &DiffResult,
     membership_a: &[GroupMembershipStatus],
     membership_b: &[GroupMembershipStatus],
+    project_statuses_a: &[ProjectFetchStatus],
+    project_statuses_b: &[ProjectFetchStatus],
 ) -> RosterTree {
     // Workspace departure/arrival (CONTEXT.md) is scoped to user Principals: a Principal
     // holding at least one Direct/Member grant anywhere in one Snapshot and none anywhere in
@@ -328,6 +348,7 @@ fn build_roster_tree(
                     PrincipalEntry {
                         principal: r.principal.clone(),
                         access_type: r.access_type.clone(),
+                        scope: r.scope,
                         permission: r.permission,
                         diff_status: DiffStatus::Grant,
                         workspace_state: workspace_state(&r.access_type, &r.principal.id),
@@ -349,6 +370,7 @@ fn build_roster_tree(
                     PrincipalEntry {
                         principal: r.principal.clone(),
                         access_type: r.access_type.clone(),
+                        scope: r.scope,
                         permission: r.permission,
                         diff_status: DiffStatus::Revoke,
                         workspace_state: workspace_state(&r.access_type, &r.principal.id),
@@ -370,6 +392,7 @@ fn build_roster_tree(
                     PrincipalEntry {
                         principal: principal.clone(),
                         access_type: access_type.clone(),
+                        scope: *scope,
                         permission: *to,
                         diff_status: DiffStatus::LevelChange { from: *from, to: *to, kind: *kind },
                         workspace_state: workspace_state(access_type, &principal.id),
@@ -390,6 +413,7 @@ fn build_roster_tree(
         by_repo.entry((r.repo_project.clone(), r.repo.clone())).or_default().push(PrincipalEntry {
             principal: r.principal.clone(),
             access_type: r.access_type.clone(),
+            scope: r.scope,
             permission: r.permission,
             diff_status: DiffStatus::None,
             workspace_state: workspace_state(&r.access_type, &r.principal.id),
@@ -399,6 +423,8 @@ fn build_roster_tree(
 
     let status_a = repo_status_map(&a.repo_statuses);
     let status_b = repo_status_map(&b.repo_statuses);
+    let project_status_a = project_status_map(project_statuses_a);
+    let project_status_b = project_status_map(project_statuses_b);
 
     let mut repo_keys: HashSet<(String, String)> = HashSet::new();
     repo_keys.extend(status_a.keys().cloned());
@@ -417,6 +443,13 @@ fn build_roster_tree(
         // whatever `by_repo` computed for this key and render nothing.
         let fetch_failed = matches!(status_a.get(&key), Some(RepoStatus::FetchFailed))
             || matches!(status_b.get(&key), Some(RepoStatus::FetchFailed));
+
+        // Project fetch failure (ADR-0012): joined by `repo_project` (the Project key), on
+        // either Snapshot side. Unlike `fetch_failed` above, this never discards `principals` —
+        // this repo's own data, if it fetched successfully, stays fully visible; only the
+        // Project layer above it is flagged unknown.
+        let project_fetch_failed = matches!(project_status_a.get(&repo_project), Some(RepoStatus::FetchFailed))
+            || matches!(project_status_b.get(&repo_project), Some(RepoStatus::FetchFailed));
 
         let mut principals = if fetch_failed { Vec::new() } else { by_repo.remove(&key).unwrap_or_default() };
         principals.sort_by(|x, y| {
@@ -454,6 +487,7 @@ fn build_roster_tree(
             status_b: status_b.get(&key).copied(),
             discovery_state,
             fetch_failed,
+            project_fetch_failed,
             principals,
             read_count,
             write_count,
@@ -489,9 +523,19 @@ pub fn get_roster_tree(
 
     let membership_a = load_group_membership_statuses(conn, snapshot_a_id)?;
     let membership_b = load_group_membership_statuses(conn, snapshot_b_id)?;
+    let project_statuses_a = load_project_fetch_statuses(conn, snapshot_a_id)?;
+    let project_statuses_b = load_project_fetch_statuses(conn, snapshot_b_id)?;
 
     Ok(RosterTreeResult {
-        tree: build_roster_tree(&a, &b, &diff, &membership_a, &membership_b),
+        tree: build_roster_tree(
+            &a,
+            &b,
+            &diff,
+            &membership_a,
+            &membership_b,
+            &project_statuses_a,
+            &project_statuses_b,
+        ),
         comparison: comparison_summary(&b),
         pair: pair_stats(&diff, &a, &b),
     })
@@ -501,7 +545,7 @@ pub fn get_roster_tree(
 mod tests {
     use super::*;
     use crate::model::{GrantScope, Principal};
-    use crate::storage::{init_schema, save_snapshot};
+    use crate::storage::{init_schema, save_project_fetch_statuses, save_snapshot};
 
     fn open_conn() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
@@ -561,6 +605,25 @@ mod tests {
         }
     }
 
+    /// Mirrors `record`, but scoped to the owning Project (ADR-0012) rather than the repo itself.
+    fn project_record(
+        repo_project: &str,
+        repo: &str,
+        account_id: &str,
+        label: &str,
+        permission: Permission,
+    ) -> PermissionRecord {
+        PermissionRecord { scope: GrantScope::Project, ..record(repo_project, repo, account_id, label, permission) }
+    }
+
+    fn project_ok_status(project_key: &str) -> ProjectFetchStatus {
+        ProjectFetchStatus { project_key: project_key.to_string(), status: RepoStatus::Ok }
+    }
+
+    fn project_fetch_failed_status(project_key: &str) -> ProjectFetchStatus {
+        ProjectFetchStatus { project_key: project_key.to_string(), status: RepoStatus::FetchFailed }
+    }
+
     fn ok_status(repo_project: &str, repo: &str) -> RepoFetchStatus {
         RepoFetchStatus {
             repo_project: repo_project.to_string(),
@@ -603,6 +666,13 @@ mod tests {
             .iter()
             .find(|p| p.principal.label == label)
             .expect("principal present in repo")
+    }
+
+    fn principal_entry_with_scope<'a>(repo: &'a RepoNode, label: &str, scope: GrantScope) -> &'a PrincipalEntry {
+        repo.principals
+            .iter()
+            .find(|p| p.principal.label == label && p.scope == scope)
+            .expect("principal with given scope present in repo")
     }
 
     #[test]
@@ -983,5 +1053,154 @@ mod tests {
             principal_entry(repo, "Platform Engineering").members_resolved,
             Some(true)
         );
+    }
+
+    #[test]
+    fn repo_level_and_project_level_grants_for_same_principal_are_two_separate_rows() {
+        let mut conn = open_conn();
+        let snapshot = Snapshot {
+            records: vec![
+                record("TEAM", "repo-a", "acct-1", "Ada", Permission::Read),
+                project_record("TEAM", "repo-a", "acct-1", "Ada", Permission::Admin),
+            ],
+            repo_statuses: vec![ok_status("TEAM", "repo-a")],
+        };
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[]).unwrap();
+
+        let result = get_roster_tree(&conn, id, id).unwrap();
+        let repo = repo_node(&result.tree, "TEAM", "repo-a");
+
+        assert_eq!(repo.principals.iter().filter(|p| p.principal.label == "Ada").count(), 2);
+        let repo_level = principal_entry_with_scope(repo, "Ada", GrantScope::Repo);
+        let project_level = principal_entry_with_scope(repo, "Ada", GrantScope::Project);
+        assert_eq!(repo_level.permission, Permission::Read);
+        assert_eq!(project_level.permission, Permission::Admin);
+    }
+
+    #[test]
+    fn project_fetch_failure_appears_against_every_repo_in_the_project_without_affecting_repo_status() {
+        let mut conn = open_conn();
+        let snapshot = Snapshot {
+            records: vec![
+                record("TEAM", "repo-a", "acct-1", "Ada", Permission::Read),
+                record("TEAM", "repo-b", "acct-2", "Grace", Permission::Write),
+            ],
+            repo_statuses: vec![ok_status("TEAM", "repo-a"), ok_status("TEAM", "repo-b")],
+        };
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[]).unwrap();
+        save_project_fetch_statuses(&conn, id, &[project_fetch_failed_status("TEAM")]).unwrap();
+
+        let result = get_roster_tree(&conn, id, id).unwrap();
+        let repo_a = repo_node(&result.tree, "TEAM", "repo-a");
+        let repo_b = repo_node(&result.tree, "TEAM", "repo-b");
+
+        // Both repos in the failed Project are flagged...
+        assert!(repo_a.project_fetch_failed);
+        assert!(repo_b.project_fetch_failed);
+        // ...but each repo's own RepoStatus and data are unaffected: repo-level fetch succeeded,
+        // so principals still show fully.
+        assert_eq!(repo_a.status_b, Some(RepoStatus::Ok));
+        assert!(!repo_a.fetch_failed);
+        assert_eq!(repo_a.principals.len(), 1);
+        assert_eq!(repo_b.principals.len(), 1);
+    }
+
+    #[test]
+    fn repo_belonging_to_a_healthy_project_is_not_flagged() {
+        let mut conn = open_conn();
+        let snapshot =
+            Snapshot { records: vec![], repo_statuses: vec![ok_status("TEAM", "repo-a")] };
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[]).unwrap();
+        save_project_fetch_statuses(&conn, id, &[project_ok_status("TEAM")]).unwrap();
+
+        let result = get_roster_tree(&conn, id, id).unwrap();
+        let repo = repo_node(&result.tree, "TEAM", "repo-a");
+
+        assert!(!repo.project_fetch_failed);
+    }
+
+    #[test]
+    fn escalation_on_a_project_level_grant_produces_the_same_level_change_as_a_repo_level_one() {
+        let mut conn = open_conn();
+        let a = Snapshot {
+            records: vec![project_record("TEAM", "repo-a", "acct-1", "Ada", Permission::Read)],
+            repo_statuses: vec![ok_status("TEAM", "repo-a")],
+        };
+        let b = Snapshot {
+            records: vec![project_record("TEAM", "repo-a", "acct-1", "Ada", Permission::Admin)],
+            repo_statuses: vec![ok_status("TEAM", "repo-a")],
+        };
+
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+
+        let result = get_roster_tree(&conn, a_id, b_id).unwrap();
+        let repo = repo_node(&result.tree, "TEAM", "repo-a");
+        let ada = principal_entry_with_scope(repo, "Ada", GrantScope::Project);
+
+        assert_eq!(
+            ada.diff_status,
+            DiffStatus::LevelChange {
+                from: Permission::Read,
+                to: Permission::Admin,
+                kind: LevelChangeKind::Escalation,
+            }
+        );
+        assert_eq!(repo.change_count, 1);
+        assert_eq!(repo.admin_count, 1);
+    }
+
+    #[test]
+    fn demotion_on_a_project_level_grant_produces_the_same_level_change_as_a_repo_level_one() {
+        let mut conn = open_conn();
+        let a = Snapshot {
+            records: vec![project_record("TEAM", "repo-a", "acct-1", "Ada", Permission::Admin)],
+            repo_statuses: vec![ok_status("TEAM", "repo-a")],
+        };
+        let b = Snapshot {
+            records: vec![project_record("TEAM", "repo-a", "acct-1", "Ada", Permission::Write)],
+            repo_statuses: vec![ok_status("TEAM", "repo-a")],
+        };
+
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+
+        let result = get_roster_tree(&conn, a_id, b_id).unwrap();
+        let repo = repo_node(&result.tree, "TEAM", "repo-a");
+        let ada = principal_entry_with_scope(repo, "Ada", GrantScope::Project);
+
+        assert_eq!(
+            ada.diff_status,
+            DiffStatus::LevelChange {
+                from: Permission::Admin,
+                to: Permission::Write,
+                kind: LevelChangeKind::Demotion,
+            }
+        );
+        assert_eq!(repo.change_count, 1);
+        assert_eq!(repo.write_count, 1);
+    }
+
+    #[test]
+    fn project_level_grant_and_revoke_behave_identically_to_repo_level() {
+        let mut conn = open_conn();
+        let a = Snapshot {
+            records: vec![project_record("TEAM", "repo-a", "acct-1", "Ada", Permission::Write)],
+            repo_statuses: vec![ok_status("TEAM", "repo-a")],
+        };
+        let b = Snapshot {
+            records: vec![project_record("TEAM", "repo-a", "acct-2", "Grace", Permission::Read)],
+            repo_statuses: vec![ok_status("TEAM", "repo-a")],
+        };
+
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[]).unwrap();
+
+        let result = get_roster_tree(&conn, a_id, b_id).unwrap();
+        let repo = repo_node(&result.tree, "TEAM", "repo-a");
+
+        assert_eq!(principal_entry(repo, "Ada").diff_status, DiffStatus::Revoke);
+        assert_eq!(principal_entry(repo, "Grace").diff_status, DiffStatus::Grant);
+        assert_eq!(repo.change_count, 2);
     }
 }
