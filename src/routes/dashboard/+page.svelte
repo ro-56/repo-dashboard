@@ -12,6 +12,7 @@
   import SideDrawer from "$lib/components/SideDrawer.svelte";
   import CredentialsPanel from "$lib/components/CredentialsPanel.svelte";
   import RunPanel from "$lib/components/RunPanel.svelte";
+  import SnapshotsPanel from "$lib/components/SnapshotsPanel.svelte";
   import { isRepoOpen, treeHasAnyChanges } from "$lib/repoCard";
   import { snapshotSeqs } from "$lib/headBar";
   import {
@@ -180,6 +181,7 @@
 <SideDrawer open={drawerOpen} onClose={toggleDrawer}>
   <CredentialsPanel />
   <RunPanel />
+  <SnapshotsPanel snapshots={data.snapshots} baselineId={data.baselineId} comparisonId={data.comparisonId} />
 </SideDrawer>
 
 <style>
