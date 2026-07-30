@@ -188,4 +188,23 @@
     flex-direction: column;
     border-top: 1px solid var(--rule-row);
   }
+
+  /* Reflow order (ADR-0009): grants text sheds first, then the distribution bar. */
+  @media (max-width: 1300px) {
+    .repo-head {
+      grid-template-columns: 12px 232px 62px 1fr auto;
+    }
+    .grants {
+      display: none;
+    }
+  }
+
+  @media (max-width: 1200px) {
+    .repo-head {
+      grid-template-columns: 12px 232px 1fr auto;
+    }
+    .bar-cell {
+      display: none;
+    }
+  }
 </style>

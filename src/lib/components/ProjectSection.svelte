@@ -90,4 +90,11 @@
     flex-direction: column;
     gap: var(--s-2);
   }
+
+  /* Reflow order (ADR-0009): project meta sheds after the repo card's grants text and bar. */
+  @media (max-width: 1100px) {
+    .project-meta {
+      display: none;
+    }
+  }
 </style>

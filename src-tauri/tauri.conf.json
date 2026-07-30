@@ -13,8 +13,9 @@
     "windows": [
       {
         "title": "repo-dashboard",
-        "width": 800,
-        "height": 600
+        "width": 1440,
+        "height": 900,
+        "minWidth": 900
       }
     ],
     "security": {

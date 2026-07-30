@@ -187,4 +187,12 @@
     border-color: var(--tag-neutral-border);
     color: var(--tag-neutral-ink);
   }
+
+  /* Reflow order (ADR-0009): the from-level is the last thing to shed, since it's redundant
+     with the row's meter and type weight (ADR-0005). The grant-source column never sheds. */
+  @media (max-width: 950px) {
+    .from {
+      display: none;
+    }
+  }
 </style>

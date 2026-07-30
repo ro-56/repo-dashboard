@@ -78,6 +78,7 @@
   .wordmark {
     display: flex;
     align-items: baseline;
+    flex: none;
     gap: var(--s-5);
   }
   .brand {
@@ -99,6 +100,7 @@
   .selectors {
     display: flex;
     align-items: center;
+    flex: none;
     gap: var(--s-6);
   }
   .selector-label {
@@ -138,6 +140,11 @@
   }
 
   .span-note {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-family: var(--font-mono);
     font-size: var(--t-body-s);
     color: var(--ink-mute);

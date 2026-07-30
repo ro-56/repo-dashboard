@@ -171,6 +171,8 @@
   .dashboard {
     display: flex;
     flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
     font-family: var(--font-sans);
     color: var(--ink);
   }
@@ -184,6 +186,9 @@
 
   .canvas {
     flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
     background: var(--canvas);
     padding: var(--s-7) var(--s-7) var(--s-8);
   }

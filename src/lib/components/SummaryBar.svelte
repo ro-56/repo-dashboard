@@ -129,4 +129,19 @@
   .tone-muted {
     color: var(--ink-faint);
   }
+
+  /* Reflow order (ADR-0009): summary bar wraps to two rows after project meta sheds. */
+  @media (max-width: 1000px) {
+    .summary-bar {
+      flex-wrap: wrap;
+      height: auto;
+    }
+    .cluster {
+      flex: 1 1 100%;
+    }
+    .cluster:first-child {
+      border-right: none;
+      border-bottom: 1px solid var(--rule-row);
+    }
+  }
 </style>
