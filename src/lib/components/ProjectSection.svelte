@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ProjectNode } from "$lib/roster";
   import { countBadges, projectBreakdown, projectMeta } from "$lib/repoCard";
+  import { visibleRepos, type ViewMode } from "$lib/filterBar";
   import CountBadges from "./CountBadges.svelte";
   import RepoCard from "./RepoCard.svelte";
 
@@ -8,38 +9,46 @@
     project,
     comparisonId,
     anyChanges,
+    viewMode,
     isToggled,
     onToggle,
   }: {
     project: ProjectNode;
     comparisonId: number;
     anyChanges: boolean;
+    viewMode: ViewMode;
     isToggled: (repoProject: string, repo: string) => boolean;
     onToggle: (repoProject: string, repo: string) => void;
   } = $props();
 
+  // Meta/counts always describe the whole project (ADR-0008) — only the rendered repo list
+  // narrows under Changes only.
   let counts = $derived(countBadges(projectBreakdown(project)));
   let meta = $derived(projectMeta(project));
+  let repos = $derived(visibleRepos(project, viewMode));
 </script>
 
-<section class="project">
-  <header class="project-head">
-    <span class="project-name">{project.repoProject}</span>
-    <span class="project-meta">{meta}</span>
-    <span class="project-counts"><CountBadges badges={counts} /></span>
-  </header>
-  <div class="repo-cards">
-    {#each project.repos as repo (repo.repo)}
-      <RepoCard
-        {repo}
-        {comparisonId}
-        {anyChanges}
-        toggled={isToggled(project.repoProject, repo.repo)}
-        onToggle={() => onToggle(project.repoProject, repo.repo)}
-      />
-    {/each}
-  </div>
-</section>
+{#if repos.length > 0}
+  <section class="project">
+    <header class="project-head">
+      <span class="project-name">{project.repoProject}</span>
+      <span class="project-meta">{meta}</span>
+      <span class="project-counts"><CountBadges badges={counts} /></span>
+    </header>
+    <div class="repo-cards">
+      {#each repos as repo (repo.repo)}
+        <RepoCard
+          {repo}
+          {comparisonId}
+          {anyChanges}
+          {viewMode}
+          toggled={isToggled(project.repoProject, repo.repo)}
+          onToggle={() => onToggle(project.repoProject, repo.repo)}
+        />
+      {/each}
+    </div>
+  </section>
+{/if}
 
 <style>
   .project {

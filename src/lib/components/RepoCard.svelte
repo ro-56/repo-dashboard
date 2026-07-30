@@ -1,15 +1,16 @@
 <script lang="ts">
   import type { PrincipalEntry, RepoNode } from "$lib/roster";
-  import { sortedPrincipals } from "$lib/rosterRow";
+  import { hasDiff, sortedPrincipals } from "$lib/rosterRow";
   import {
     absentSide,
     countBadges,
-    defaultOpen,
     distributionBarBackground,
     grantsText,
+    isRepoOpen,
     repoBreakdown,
     repoTag,
   } from "$lib/repoCard";
+  import type { ViewMode } from "$lib/filterBar";
   import CountBadges from "./CountBadges.svelte";
   import RosterRow from "./RosterRow.svelte";
 
@@ -17,22 +18,27 @@
     repo,
     comparisonId,
     anyChanges,
+    viewMode,
     toggled,
     onToggle,
   }: {
     repo: RepoNode;
     comparisonId: number;
     anyChanges: boolean;
+    viewMode: ViewMode;
     toggled: boolean;
     onToggle: () => void;
   } = $props();
 
   // `toggled` records whether the user has clicked this card away from its computed default;
   // XOR-ing against the default keeps that default live as the underlying tree data changes.
-  let open = $derived(defaultOpen(repo, anyChanges) !== toggled);
+  let open = $derived(isRepoOpen(repo, anyChanges, toggled));
+  // Header counts always describe the whole repo (ADR-0008) — only the rendered rows narrow.
   let counts = $derived(countBadges(repoBreakdown(repo)));
   let tag = $derived(repoTag(repo, comparisonId));
   let gone = $derived(absentSide(repo) === "B");
+  let sorted = $derived(sortedPrincipals(repo.principals));
+  let roster = $derived(viewMode === "changes" ? sorted.filter(hasDiff) : sorted);
 
   // A principal can appear more than once per repo (e.g. Direct plus Member-of-group-X),
   // so the key needs the access type — and, for Member, the group_id — to stay unique.
@@ -66,7 +72,7 @@
 
   {#if open}
     <div class="roster">
-      {#each sortedPrincipals(repo.principals) as entry (principalEntryKey(entry))}
+      {#each roster as entry (principalEntryKey(entry))}
         <RosterRow {entry} />
       {/each}
     </div>

@@ -21,6 +21,12 @@ export function isUnresolvedGroup(entry: PrincipalEntry): boolean {
   return entry.accessType.type === "Group" && entry.membersResolved === false;
 }
 
+/** A row carrying a diff marker (Grant/Revoke/LevelChange) — shared by the Changes only tab's
+ * row-level filter and its "N changed" count (filterBar.ts) so neither can drift from the other. */
+export function hasDiff(entry: PrincipalEntry): boolean {
+  return entry.diffStatus.status !== "None";
+}
+
 /** `direct`, `group`, or `grp:<name>` — never spills into the notes column. */
 export function sourceLabel(accessType: AccessType): string {
   switch (accessType.type) {

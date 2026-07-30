@@ -5,10 +5,21 @@
   import HeadBar from "$lib/components/HeadBar.svelte";
   import SummaryBar from "$lib/components/SummaryBar.svelte";
   import NoticeStrip from "$lib/components/NoticeStrip.svelte";
+  import FilterBar from "$lib/components/FilterBar.svelte";
+  import EmptyState from "$lib/components/EmptyState.svelte";
   import ProjectSection from "$lib/components/ProjectSection.svelte";
   import RosterColumnLabels from "$lib/components/RosterColumnLabels.svelte";
-  import { treeHasAnyChanges } from "$lib/repoCard";
+  import { isRepoOpen, treeHasAnyChanges } from "$lib/repoCard";
   import { snapshotSeqs } from "$lib/headBar";
+  import {
+    allVisibleOpen,
+    countNote,
+    viewCounts,
+    visibleRepoCount,
+    visibleRepos,
+    type ViewMode,
+  } from "$lib/filterBar";
+  import { emptyStateFor } from "$lib/emptyState";
 
   let { data }: { data: PageData } = $props();
 
@@ -16,6 +27,10 @@
   // (PD-16's default-expand rule) — not "which repos are open" directly, so that rule keeps
   // applying to every repo the user hasn't touched even as the underlying tree changes.
   let toggledRepos = new SvelteSet<string>();
+
+  // All access / Changes only (PD-20). Kept independent of toggledRepos so switching tabs
+  // restores whatever expansion state the user had, rather than resetting it.
+  let viewMode = $state<ViewMode>("all");
 
   function repoKey(repoProject: string, repo: string): string {
     return `${repoProject}::${repo}`;
@@ -37,6 +52,50 @@
   let anyChanges = $derived(treeHasAnyChanges(data.tree));
   let seqs = $derived(snapshotSeqs(data.snapshots));
   let same = $derived(data.baselineId === data.comparisonId);
+
+  let counts = $derived(viewCounts(data.tree, viewMode));
+  let allOpen = $derived(allVisibleOpen(data.tree, viewMode, anyChanges, isToggled));
+  let expandLabel = $derived(allOpen ? "Collapse all" : "Expand all");
+  let isEmpty = $derived(visibleRepoCount(data.tree, viewMode) === 0);
+  let empty = $derived(
+    isEmpty
+      ? emptyStateFor(viewMode, data.pair!, data.comparison!, seqs.get(data.baselineId)!, seqs.get(data.comparisonId)!)
+      : null,
+  );
+
+  function setViewMode(mode: ViewMode) {
+    viewMode = mode;
+  }
+
+  // Flips every currently visible card whose open state doesn't already match `desiredOpen`,
+  // leaving cards hidden by the current tab untouched (PD-20: "opens every visible card").
+  function setBulkOpen(desiredOpen: boolean) {
+    for (const project of data.tree) {
+      for (const repo of visibleRepos(project, viewMode)) {
+        const currentlyOpen = isRepoOpen(repo, anyChanges, isToggled(project.repoProject, repo.repo));
+        if (currentlyOpen !== desiredOpen) {
+          toggleRepo(project.repoProject, repo.repo);
+        }
+      }
+    }
+  }
+
+  function handleBulkToggle() {
+    setBulkOpen(!allOpen);
+  }
+
+  function resetView() {
+    viewMode = "all";
+    toggledRepos.clear();
+  }
+
+  function handleEmptyAction() {
+    if (empty?.action === "show-all") {
+      viewMode = "all";
+    } else {
+      resetView();
+    }
+  }
 
   function navigateToPair(baselineId: number, comparisonId: number) {
     const params = new URLSearchParams({ baseline: String(baselineId), comparison: String(comparisonId) });
@@ -76,19 +135,34 @@
       baselineSeq={seqs.get(data.baselineId)!}
       comparisonSeq={seqs.get(data.comparisonId)!}
     />
+    <FilterBar
+      {viewMode}
+      countNoteText={countNote(counts)}
+      {expandLabel}
+      bulkDisabled={isEmpty}
+      onSetViewMode={setViewMode}
+      onBulkToggle={handleBulkToggle}
+      onReset={resetView}
+    />
     <NoticeStrip tree={data.tree} {same} comparisonSeq={seqs.get(data.comparisonId)!} />
 
-    <RosterColumnLabels />
+    {#if !isEmpty}
+      <RosterColumnLabels />
+    {/if}
     <div class="canvas">
       {#each data.tree as project (project.repoProject)}
         <ProjectSection
           {project}
           comparisonId={data.comparisonId}
           {anyChanges}
+          {viewMode}
           {isToggled}
           onToggle={toggleRepo}
         />
       {/each}
+      {#if empty}
+        <EmptyState state={empty} onAction={handleEmptyAction} />
+      {/if}
     </div>
   {/if}
 </main>

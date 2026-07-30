@@ -71,6 +71,13 @@ export function projectBreakdown(project: ProjectNode): Breakdown {
   return project.repos.reduce((acc, repo) => addBreakdown(acc, repoBreakdown(repo)), emptyBreakdown());
 }
 
+/** Whether a repo carries at least one Grant/Revoke/LevelChange — shared by the default-expand
+ * rule (below) and the Changes only tab's card-level filter (filterBar.ts), so the two can't
+ * drift apart on what counts as "changed" (PD-20). */
+export function repoHasChanges(repo: RepoNode): boolean {
+  return isHot(repoBreakdown(repo));
+}
+
 /** ADR-0009 / PD-16: repos with at least one change open automatically; if the whole Run
  * pair has zero changes anywhere, every card opens instead of everything collapsing. */
 export function treeHasAnyChanges(tree: RosterTree): boolean {
@@ -78,7 +85,14 @@ export function treeHasAnyChanges(tree: RosterTree): boolean {
 }
 
 export function defaultOpen(repo: RepoNode, treeHasChanges: boolean): boolean {
-  return !treeHasChanges || isHot(repoBreakdown(repo));
+  return !treeHasChanges || repoHasChanges(repo);
+}
+
+/** Whether a card renders open right now: the default-expand rule XOR'd against the user's own
+ * toggle (PD-16). Shared by RepoCard.svelte, the bulk expand/collapse scope check, and the
+ * label decision (filterBar.ts) — same formula, one place. */
+export function isRepoOpen(repo: RepoNode, treeHasChanges: boolean, toggled: boolean): boolean {
+  return defaultOpen(repo, treeHasChanges) !== toggled;
 }
 
 /** Card header text reads in grants, never headcount — "7 grants · 2 admin" (ADR-0008).
