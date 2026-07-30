@@ -93,6 +93,17 @@ async fn get_roster_tree(
     roster::get_roster_tree(&conn, snapshot_a_id, snapshot_b_id).map_err(|e| e.to_string())
 }
 
+/// Permanently deletes a Snapshot and its cascaded rows (ADR-0011). Thin wrapper around
+/// `storage::delete_snapshot` — all logic lives there and is covered by `cargo test`.
+#[tauri::command]
+async fn delete_snapshot(db: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
+    let mut conn = db.0.lock().await;
+    storage::delete_snapshot(&mut conn, id).map_err(|e| match e {
+        storage::DeleteSnapshotError::NotFound(id) => format!("no snapshot with id {id}"),
+        storage::DeleteSnapshotError::Storage(msg) => format!("could not delete snapshot: {msg}"),
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -111,7 +122,8 @@ pub fn run() {
             get_credentials,
             run_now,
             list_snapshots,
-            get_roster_tree
+            get_roster_tree,
+            delete_snapshot
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -220,6 +220,44 @@ pub fn load_group_membership_statuses(
     Ok(rows)
 }
 
+/// Deleting a Snapshot that never existed is an error, not a silent no-op (PD-25) — the
+/// frontend needs to know a delete request didn't correspond to anything real.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DeleteSnapshotError {
+    NotFound(i64),
+    Storage(String),
+}
+
+/// Permanently removes a Snapshot and every row scoped to it (`permission_records`,
+/// `repo_fetch_statuses`, `group_membership_statuses`) inside one transaction. Child rows
+/// are deleted before the parent `snapshots` row since `PRAGMA foreign_keys = ON` rejects a
+/// parent delete while children still reference it. Per ADR-0011, this doesn't change
+/// `Snapshot`'s "immutable" meaning — deletion removes a Snapshot's existence, not its content.
+pub fn delete_snapshot(conn: &mut Connection, snapshot_id: i64) -> Result<(), DeleteSnapshotError> {
+    fn storage_err(e: rusqlite::Error) -> DeleteSnapshotError {
+        DeleteSnapshotError::Storage(e.to_string())
+    }
+
+    let tx = conn.transaction().map_err(storage_err)?;
+
+    tx.execute("DELETE FROM permission_records WHERE snapshot_id = ?1", params![snapshot_id])
+        .map_err(storage_err)?;
+    tx.execute("DELETE FROM repo_fetch_statuses WHERE snapshot_id = ?1", params![snapshot_id])
+        .map_err(storage_err)?;
+    tx.execute("DELETE FROM group_membership_statuses WHERE snapshot_id = ?1", params![snapshot_id])
+        .map_err(storage_err)?;
+
+    let deleted = tx
+        .execute("DELETE FROM snapshots WHERE id = ?1", params![snapshot_id])
+        .map_err(storage_err)?;
+    if deleted == 0 {
+        return Err(DeleteSnapshotError::NotFound(snapshot_id));
+    }
+
+    tx.commit().map_err(storage_err)?;
+    Ok(())
+}
+
 fn encode_access_type(access_type: &AccessType) -> (&'static str, Option<String>) {
     match access_type {
         AccessType::Direct => ("direct", None),
@@ -470,6 +508,86 @@ mod tests {
         let first = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[]).unwrap();
         let second = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &Snapshot::default(), &[]).unwrap();
         assert!(second > first);
+    }
+
+    #[test]
+    fn delete_snapshot_removes_the_snapshot_and_all_associated_rows_but_spares_other_snapshots() {
+        let mut conn = open_conn();
+        let survivor = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[]).unwrap();
+
+        let snapshot = Snapshot {
+            records: sample_records(),
+            repo_statuses: vec![RepoFetchStatus {
+                repo_project: "TEAM".to_string(),
+                repo: "repo-a".to_string(),
+                status: RepoStatus::Ok,
+            }],
+        };
+        let group_statuses = vec![GroupMembershipStatus {
+            repo_project: "TEAM".to_string(),
+            repo: "repo-a".to_string(),
+            group_id: "platform-eng".to_string(),
+            members_resolved: true,
+        }];
+        let id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &snapshot, &group_statuses).unwrap();
+
+        delete_snapshot(&mut conn, id).unwrap();
+
+        let snapshot_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM snapshots WHERE id = ?1", params![id], |row| row.get(0))
+            .unwrap();
+        let permission_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM permission_records WHERE snapshot_id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let repo_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM repo_fetch_statuses WHERE snapshot_id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let group_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM group_membership_statuses WHERE snapshot_id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(snapshot_count, 0);
+        assert_eq!(permission_count, 0);
+        assert_eq!(repo_count, 0);
+        assert_eq!(group_count, 0);
+
+        let survivor_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM snapshots WHERE id = ?1", params![survivor], |row| row.get(0))
+            .unwrap();
+        assert_eq!(survivor_count, 1);
+    }
+
+    #[test]
+    fn delete_snapshot_excludes_it_from_list_snapshots() {
+        let mut conn = open_conn();
+        let kept = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[]).unwrap();
+        let deleted = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &Snapshot::default(), &[]).unwrap();
+
+        delete_snapshot(&mut conn, deleted).unwrap();
+
+        let listed = list_snapshots(&conn).unwrap();
+        assert_eq!(
+            listed,
+            vec![SnapshotSummary { id: kept, run_at: "2026-01-01T00:00:00Z".to_string() }]
+        );
+    }
+
+    #[test]
+    fn delete_snapshot_on_unknown_id_errors() {
+        let mut conn = open_conn();
+        let result = delete_snapshot(&mut conn, 9999);
+        assert_eq!(result, Err(DeleteSnapshotError::NotFound(9999)));
     }
 
     #[test]
