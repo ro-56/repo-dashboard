@@ -37,7 +37,7 @@ The user-facing action of triggering a new data collection pass ("Run now"). Pro
 _Avoid_: Snapshot (the noun for the stored result, not the action of producing it)
 
 **Snapshot**:
-One immutable, timestamped Run's worth of collected data across the whole workspace. Never overwritten or edited after the fact.
+One immutable, timestamped Run's worth of collected data across the whole workspace. Never overwritten or edited after the fact — but "immutable" means content, not existence: a Snapshot can be deleted outright by the user (ADR-0011, `docs/adr/0011-snapshots-are-deletable.md`), it just can never be partially changed while it exists.
 
 **Grant** / **Revoke**:
 Diffed per individual permission record (a specific Principal + repo + grant source — Direct, Group, or Member). A Grant is a record present in the later Snapshot with no matching record in the earlier one; a Revoke is the reverse. A user gaining a new, higher-level Member grant while keeping an unrelated lower-level Direct grant is a Grant, not a Level change — the two records are never merged into one "effective" figure in v1.

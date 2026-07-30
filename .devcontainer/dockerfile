@@ -18,6 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libayatana-appindicator3-dev \
     librsvg2-dev \
     libsoup-3.0-dev \
+    libnspr4 \
+    libnss3 \
     patchelf \
     tzdata \
     && ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime \
