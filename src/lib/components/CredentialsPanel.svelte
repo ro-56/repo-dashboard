@@ -101,7 +101,7 @@
   .credentials-panel {
     display: flex;
     flex-direction: column;
-    gap: var(--s-6);
+    gap: var(--s-5);
   }
 
   .panel-title {
@@ -142,7 +142,7 @@
     height: 26px;
     padding: 0 var(--s-6);
     border: 1px solid var(--control-edge);
-    border-radius: var(--radius);
+    border-radius: var(--r-row);
     background: var(--surface);
     font-family: var(--font-mono);
     font-size: var(--t-body);
@@ -161,7 +161,7 @@
     height: 24px;
     padding: 0 var(--s-7);
     border: 1px solid var(--control-edge);
-    border-radius: var(--radius);
+    border-radius: var(--r-row);
     background: var(--surface-sunken);
     font-family: var(--font-sans);
     font-weight: 500;

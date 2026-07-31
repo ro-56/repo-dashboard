@@ -36,7 +36,7 @@
   .run-panel {
     display: flex;
     flex-direction: column;
-    gap: var(--s-6);
+    gap: var(--s-5);
     margin-top: var(--s-8);
     padding-top: var(--s-8);
     border-top: 1px solid var(--rule);
@@ -57,7 +57,7 @@
     height: 24px;
     padding: 0 var(--s-7);
     border: 1px solid var(--control-edge);
-    border-radius: var(--radius);
+    border-radius: var(--r-row);
     background: var(--surface-sunken);
     font-family: var(--font-sans);
     font-weight: 500;

@@ -26,11 +26,12 @@
     display: flex;
     flex-direction: column;
     width: 300px;
-    background: var(--surface-raised);
+    background: var(--surface);
     border-left: 1px solid var(--rule);
+    box-shadow: var(--shadow-drawer);
     transform: translateX(100%);
     transition: transform 160ms ease;
-    z-index: 10;
+    z-index: 40;
   }
   .drawer.open {
     transform: translateX(0);
@@ -49,7 +50,7 @@
     font-family: var(--font-sans);
     font-weight: 500;
     font-size: var(--t-tag);
-    letter-spacing: 0.09em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--ink-mute);
   }
@@ -60,7 +61,7 @@
     width: 22px;
     height: 22px;
     border: 1px solid var(--control-edge);
-    border-radius: var(--radius);
+    border-radius: var(--r-row);
     background: var(--surface-sunken);
     color: var(--ink-3);
     font-family: var(--font-sans);
