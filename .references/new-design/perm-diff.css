@@ -568,3 +568,112 @@ body {
 @media (max-width: 1200px) { .dist { display: none; } }
 @media (max-width: 1100px) { .project__meta { display: none; } }
 @media (max-width: 1000px) { .delta-chips .chip__label { display: none; } }
+
+/* ==================================================== 8. SIDE DRAWER
+   Persistent slide-out (ADR-0010) — not a modal: no backdrop, no
+   click-outside dismiss. Opened from the head bar's gear icon. */
+
+.drawer-toggle[aria-expanded="true"] { border-color: var(--ink); }
+:root[data-theme="dark"] .drawer-toggle[aria-expanded="true"] { border-color: #6d777e; }
+
+.drawer {
+  position: fixed;
+  top: var(--h-head);
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  background: var(--surface-head);
+  border-left: 1px solid var(--rule);
+  box-shadow: -8px 0 20px rgba(20, 24, 28, .08);
+  transform: translateX(100%);
+  transition: transform 160ms ease;
+  z-index: 40;
+}
+:root[data-theme="dark"] .drawer { box-shadow: -8px 0 20px rgba(0, 0, 0, .45); }
+.drawer.open { transform: translateX(0); }
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  height: var(--h-bar);
+  padding: 0 var(--s-8);
+  border-bottom: 1px solid var(--rule);
+}
+.drawer-title {
+  font-weight: 500;
+  font-size: var(--t-tag);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.drawer-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--control-edge);
+  border-radius: var(--r-row);
+  background: var(--surface-control-alt);
+  color: var(--ink-2);
+  font-size: var(--t-body);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.drawer-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--s-8) var(--s-7); }
+
+.panel { display: flex; flex-direction: column; gap: var(--s-5); }
+.panel + .panel { margin-top: var(--s-8); padding-top: var(--s-8); border-top: 1px solid var(--rule); }
+.panel-title { margin: 0; font-weight: 600; font-size: var(--t-body); color: var(--ink); }
+
+.panel-button {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0 var(--s-7);
+  border: 1px solid var(--control-edge);
+  border-radius: var(--r-row);
+  background: var(--surface-control-alt);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: var(--t-control);
+  color: var(--ink);
+  cursor: pointer;
+}
+.panel-button--primary { border-color: var(--ink); background: var(--ink); color: var(--surface-app); }
+.panel-button--secondary { background: var(--surface-control); color: var(--ink-3); }
+.panel-button--danger { border-color: var(--revoked-edge); color: var(--revoked-ink); background: var(--surface-control); }
+.panel-button:disabled { cursor: default; color: var(--ink-mute); }
+
+.panel-field {
+  display: flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 var(--s-5);
+  border: 1px solid var(--control-edge);
+  border-radius: var(--r-row);
+  background: var(--surface-control);
+  font-family: var(--font-mono);
+  font-size: var(--t-meta);
+  color: var(--ink);
+}
+.panel-field--muted { color: var(--ink-mute); }
+
+.panel-status { margin: 0; font-size: var(--t-control); line-height: 1.5; color: var(--ink-2); }
+.panel-status code { font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink); }
+.panel-error { margin: 0; font-size: var(--t-control); color: var(--revoked-ink); }
+
+.snapshot-list { display: flex; flex-direction: column; gap: var(--s-5); margin: 0; padding: 0; list-style: none; }
+.snapshot-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s-5); }
+.snapshot-row__label { font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2); }
+.snapshot-row__confirm { flex: 1; min-width: 0; font-size: var(--t-control); color: var(--ink); }
+.snapshot-row__actions { display: flex; gap: var(--s-3); flex: none; }
+
+.theme-toggle { align-self: flex-start; }
