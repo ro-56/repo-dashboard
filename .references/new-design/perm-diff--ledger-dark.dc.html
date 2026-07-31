@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet"><style>body{margin:0;background:#101315;font-family:"IBM Plex Sans",system-ui,sans-serif}a{color:#eef2f4}a:hover{color:#b3a4ff}</style></helmet>
+      <div style="width:100vw;height:100vh;min-width:1180px;overflow:hidden;background:#15181b;display:flex;flex-direction:column">
+
+        <header style="display:flex;align-items:center;gap:22px;height:56px;flex:none;padding:0 18px;border-bottom:1px solid #2b3136;background:#191d21">
+          <div style="display:flex;flex-direction:column;gap:2px;flex:none">
+            <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:16px;letter-spacing:-.02em;color:#eef2f4">perm-diff</span>
+            <span style="font-weight:500;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#79838a">repository access audit</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex:none">
+            <div style="display:flex;flex-direction:column;gap:1px;padding:6px 12px;border:1px solid #2f363b;border-radius:7px;background:#23282d;cursor:pointer;min-width:150px">
+              <span style="font-weight:500;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:#79838a">baseline</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#eef2f4">run 11 · Jul 16</span>
+            </div>
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:1px solid #2f363b;border-radius:7px;background:#1e2327;color:#98a2a9;font-size:12px;cursor:pointer">⇄</span>
+            <div style="display:flex;flex-direction:column;gap:1px;padding:6px 12px;border:1px solid #6d777e;border-radius:7px;background:#23282d;cursor:pointer;min-width:150px">
+              <span style="font-weight:500;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:#98a2a9">comparison</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:500;color:#eef2f4">run 12 · Jul 29</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex:none">
+            <span style="font-size:12.5px;color:#98a2a9;margin-right:4px">13 days · 486 → 492 grants</span>
+            <span style="display:inline-flex;align-items:baseline;gap:5px;height:26px;padding:0 9px;border-radius:6px;background:rgba(63,190,134,.14);color:#5fd39d"><span style="font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:13px;align-self:center">+14</span><span style="font-size:11px;font-weight:500;align-self:center">added</span></span>
+            <span style="display:inline-flex;align-items:baseline;gap:5px;height:26px;padding:0 9px;border-radius:6px;background:rgba(239,107,98,.14);color:#f08d85"><span style="font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:13px;align-self:center">−8</span><span style="font-size:11px;font-weight:500;align-self:center">revoked</span></span>
+            <span style="display:inline-flex;align-items:baseline;gap:5px;height:26px;padding:0 9px;border-radius:6px;background:rgba(157,139,255,.16);color:#b3a4ff"><span style="font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:13px;align-self:center">~6</span><span style="font-size:11px;font-weight:500;align-self:center">changed</span></span>
+            <span style="display:inline-flex;align-items:baseline;gap:5px;height:26px;padding:0 9px;border-radius:6px;background:rgba(255,171,92,.16);border:1px solid rgba(255,171,92,.42);color:#ffbc78"><span style="font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:13px;align-self:center">↑3</span><span style="font-size:11px;font-weight:600;align-self:center">escalations</span></span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid #2f363b;border-radius:7px;background:#1e2327;color:#98a2a9;font-size:13px;cursor:pointer">⚙</span>
+          </div>
+        </header>
+
+        <div style="box-sizing:border-box;display:flex;align-items:center;gap:10px;height:44px;flex:none;padding:0 18px;border-bottom:1px solid #2b3136;background:#1b1f23">
+          <div style="display:flex;flex:none;padding:2px;border-radius:8px;background:#2b3136">
+            <span style="display:inline-flex;align-items:center;height:26px;padding:0 14px;border-radius:6px;background:#31383e;box-shadow:0 1px 2px rgba(0,0,0,.4);font-weight:600;font-size:12.5px;color:#eef2f4;cursor:pointer">All access</span>
+            <span style="display:inline-flex;align-items:center;height:26px;padding:0 14px;border-radius:6px;font-weight:500;font-size:12.5px;color:#98a2a9;cursor:pointer">Changes only</span>
+          </div>
+          <span style="display:inline-flex;align-items:center;height:30px;min-width:230px;padding:0 11px;border:1px solid #2f363b;border-radius:8px;background:#1e2327;font-size:12.5px;color:#98a2a9">Filter users, groups or repos…</span>
+          <div style="display:flex;align-items:center;gap:10px;margin-left:auto;flex:none">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#98a2a9">57 live · 12 changed · 59 rows</span>
+            <span style="display:inline-flex;align-items:center;height:30px;padding:0 11px;border:1px solid #2f363b;border-radius:8px;background:#1e2327;font-weight:500;font-size:12.5px;color:#b6bfc6;cursor:pointer">Collapse all</span>
+            <span style="display:inline-flex;align-items:center;height:30px;padding:0 11px;border:1px solid #2f363b;border-radius:8px;background:#1e2327;font-weight:500;font-size:12.5px;color:#b6bfc6;cursor:pointer">Reset</span>
+          </div>
+        </div>
+
+        <div style="box-sizing:border-box;display:flex;align-items:center;gap:10px;flex:none;padding:9px 18px;background:#241f14;border-bottom:1px solid #3a3222">
+          <span style="flex:none;display:inline-flex;align-items:center;height:19px;padding:0 7px;border-radius:5px;background:#d9a94a;font-weight:600;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:#241f14">structural</span>
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:#c8b688">legacy-ingest is absent from the comparison run. Ravi Chandra and Yuki Sato no longer hold access to any repository. metrics-api could not be fetched this run. contractors-2026 membership could not be resolved.</span>
+        </div>
+
+        <div style="box-sizing:border-box;display:grid;grid-template-columns:26px 44px 62px 104px 210px 178px 1fr;gap:12px;align-items:center;flex:none;padding:8px 18px 8px 30px;background:#1b1f23;border-bottom:1px solid #2b3136;font-size:10px;font-weight:600;letter-spacing:.11em;text-transform:uppercase;color:#79838a">
+          <span>±</span><span>level</span><span></span><span>source</span><span>user or group</span><span>since baseline</span><span>notes</span>
+        </div>
+
+        <div style="flex:1;min-height:0;overflow-y:auto;background:#101315;padding:14px 18px 20px">
+          <sc-for list="{{ optC }}" as="project" hint-placeholder-count="2">
+            <section style="margin-bottom:20px">
+              <header style="display:flex;align-items:center;gap:12px;padding:0 4px 8px">
+                <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:14px;letter-spacing:-.01em;color:#eef2f4">{{ project.name }}</span>
+                <span style="font-size:12px;color:#98a2a9">{{ project.meta }}</span>
+                <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
+                  <sc-for list="{{ project.chips }}" as="chip" hint-placeholder-count="2">
+                    <span style="display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;background:{{ chip.bg }};color:{{ chip.ink }};font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:11.5px">{{ chip.label }}</span>
+                  </sc-for>
+                </span>
+              </header>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <sc-for list="{{ project.repos }}" as="repo" hint-placeholder-count="2">
+                  <article style="background:#1b1f23;border:1px solid #282e33;border-radius:8px;overflow:hidden">
+                    <div style="box-sizing:border-box;display:flex;align-items:center;gap:14px;height:40px;padding:0 14px;background:{{ repo.headBg }};border-bottom:1px solid {{ repo.headBorder }};cursor:pointer">
+                      <span style="font-size:11px;color:#98a2a9;width:11px">{{ repo.caret }}</span>
+                      <span style="display:flex;align-items:baseline;gap:1px;min-width:250px;font-family:'IBM Plex Mono',monospace;font-size:13.5px;text-decoration:{{ repo.deco }};text-decoration-color:#a05a52"><span style="color:#98a2a9">{{ repo.pathPrefix }}</span><span style="font-weight:600;color:{{ repo.nameColor }}">{{ repo.name }}</span></span>
+                      <span style="display:flex;align-items:center;gap:8px;flex:none">
+                        <span style="display:flex;gap:2px;width:74px;height:8px">
+                          <span style="width:{{ repo.barA }};background:#eef2f4;border-radius:2px"></span>
+                          <span style="width:{{ repo.barW }};background:#79838a;border-radius:2px"></span>
+                          <span style="width:{{ repo.barR }};background:#3a4249;border-radius:2px"></span>
+                        </span>
+                        <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#98a2a9;white-space:nowrap">{{ repo.grants }}</span>
+                      </span>
+                      <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
+                        <sc-for list="{{ repo.chips }}" as="chip" hint-placeholder-count="2">
+                          <span style="display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;background:{{ chip.bg }};color:{{ chip.ink }};font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:11.5px">{{ chip.label }}</span>
+                        </sc-for>
+                        <sc-for list="{{ repo.tags }}" as="tag" hint-placeholder-count="0">
+                          <span style="display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;border:1px solid {{ tag.border }};background:{{ tag.bg }};color:{{ tag.ink }};font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap">{{ tag.label }}</span>
+                        </sc-for>
+                      </span>
+                    </div>
+                    <sc-if value="{{ repo.open }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:flex;flex-direction:column">
+                        <sc-for list="{{ repo.rows }}" as="row" hint-placeholder-count="5">
+                          <div style="box-sizing:border-box;display:grid;grid-template-columns:26px 44px 62px 104px 210px 178px 1fr;gap:12px;align-items:center;height:28px;padding:0 14px;border-top:1px solid #23282d;border-left:3px solid {{ row.gutter }};background:{{ row.bg }};font-size:13px;color:#eef2f4">
+                            <span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;background:{{ row.sigilBg }};color:{{ row.sigilInk }};font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:12px">{{ row.sigil }}</span>
+                            <span style="display:flex;gap:2px;align-items:center">
+                              <span style="width:9px;height:9px;border-radius:2px;background:{{ row.seg1 }}"></span>
+                              <span style="width:9px;height:9px;border-radius:2px;background:{{ row.seg2 }}"></span>
+                              <span style="width:9px;height:9px;border-radius:2px;background:{{ row.seg3 }}"></span>
+                            </span>
+                            <span style="font-weight:{{ row.levelWeight }};color:{{ row.levelColor }};text-decoration:{{ row.deco }};text-decoration-color:#a05a52;opacity:{{ row.levelOpacity }}">{{ row.levelWord }}</span>
+                            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#98a2a9">{{ row.source }}</span>
+                            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px;color:#eef2f4">{{ row.user }}</span>
+                            <span style="display:flex;align-items:center;gap:6px;white-space:nowrap;font-family:'IBM Plex Mono',monospace;font-size:12.5px">
+                              <sc-if value="{{ row.showTransition }}" hint-placeholder-val="{{ true }}">
+                                <span style="color:#98a2a9">{{ row.from }}</span>
+                                <span style="font-weight:600;color:{{ row.arrowColor }}">→</span>
+                                <span style="font-weight:500;color:#eef2f4">{{ row.to }}</span>
+                              </sc-if>
+                            </span>
+                            <span style="display:flex;gap:6px;align-items:center;min-width:0">
+                              <sc-for list="{{ row.tags }}" as="tag" hint-placeholder-count="0">
+                                <span style="display:inline-flex;align-items:center;height:19px;padding:0 7px;border-radius:5px;border:1px solid {{ tag.border }};background:{{ tag.bg }};color:{{ tag.ink }};font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap">{{ tag.label }}</span>
+                              </sc-for>
+                            </span>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                  </article>
+                </sc-for>
+              </div>
+            </section>
+          </sc-for>
+        </div>
+      </div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900}}">
+const RANK = { Read: 1, Write: 2, Admin: 3 };
+const SRANK = { direct: 0, group: 1, member: 2 };
+const FILLED = { Admin: 3, Write: 2, Read: 1 };
+
+// [label, level, source, groupId, diff, unresolved]
+const DATA = [
+  { name: "PLATFORM", repos: [
+    { repo: "core-api", a: 3, w: 9, r: 22, p: [
+      ["Dana Whitfield", "Admin", "direct", "", null],
+      ["release-managers", "Admin", "group", "", null],
+      ["Priya Raman", "Admin", "member", "release-managers", ["Write", "Admin", "Escalation"]],
+      ["Marcus Lee", "Write", "direct", "", null],
+      ["Nina Okafor", "Write", "direct", "", "grant"],
+      ["contractors-2026", "Read", "group", "", null, true],
+      ["Tomas Berg", "Read", "direct", "", null],
+      ["Yuki Sato", "Read", "direct", "", "revoke"],
+    ] },
+    { repo: "auth-service", a: 2, w: 4, r: 11, p: [
+      ["Dana Whitfield", "Admin", "direct", "", null],
+      ["secops", "Admin", "group", "", null],
+      ["Aaron Vidal", "Write", "direct", "", ["Admin", "Write", "Demotion"]],
+      ["Lena Fischer", "Write", "member", "secops", null],
+      ["Owen Pike", "Read", "direct", "", "grant"],
+      ["Sofia Marin", "Read", "direct", "", null],
+    ] },
+    { repo: "event-bus", a: 1, w: 3, r: 6, p: [
+      ["Dana Whitfield", "Admin", "direct", "", null],
+      ["Marcus Lee", "Write", "direct", "", null],
+      ["Tomas Berg", "Read", "direct", "", null],
+    ] },
+  ] },
+  { name: "DATA", repos: [
+    { repo: "warehouse-etl", a: 2, w: 3, r: 8, p: [
+      ["analytics-admins", "Admin", "group", "", null],
+      ["Dana Whitfield", "Admin", "direct", "", null],
+      ["Elif Demir", "Write", "direct", "", "grant"],
+      ["Jae Moon", "Admin", "direct", "", ["Read", "Admin", "Escalation"]],
+      ["Sam Boyle", "Read", "direct", "", "revoke"],
+    ] },
+    { repo: "metrics-api", a: 0, w: 0, r: 0, failed: true, p: [] },
+    { repo: "legacy-ingest", a: 1, w: 1, r: 2, gone: true, p: [] },
+  ] },
+];
+
+const LIGHT = {
+  segOn: { Admin: "#14181c", Write: "#4b555d", Read: "#6b757d" },
+  segOff: "#dde1e5",
+  level: { Admin: { color: "#14181c", weight: 600 }, Write: { color: "#3d464e", weight: 500 }, Read: { color: "#6b757d", weight: 400 } },
+  add: { ink: "#0f6039", bg: "#e8f2eb", border: "#a8cdb8" },
+  rem: { ink: "#93261c", bg: "#f8ece9", border: "#e0b6b0" },
+  chg: { ink: "#413ca0", bg: "#edecf8", border: "#c3c0e8" },
+  esc: { ink: "#8f3600", bg: "#fdf2e4", border: "#e8c69e" },
+  neutral: { ink: "#5b656d", bg: "#f1f3f4", border: "#dbe0e4" },
+  dotIdle: "#8a949b",
+  rowEscBg: "#fdf7ef",
+  headBgOpen: "#fafbfc",
+  headBorder: "#eef0f2",
+  goneInk: "#93261c",
+  nameInk: "#14181c",
+};
+
+const DARK = {
+  segOn: { Admin: "#eef2f4", Write: "#a8b2b9", Read: "#79838a" },
+  segOff: "#2f363b",
+  level: { Admin: { color: "#eef2f4", weight: 600 }, Write: { color: "#b6bfc6", weight: 500 }, Read: { color: "#8b959c", weight: 400 } },
+  add: { ink: "#5fd39d", bg: "rgba(63,190,134,.14)", border: "rgba(63,190,134,.4)" },
+  rem: { ink: "#f08d85", bg: "rgba(239,107,98,.14)", border: "rgba(239,107,98,.4)" },
+  chg: { ink: "#b3a4ff", bg: "rgba(157,139,255,.16)", border: "rgba(157,139,255,.42)" },
+  esc: { ink: "#ffbc78", bg: "rgba(255,171,92,.16)", border: "rgba(255,171,92,.42)" },
+  neutral: { ink: "#98a2a9", bg: "#23282d", border: "#333a40" },
+  dotIdle: "#69737a",
+  rowEscBg: "rgba(255,171,92,.07)",
+  headBgOpen: "#20252a",
+  headBorder: "#282e33",
+  goneInk: "#f08d85",
+  nameInk: "#eef2f4",
+};
+
+function sourceLabel(e) {
+  if (e[2] === "direct") return "direct";
+  if (e[2] === "group") return "group";
+  return "grp:" + e[3];
+}
+
+function deriveRow(e, T) {
+  const lvl = T.level[e[1]];
+  const filled = FILLED[e[1]];
+  const diff = e[4];
+  const row = {
+    user: e[0],
+    source: sourceLabel(e),
+    levelWord: e[1].toLowerCase(),
+    levelColor: lvl.color,
+    levelWeight: lvl.weight,
+    levelOpacity: 1,
+    deco: "none",
+    seg1: filled >= 1 ? T.segOn[e[1]] : T.segOff,
+    seg2: filled >= 2 ? T.segOn[e[1]] : T.segOff,
+    seg3: filled >= 3 ? T.segOn[e[1]] : T.segOff,
+    gutter: "transparent",
+    bg: "transparent",
+    sigil: "·",
+    sigilBg: "transparent",
+    sigilInk: T.neutral.ink,
+    dot: T.dotIdle,
+    showTransition: false,
+    from: "",
+    to: "",
+    arrowColor: lvl.color,
+    changeLabel: "",
+    changeInk: lvl.color,
+    tags: [],
+  };
+  if (diff === "grant") {
+    Object.assign(row, { sigil: "+", sigilBg: T.add.bg, sigilInk: T.add.ink, gutter: T.add.ink, dot: T.add.ink, showTransition: true, from: "no access", to: row.levelWord, arrowColor: T.add.ink, changeLabel: "granted this run", changeInk: T.add.ink });
+  } else if (diff === "revoke") {
+    Object.assign(row, { sigil: "−", sigilBg: T.rem.bg, sigilInk: T.rem.ink, gutter: T.rem.ink, dot: T.rem.ink, showTransition: true, from: row.levelWord, to: "no access", arrowColor: T.rem.ink, deco: "line-through", levelOpacity: .75, changeLabel: "revoked this run", changeInk: T.rem.ink });
+  } else if (Array.isArray(diff)) {
+    const esc = diff[2] === "Escalation";
+    const pal = esc ? T.esc : T.chg;
+    Object.assign(row, {
+      sigil: esc ? "↑" : "~", sigilBg: pal.bg, sigilInk: pal.ink, gutter: pal.ink, dot: pal.ink,
+      showTransition: true, from: diff[0].toLowerCase(), to: diff[1].toLowerCase(), arrowColor: pal.ink,
+      changeLabel: diff[0].toLowerCase() + " → " + diff[1].toLowerCase(), changeInk: pal.ink,
+    });
+    if (esc) {
+      row.bg = T.rowEscBg;
+      row.tags.push({ label: diff[1] === "Admin" ? "escalation → admin" : "escalation", bg: T.esc.bg, border: T.esc.border, ink: T.esc.ink });
+    }
+  }
+  if (e[5]) row.tags.push({ label: "members unresolved", bg: T.neutral.bg, border: T.neutral.border, ink: T.neutral.ink });
+  return row;
+}
+
+function breakdown(repo) {
+  const b = { added: 0, removed: 0, modified: 0, esc: 0 };
+  for (const e of repo.p) {
+    const d = e[4];
+    if (d === "grant") b.added++;
+    else if (d === "revoke") b.removed++;
+    else if (Array.isArray(d)) { b.modified++; if (d[2] === "Escalation") b.esc++; }
+  }
+  return b;
+}
+
+function chips(b, T) {
+  const out = [];
+  if (b.added) out.push({ label: "+" + b.added, bg: T.add.bg, ink: T.add.ink });
+  if (b.removed) out.push({ label: "−" + b.removed, bg: T.rem.bg, ink: T.rem.ink });
+  if (b.modified) out.push({ label: "~" + b.modified, bg: T.chg.bg, ink: T.chg.ink });
+  if (b.esc) out.push({ label: "↑" + b.esc + " esc", bg: T.esc.bg, ink: T.esc.ink });
+  if (!out.length) out.push({ label: "no change", bg: "transparent", ink: T.neutral.ink });
+  return out;
+}
+
+function words(b, T) {
+  const out = [];
+  if (b.added) out.push({ label: b.added + " added", ink: T.add.ink });
+  if (b.removed) out.push({ label: b.removed + " revoked", ink: T.rem.ink });
+  if (b.modified) out.push({ label: b.modified + " changed", ink: T.chg.ink });
+  if (b.esc) out.push({ label: b.esc + " escalation" + (b.esc > 1 ? "s" : ""), ink: T.esc.ink });
+  if (!out.length) out.push({ label: "no change", ink: T.neutral.ink });
+  return out;
+}
+
+function pct(n, total) {
+  return total ? (n / total) * 100 + "%" : "33.33%";
+}
+
+function build(T) {
+  return DATA.map((project) => {
+    const pb = { added: 0, removed: 0, modified: 0, esc: 0 };
+    let grantsTotal = 0;
+    for (const repo of project.repos) {
+      const b = breakdown(repo);
+      pb.added += b.added; pb.removed += b.removed; pb.modified += b.modified; pb.esc += b.esc;
+      grantsTotal += repo.a + repo.w + repo.r;
+    }
+    return {
+      name: project.name,
+      meta: project.repos.length + " repositories · " + grantsTotal + " grants",
+      chips: chips(pb, T),
+      words: words(pb, T),
+      repos: project.repos.map((repo) => {
+        const b = breakdown(repo);
+        const open = b.added + b.removed + b.modified > 0;
+        const total = repo.a + repo.w + repo.r;
+        const tags = [];
+        if (repo.gone) tags.push({ label: "absent from run 12", bg: T.rem.bg, border: T.rem.border, ink: T.rem.ink });
+        else if (repo.failed) tags.push({ label: "fetch failed", bg: T.neutral.bg, border: T.neutral.border, ink: T.neutral.ink });
+        return {
+          pathPrefix: project.name.toLowerCase() + "/",
+          name: repo.repo,
+          caret: open ? "▼" : "▶",
+          open,
+          headBg: open ? T.headBgOpen : "transparent",
+          headBorder: open ? T.headBorder : "transparent",
+          deco: repo.gone ? "line-through" : "none",
+          nameColor: repo.gone ? T.goneInk : T.nameInk,
+          barA: pct(repo.a, total),
+          barW: pct(repo.w, total),
+          barR: pct(repo.r, total),
+          grants: total + " grants · " + repo.a + " admin",
+          split: repo.a + " admin · " + repo.w + " write · " + repo.r + " read",
+          chips: chips(b, T),
+          words: words(b, T),
+          tags,
+          rows: [...repo.p].sort((x, y) =>
+            RANK[y[1]] - RANK[x[1]] || x[0].localeCompare(y[0]) || SRANK[x[2]] - SRANK[y[2]]
+          ).map((e) => deriveRow(e, T)),
+        };
+      }),
+    };
+  });
+}
+
+class Component extends DCLogic {
+  renderVals() {
+    const light = build(LIGHT);
+    return { optA: light, optB: light, optC: build(DARK) };
+  }
+}
+</script>
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#15181b"/><rect x="60" y="86" width="26" height="28" rx="4" fill="#eef2f4"/><rect x="92" y="86" width="26" height="28" rx="4" fill="#eef2f4" opacity=".6"/><rect x="124" y="86" width="26" height="28" rx="4" fill="#eef2f4" opacity=".3"/></svg></template>
+</body>
+</html>

@@ -39,7 +39,9 @@ cd src-tauri && cargo test     # run Rust unit tests (backend logic: storage, di
 cd src-tauri && cargo check    # fast Rust compile check
 ```
 
-There is no JS test runner configured yet. Backend logic (storage, diff engine, Bitbucket fetch) should be tested with `cargo test` in `src-tauri`, per the acceptance criteria in `PD-2`, `PD-5`, and `PD-6`.
+Backend logic (storage, diff engine, Bitbucket fetch) should be tested with `cargo test` in `src-tauri`, per the acceptance criteria in `PD-2`, `PD-5`, and `PD-6`.
+
+Frontend pure-TS logic modules (`roster.ts`, `rosterRow.ts`, `repoCard.ts`, `headBar.ts`, `filterBar.ts`, `noticeStrip.ts`, `emptyState.ts`) get `vitest` unit tests incrementally — a module gains a colocated `*.test.ts` the next time a ticket touches it, not via upfront backfill (ADR-0017, `docs/adr/0017-vitest-for-agent-feedback-defer-playwright.md`; tooling tracked in `PD-42`). Svelte component rendering and E2E/visual testing (Playwright) remain deferred per the same ADR — `@playwright/test` is an intentionally-unused devDependency until that's revisited. Until then, Svelte/CSS changes are still verified manually via `pnpm tauri dev`.
 
 ## Architecture
 
