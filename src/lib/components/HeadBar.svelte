@@ -84,10 +84,10 @@
   .head-bar {
     display: flex;
     align-items: center;
-    gap: var(--s-8);
+    gap: var(--s-9);
     height: var(--bar-head);
     flex: none;
-    padding: 0 var(--s-7);
+    padding: 0 var(--s-8);
     border-bottom: 1px solid var(--rule);
     background: var(--surface);
   }
@@ -131,11 +131,11 @@
   .selector {
     display: inline-flex;
     align-items: center;
-    height: 22px;
+    height: var(--h-control);
     min-width: 196px;
     padding: 0 var(--s-6);
     border: 1px solid var(--control-edge);
-    border-radius: var(--radius);
+    border-radius: var(--r-selector);
     background: var(--surface);
     font-family: var(--font-mono);
     font-size: var(--t-body);
@@ -145,10 +145,10 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 22px;
-    height: 22px;
+    width: 26px;
+    height: 26px;
     border: 1px solid var(--control-edge);
-    border-radius: var(--radius);
+    border-radius: var(--r-selector);
     background: var(--surface-sunken);
     color: var(--ink-3);
     font-family: var(--font-sans);
@@ -172,10 +172,10 @@
     align-items: center;
     justify-content: center;
     flex: none;
-    width: 22px;
-    height: 22px;
+    width: 26px;
+    height: 26px;
     border: 1px solid var(--control-edge);
-    border-radius: var(--radius);
+    border-radius: var(--r-selector);
     background: var(--surface-sunken);
     color: var(--ink-3);
     font-size: var(--t-body);

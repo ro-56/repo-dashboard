@@ -28,9 +28,8 @@
     display: flex;
     align-items: center;
     gap: var(--s-5);
-    height: 25px;
     flex: none;
-    padding: 0 var(--s-7);
+    padding: var(--s-3) var(--s-8);
     background: var(--notice-bg);
     border-bottom: 1px solid var(--rule);
     box-shadow: inset 3px 0 0 var(--notice-edge);

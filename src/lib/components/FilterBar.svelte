@@ -46,10 +46,10 @@
     box-sizing: border-box;
     display: flex;
     align-items: center;
-    gap: var(--s-6);
+    gap: var(--s-5);
     height: var(--bar-filters);
     flex: none;
-    padding: 0 var(--s-7);
+    padding: 0 var(--s-8);
     border-bottom: 1px solid var(--rule);
     background: var(--surface-sunken);
   }
@@ -57,9 +57,9 @@
   .tabs {
     display: flex;
     flex: none;
-    height: 21px;
+    height: var(--h-control);
     border: 1px solid var(--control-edge);
-    border-radius: var(--radius);
+    border-radius: var(--r-card);
     overflow: hidden;
   }
   .tab {
@@ -103,11 +103,11 @@
     display: inline-flex;
     align-items: center;
     flex: none;
-    height: 21px;
+    height: var(--h-control);
     white-space: nowrap;
     padding: 0 var(--s-6);
     border: 1px solid var(--control-edge);
-    border-radius: var(--radius);
+    border-radius: var(--r-card);
     background: var(--surface);
     font-family: var(--font-sans);
     font-weight: 500;

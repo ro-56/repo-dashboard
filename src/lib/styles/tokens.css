@@ -3,9 +3,11 @@
    diff state = hue + sigil + gutter. Consumed by name — no component may hardcode
    a hex value that exists here.
    Color/spacing/type values are ported from perm-diff.css's light-theme :root block (PD-36).
+   Head bar / filter bar / notice strip geometry ported in PD-37 (--bar-head, --bar-filters,
+   --h-control, --r-selector, --r-card).
    Pending re-port: dark theme block (:root[data-theme="dark"]), delta-chip and scope-suffix
-   tokens, and the chrome-bar/roster/card geometry values below (--row-h, --card-h, --bar-*,
-   --radius, --roster-cols) which need component-level changes to adopt. See ADR-0014/0015/0016. */
+   tokens, and the roster/card geometry values below (--row-h, --card-h, --radius,
+   --roster-cols) which still need component-level changes to adopt. See ADR-0014/0015/0016. */
 
 @font-face {
   font-family: "IBM Plex Sans";
@@ -90,12 +92,16 @@
   --s-6: 12px;
   --s-7: 14px;
   --s-8: 18px;
+  --s-9: 22px;
   --row-h: 17px;
   --card-h: 22px;
-  --bar-filters: 31px;
-  --bar-head: 40px;
+  --bar-filters: 44px;
+  --bar-head: 56px;
   --bar-summary: 44px;
   --radius: 2px;
+  --h-control: 30px;
+  --r-selector: 7px;
+  --r-card: 8px;
   --roster-cols: 12px 26px 46px 70px 148px 132px 1fr;
 
   /* Channel 2 — diff state hue (never used for permission level) */
