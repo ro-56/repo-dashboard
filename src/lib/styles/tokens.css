@@ -2,9 +2,10 @@
    Two channels only: permission level = weight + shape + position (never hue);
    diff state = hue + sigil + gutter. Consumed by name — no component may hardcode
    a hex value that exists here.
-   Pending re-port from perm-diff.css (v2 redesign, not yet applied here): color/spacing/
-   geometry scale, dark theme block (:root[data-theme="dark"]), delta-chip and scope-suffix
-   tokens. See ADR-0014/0015/0016. */
+   Color/spacing/type values are ported from perm-diff.css's light-theme :root block (PD-36).
+   Pending re-port: dark theme block (:root[data-theme="dark"]), delta-chip and scope-suffix
+   tokens, and the chrome-bar/roster/card geometry values below (--row-h, --card-h, --bar-*,
+   --radius, --roster-cols) which need component-level changes to adopt. See ADR-0014/0015/0016. */
 
 @font-face {
   font-family: "IBM Plex Sans";
@@ -52,15 +53,15 @@
 :root {
   /* Surfaces */
   --surface: #ffffff;
-  --surface-raised: #fbfcfd;
-  --surface-sunken: #f4f6f7;
-  --canvas: #eef0f2;
-  --canvas-head: #e6e9ec;
+  --surface-raised: #fafbfc;
+  --surface-sunken: #f7f8f9;
+  --canvas: #f4f6f7;
+  --canvas-head: #f0f2f4;
 
   /* Rules */
-  --rule: #dcdfe3;
-  --rule-row: #eff1f3;
-  --control-edge: #cfd4d9;
+  --rule: #e6e9ec;
+  --rule-row: #f2f4f5;
+  --control-edge: #dfe3e7;
 
   /* Ink ramp */
   --ink: #14181c;
@@ -68,27 +69,27 @@
   --ink-3: #5b656d;
   --ink-4: #6b757d;
   --ink-mute: #8a949b;
-  --ink-faint: #b9c0c6;
+  --ink-faint: #ccd2d7;
 
   /* Type scale */
-  --t-micro: 8.5px;
-  --t-tag: 9px;
-  --t-meta: 10.5px;
-  --t-body-s: 11px;
-  --t-body: 11.5px;
-  --t-id: 12px;
-  --t-head: 13px;
-  --t-stat: 15px;
+  --t-micro: 10px;
+  --t-tag: 10px;
+  --t-meta: 12px;
+  --t-body-s: 12.5px;
+  --t-body: 13px;
+  --t-id: 13.5px;
+  --t-head: 16px;
+  --t-stat: 14px;
 
   /* Spacing & geometry */
   --s-1: 2px;
-  --s-2: 3px;
-  --s-3: 4px;
-  --s-4: 6px;
-  --s-5: 8px;
-  --s-6: 9px;
-  --s-7: 12px;
-  --s-8: 16px;
+  --s-2: 4px;
+  --s-3: 6px;
+  --s-4: 8px;
+  --s-5: 10px;
+  --s-6: 12px;
+  --s-7: 14px;
+  --s-8: 18px;
   --row-h: 17px;
   --card-h: 22px;
   --bar-filters: 31px;
@@ -98,31 +99,31 @@
   --roster-cols: 12px 26px 46px 70px 148px 132px 1fr;
 
   /* Channel 2 — diff state hue (never used for permission level) */
-  --state-added: #10653c;
-  --state-revoked: #9e2b20;
-  --state-changed: #4b46a8;
+  --state-added: #0f6039;
+  --state-revoked: #93261c;
+  --state-changed: #413ca0;
 
   /* Escalation — modifier on "changed", the one tinted row background on screen */
-  --escalation-ink: #9a3b00;
+  --escalation-ink: #8f3600;
   --escalation-bg: #fdf2e4;
 
   /* Structural notice strip */
   --notice-bg: #fdf6e6;
-  --notice-edge: #a8791a;
+  --notice-edge: #ecd9a8;
   --notice-ink: #5c4a14;
 
   /* Tag clusters */
   --tag-new-bg: #e8f2eb;
   --tag-new-border: #a8cdb8;
-  --tag-new-ink: #10653c;
+  --tag-new-ink: #0f6039;
   --tag-gone-bg: #f8ece9;
   --tag-gone-border: #e0b6b0;
-  --tag-gone-ink: #9e2b20;
+  --tag-gone-ink: #93261c;
   --tag-esc-bg: #fdf2e4;
-  --tag-esc-border: #e3bf94;
-  --tag-esc-ink: #9a3b00;
-  --tag-neutral-bg: #f4f6f7;
-  --tag-neutral-border: #d5d9dd;
+  --tag-esc-border: #e8c69e;
+  --tag-esc-ink: #8f3600;
+  --tag-neutral-bg: #f1f3f4;
+  --tag-neutral-border: #dbe0e4;
   --tag-neutral-ink: #5b656d;
 
   --strike: #c98d84;
