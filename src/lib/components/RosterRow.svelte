@@ -5,7 +5,7 @@
   let { entry }: { entry: PrincipalEntry } = $props();
 
   let row = $derived(deriveRow(entry));
-  let source = $derived(sourceLabel(entry.accessType));
+  let source = $derived(sourceLabel(entry.accessType, entry.scope));
 </script>
 
 <div

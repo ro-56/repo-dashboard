@@ -55,6 +55,10 @@ export interface RepoNode {
   // the tree renders nothing rather than a pile of spurious Grants/Revokes against whichever
   // side succeeded. Distinct from a repo confirmed to have zero grants.
   fetchFailed: boolean;
+  // Owning Project's own fetch (permissions-config/users and /groups) failed for this Snapshot
+  // (ADR-0012) — independent of `fetchFailed`, which tracks the repo's own permissions fetch.
+  // Both can be true at once.
+  projectFetchFailed: boolean;
   principals: PrincipalEntry[];
   readCount: number;
   writeCount: number;

@@ -2,7 +2,7 @@
 // Pure functions only — markup and colour live in RosterRow.svelte's scoped styles,
 // keyed off the `state`/`levelClass` strings returned here, not inline style strings.
 
-import type { AccessType, Permission, PrincipalEntry } from "./roster";
+import type { AccessType, GrantScope, Permission, PrincipalEntry } from "./roster";
 
 export type RowState = "same" | "added" | "removed" | "modified";
 export type LevelClass = "lvl-admin" | "lvl-write" | "lvl-read";
@@ -26,16 +26,20 @@ export function hasDiff(entry: PrincipalEntry): boolean {
   return entry.diffStatus.status !== "None";
 }
 
-/** `direct`, `group`, or `grp:<name>` — never spills into the notes column. */
-export function sourceLabel(accessType: AccessType): string {
-  switch (accessType.type) {
-    case "Direct":
-      return "direct";
-    case "Group":
-      return "group";
-    case "Member":
-      return `grp:${accessType.group_id}`;
-  }
+/** `direct`, `group`, or `grp:<name>`, plus a ` · project` suffix for Project-level grants
+ * (ADR-0014) — never spills into the notes column. */
+export function sourceLabel(accessType: AccessType, scope: GrantScope): string {
+  const base = (() => {
+    switch (accessType.type) {
+      case "Direct":
+        return "direct";
+      case "Group":
+        return "group";
+      case "Member":
+        return `grp:${accessType.group_id}`;
+    }
+  })();
+  return scope === "Project" ? `${base} · project` : base;
 }
 
 /** Roster ordering: admin → write → read, then principal label, then source (direct before group). */

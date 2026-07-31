@@ -8,7 +8,7 @@
     grantsText,
     isRepoOpen,
     repoBreakdown,
-    repoTag,
+    repoTags,
   } from "$lib/repoCard";
   import type { ViewMode } from "$lib/filterBar";
   import CountBadges from "./CountBadges.svelte";
@@ -35,7 +35,7 @@
   let open = $derived(isRepoOpen(repo, anyChanges, toggled));
   // Header counts always describe the whole repo (ADR-0008) — only the rendered rows narrow.
   let counts = $derived(countBadges(repoBreakdown(repo)));
-  let tag = $derived(repoTag(repo, comparisonId));
+  let tags = $derived(repoTags(repo, comparisonId));
   let gone = $derived(absentSide(repo) === "B");
   let sorted = $derived(sortedPrincipals(repo.principals));
   let roster = $derived(viewMode === "changes" ? sorted.filter(hasDiff) : sorted);
@@ -66,9 +66,11 @@
     </span>
     <span class="grants">{grantsText(repo)}</span>
     <CountBadges badges={counts} />
-    {#if tag}
-      <span class="tag tag-{tag.kind}">{tag.label}</span>
-    {/if}
+    <span class="tags">
+      {#each tags as tag (tag.kind)}
+        <span class="tag tag-{tag.kind}">{tag.label}</span>
+      {/each}
+    </span>
   </button>
 
   {#if open}
@@ -154,6 +156,11 @@
     color: var(--ink-3);
   }
 
+  .tags {
+    display: flex;
+    gap: var(--s-3);
+    align-items: center;
+  }
   .tag {
     display: inline-flex;
     align-items: center;
@@ -180,6 +187,15 @@
   }
   .tag-failed {
     background: var(--tag-neutral-bg);
+    border-color: var(--tag-neutral-border);
+    color: var(--tag-neutral-ink);
+  }
+  /* Neutral palette, same as .tag-failed (ADR-0005: a fetch failure is not a diff outcome, so
+     it may not claim a hue of its own) — a dashed border is the shape distinction from the
+     repo-level tag, not a new colour, since both can render side by side. */
+  .tag-project-failed {
+    background: var(--tag-neutral-bg);
+    border-style: dashed;
     border-color: var(--tag-neutral-border);
     color: var(--tag-neutral-ink);
   }

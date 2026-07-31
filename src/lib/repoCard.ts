@@ -128,7 +128,7 @@ export function absentSide(repo: RepoNode): AbsentSide {
 }
 
 export interface RepoTag {
-  kind: "gone" | "new" | "failed";
+  kind: "gone" | "new" | "failed" | "project-failed";
   label: string;
 }
 
@@ -147,6 +147,19 @@ export function repoTag(repo: RepoNode, comparisonId: number): RepoTag | null {
   if (side === "A") return { kind: "new", label: `new in run ${comparisonId}` };
   if (repo.fetchFailed) return { kind: "failed", label: "fetch failed" };
   return null;
+}
+
+/** All header tags for a repo card: the priority-ordered gone/new/failed tag (`repoTag`) plus an
+ * independent `project fetch failed` tag when the owning Project's own fetch failed (ADR-0012).
+ * The two failures are orthogonal (a repo's own fetch and its Project's fetch fail or succeed
+ * independently), so `project fetch failed` is additive rather than subject to `repoTag`'s
+ * priority order — both tags can render together (PD-40). */
+export function repoTags(repo: RepoNode, comparisonId: number): RepoTag[] {
+  const tags: RepoTag[] = [];
+  const primary = repoTag(repo, comparisonId);
+  if (primary) tags.push(primary);
+  if (repo.projectFetchFailed) tags.push({ kind: "project-failed", label: "project fetch failed" });
+  return tags;
 }
 
 /** Project meta ("3 repositories · 14 grants") — grants, not headcount, per ADR-0008: that ADR
