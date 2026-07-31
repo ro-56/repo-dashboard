@@ -103,18 +103,23 @@ export function grantsText(repo: RepoNode): string {
   return `${total} grant${total === 1 ? "" : "s"} · ${repo.adminCount} admin`;
 }
 
-/** 58×6px three-stop grey gradient showing the admin/write/read split of grants (ADR-0008).
- * A repo with zero grants renders a flat --rule-row bar, not an empty element. */
-export function distributionBarBackground(repo: RepoNode): string {
+export interface DistributionSplit {
+  admin: number;
+  write: number;
+  read: number;
+}
+
+/** Per-segment admin/write/read percentages (summing to 100) for the repo card's distribution
+ * bar (ADR-0008), rendered as 3 literal segments in RepoCard.svelte. `null` signals a repo with
+ * zero grants, which the component renders as a single flat neutral bar, not empty segments. */
+export function distributionSplit(repo: RepoNode): DistributionSplit | null {
   const total = repo.readCount + repo.writeCount + repo.adminCount;
-  if (!total) return "var(--rule-row)";
-  const adminPct = (repo.adminCount / total) * 100;
-  const writePct = (repo.writeCount / total) * 100;
-  return (
-    `linear-gradient(90deg, var(--ink) 0 ${adminPct}%, ` +
-    `var(--ink-3) ${adminPct}% ${adminPct + writePct}%, ` +
-    `var(--ink-faint) ${adminPct + writePct}% 100%)`
-  );
+  if (!total) return null;
+  return {
+    admin: (repo.adminCount / total) * 100,
+    write: (repo.writeCount / total) * 100,
+    read: (repo.readCount / total) * 100,
+  };
 }
 
 export type AbsentSide = "A" | "B" | null;

@@ -3,6 +3,7 @@ import {
   absentSide,
   countBadges,
   defaultOpen,
+  distributionSplit,
   grantsText,
   isRepoOpen,
   projectMeta,
@@ -113,6 +114,20 @@ describe("grantsText / projectMeta", () => {
       repos: [repo({ readCount: 1 }), repo({ writeCount: 1, adminCount: 1 })],
     };
     expect(projectMeta(project)).toBe("2 repositories · 3 grants");
+  });
+});
+
+describe("distributionSplit", () => {
+  it("splits admin/write/read counts into percentages summing to 100", () => {
+    expect(distributionSplit(repo({ adminCount: 2, writeCount: 1, readCount: 1 }))).toEqual({
+      admin: 50,
+      write: 25,
+      read: 25,
+    });
+  });
+
+  it("returns null for a repo with zero grants", () => {
+    expect(distributionSplit(repo())).toBeNull();
   });
 });
 

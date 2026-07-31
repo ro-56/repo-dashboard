@@ -4,7 +4,7 @@
   import {
     absentSide,
     countBadges,
-    distributionBarBackground,
+    distributionSplit,
     grantsText,
     isRepoOpen,
     repoBreakdown,
@@ -35,6 +35,7 @@
   let open = $derived(isRepoOpen(repo, anyChanges, toggled));
   // Header counts always describe the whole repo (ADR-0008) — only the rendered rows narrow.
   let counts = $derived(countBadges(repoBreakdown(repo)));
+  let split = $derived(distributionSplit(repo));
   let tags = $derived(repoTags(repo, comparisonId));
   let gone = $derived(absentSide(repo) === "B");
   let sorted = $derived(sortedPrincipals(repo.principals));
@@ -62,7 +63,15 @@
       {repo.repoProject}/<span class="name" class:gone>{repo.repo}</span>
     </span>
     <span class="bar-cell">
-      <span class="bar" style:background={distributionBarBackground(repo)}></span>
+      {#if split}
+        <span class="dist">
+          <span class="dist__admin" style:width={`${split.admin}%`}></span>
+          <span class="dist__write" style:width={`${split.write}%`}></span>
+          <span class="dist__read" style:width={`${split.read}%`}></span>
+        </span>
+      {:else}
+        <span class="bar-flat"></span>
+      {/if}
     </span>
     <span class="grants">{grantsText(repo)}</span>
     <CountBadges badges={counts} />
@@ -140,11 +149,30 @@
     display: flex;
     align-items: center;
   }
-  .bar {
+  .dist {
+    display: flex;
+    gap: 2px;
+    width: 74px;
+    height: 8px;
+  }
+  .dist span {
+    border-radius: 2px;
+  }
+  .dist__admin {
+    background: var(--bar-admin);
+  }
+  .dist__write {
+    background: var(--bar-write);
+  }
+  .dist__read {
+    background: var(--bar-read);
+  }
+  .bar-flat {
     display: inline-block;
     width: 74px;
     height: 8px;
     border-radius: 2px;
+    background: var(--rule-row);
   }
 
   .grants {
