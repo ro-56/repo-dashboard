@@ -6,7 +6,7 @@
 
 <span class="badges">
   {#each badges as badge (badge.kind + badge.label)}
-    <span class="count count-{badge.kind}">{badge.label}</span>
+    <span class="chip chip-{badge.kind}">{badge.label}</span>
   {/each}
 </span>
 
@@ -16,32 +16,37 @@
     gap: var(--s-5);
     align-items: center;
     min-width: 0;
-    font-family: var(--font-mono);
-    font-weight: 500;
-    font-size: var(--t-meta);
   }
-  .count-added {
-    color: var(--state-added);
-  }
-  .count-removed {
-    color: var(--state-revoked);
-  }
-  .count-modified {
-    color: var(--state-changed);
-  }
-  .count-esc {
+  .chip {
     display: inline-flex;
     align-items: center;
-    height: 15px;
-    padding: 0 var(--s-3);
-    border-radius: var(--radius);
-    border: 1px solid var(--tag-esc-border);
-    background: var(--tag-esc-bg);
-    color: var(--tag-esc-ink);
+    height: var(--h-chip);
+    padding: 0 var(--s-5);
+    border-radius: var(--r-chip);
+    font-family: var(--font-mono);
     font-weight: 600;
+    font-size: var(--t-meta);
+    white-space: nowrap;
   }
-  .count-none {
-    color: var(--ink-faint);
+  .chip-added {
+    background: var(--state-added-bg);
+    color: var(--state-added);
+  }
+  .chip-removed {
+    background: var(--state-revoked-bg);
+    color: var(--state-revoked);
+  }
+  .chip-modified {
+    background: var(--state-changed-bg);
+    color: var(--state-changed);
+  }
+  .chip-esc {
+    border: 1px solid var(--escalation-edge);
+    background: var(--escalation-bg);
+    color: var(--escalation-ink);
+  }
+  .chip-none {
+    color: var(--ink-3);
     font-weight: 400;
   }
 </style>
