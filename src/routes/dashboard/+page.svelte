@@ -11,6 +11,7 @@
   import CredentialsPanel from "$lib/components/CredentialsPanel.svelte";
   import RunPanel from "$lib/components/RunPanel.svelte";
   import SnapshotsPanel from "$lib/components/SnapshotsPanel.svelte";
+  import AppearancePanel from "$lib/components/AppearancePanel.svelte";
   import { isRepoOpen, treeHasAnyChanges } from "$lib/repoCard";
   import { snapshotSeqs } from "$lib/headBar";
   import {
@@ -172,6 +173,7 @@
   <CredentialsPanel />
   <RunPanel />
   <SnapshotsPanel snapshots={data.snapshots} baselineId={data.baselineId} comparisonId={data.comparisonId} />
+  <AppearancePanel />
 </SideDrawer>
 
 <style>
