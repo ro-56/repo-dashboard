@@ -89,6 +89,14 @@ describe("compareEntries / sortedPrincipals", () => {
     expect(sortedPrincipals([read, write, admin])).toEqual([admin, write, read]);
   });
 
+  it("ranks create-repo at the same tier as admin, ahead of write", () => {
+    const write = entry({ principal: { id: "u1", label: "bob" }, permission: "Write" });
+    const createRepo = entry({ principal: { id: "u2", label: "carol" }, permission: "CreateRepo" });
+    const admin = entry({ principal: { id: "u3", label: "alice" }, permission: "Admin" });
+
+    expect(sortedPrincipals([write, createRepo, admin])).toEqual([admin, createRepo, write]);
+  });
+
   it("breaks ties on same label by source rank: direct before group before member", () => {
     const direct = entry({ accessType: { type: "Direct" } });
     const group = entry({ accessType: { type: "Group" } });
@@ -153,6 +161,30 @@ describe("deriveRow", () => {
     );
     expect(view.isEscalation).toBe(false);
     expect(view.tags).toEqual([]);
+  });
+
+  it("renders a create-repo grant with admin-tier styling but its own label", () => {
+    const view = deriveRow(entry({ diffStatus: { status: "None" }, permission: "CreateRepo" }));
+    expect(view.levelClass).toBe("lvl-admin");
+    expect(view.levelWord).toBe("create-repo");
+  });
+
+  it("renders a new create-repo grant as added, to its own label", () => {
+    const view = deriveRow(entry({ diffStatus: { status: "Grant" }, permission: "CreateRepo" }));
+    expect(view.state).toBe("added");
+    expect(view.levelClass).toBe("lvl-admin");
+    expect(view.to).toBe("create-repo");
+  });
+
+  it("tags an escalation into create-repo the same as an escalation into admin", () => {
+    const view = deriveRow(
+      entry({
+        diffStatus: { status: "LevelChange", from: "Write", to: "CreateRepo", kind: "Escalation" },
+      }),
+    );
+    expect(view.isEscalation).toBe(true);
+    expect(view.to).toBe("create-repo");
+    expect(view.tags).toEqual([{ label: "escalation → admin", kind: "esc" }]);
   });
 
   it("adds a 'members unresolved' tag only for an unresolved Group's own row", () => {

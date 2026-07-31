@@ -7,9 +7,18 @@ import type { AccessType, GrantScope, Permission, PrincipalEntry } from "./roste
 export type RowState = "same" | "added" | "removed" | "modified";
 export type LevelClass = "lvl-admin" | "lvl-write" | "lvl-read";
 
-const RANK: Record<Permission, number> = { Read: 1, Write: 2, Admin: 3 };
+type CoreLevel = "Read" | "Write" | "Admin";
+
+/** Collapses `CreateRepo` onto `Admin`; every other variant passes through unchanged. Mirrors
+ * `Permission::admin_light` on the Rust side (ADR-0024) — used only where code computes rank
+ * or style tier, never for display (see levelWord, the display-side counterpart). */
+function adminLight(permission: Permission): CoreLevel {
+  return permission === "CreateRepo" ? "Admin" : permission;
+}
+
+const RANK: Record<CoreLevel, number> = { Read: 1, Write: 2, Admin: 3 };
 const SOURCE_RANK: Record<AccessType["type"], number> = { Direct: 0, Group: 1, Member: 2 };
-const LEVEL_CLASS: Record<Permission, LevelClass> = { Admin: "lvl-admin", Write: "lvl-write", Read: "lvl-read" };
+const LEVEL_CLASS: Record<CoreLevel, LevelClass> = { Admin: "lvl-admin", Write: "lvl-write", Read: "lvl-read" };
 
 /** A Group's own entry whose membership could not be resolved (CONTEXT.md), backing the
  * row's own tag (below). */
@@ -49,7 +58,7 @@ export function sourceTooltip(accessType: AccessType, scope: GrantScope): string
 /** Roster ordering: admin → write → read, then principal label, then source (direct before group). */
 export function compareEntries(a: PrincipalEntry, b: PrincipalEntry): number {
   return (
-    RANK[b.permission] - RANK[a.permission] ||
+    RANK[adminLight(b.permission)] - RANK[adminLight(a.permission)] ||
     a.principal.label.localeCompare(b.principal.label) ||
     SOURCE_RANK[a.accessType.type] - SOURCE_RANK[b.accessType.type]
   );
@@ -78,12 +87,12 @@ export interface RosterRowView {
 }
 
 function levelWord(permission: Permission): string {
-  return permission.toLowerCase();
+  return permission === "CreateRepo" ? "create-repo" : permission.toLowerCase();
 }
 
 export function deriveRow(entry: PrincipalEntry): RosterRowView {
   const status = entry.diffStatus;
-  const levelClass = LEVEL_CLASS[entry.permission];
+  const levelClass = LEVEL_CLASS[adminLight(entry.permission)];
   const base = {
     levelWord: levelWord(entry.permission),
     levelClass,
@@ -130,7 +139,7 @@ export function deriveRow(entry: PrincipalEntry): RosterRowView {
       case "LevelChange": {
         const isEscalation = status.kind === "Escalation";
         const tags: RosterRowTag[] = isEscalation
-          ? [{ label: status.to === "Admin" ? "escalation → admin" : "escalation", kind: "esc" }]
+          ? [{ label: adminLight(status.to) === "Admin" ? "escalation → admin" : "escalation", kind: "esc" }]
           : [];
         return {
           ...base,
@@ -139,8 +148,8 @@ export function deriveRow(entry: PrincipalEntry): RosterRowView {
           struck: false,
           isEscalation,
           showTransition: true,
-          from: status.from.toLowerCase(),
-          to: status.to.toLowerCase(),
+          from: levelWord(status.from),
+          to: levelWord(status.to),
           tags,
         };
       }

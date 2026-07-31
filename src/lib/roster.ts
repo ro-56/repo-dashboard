@@ -12,7 +12,7 @@ export type AccessType = { type: "Direct" } | { type: "Group" } | { type: "Membe
 // Principal + access type are always two distinct rows, never merged (PD-30).
 export type GrantScope = "Repo" | "Project";
 
-export type Permission = "Read" | "Write" | "Admin";
+export type Permission = "Read" | "Write" | "CreateRepo" | "Admin";
 
 export type RepoStatus = "Ok" | "FetchFailed";
 
