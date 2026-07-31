@@ -6,6 +6,7 @@ import {
   isUnresolvedGroup,
   sortedPrincipals,
   sourceLabel,
+  sourceTooltip,
 } from "./rosterRow";
 import type { AccessType, PrincipalEntry } from "./roster";
 
@@ -32,8 +33,24 @@ describe("sourceLabel", () => {
     expect(sourceLabel(accessType, "Repo")).toBe(label);
   });
 
-  it.each(cases)("appends ' · project' to %o when Project-scoped", (accessType, label) => {
-    expect(sourceLabel(accessType, "Project")).toBe(`${label} · project`);
+  it.each(cases)("prepends '↳ ' to %o when Project-scoped", (accessType, label) => {
+    expect(sourceLabel(accessType, "Project")).toBe(`↳ ${label}`);
+  });
+});
+
+describe("sourceTooltip", () => {
+  const cases: [AccessType, string][] = [
+    [{ type: "Direct" }, "direct"],
+    [{ type: "Group" }, "group"],
+    [{ type: "Member", group_id: "secops" }, "grp:secops"],
+  ];
+
+  it.each(cases)("echoes the visible label for %o Repo-scoped entries", (accessType, label) => {
+    expect(sourceTooltip(accessType, "Repo")).toBe(label);
+  });
+
+  it.each(cases)("reads as an explanatory string for %o Project-scoped entries", (accessType) => {
+    expect(sourceTooltip(accessType, "Project")).toBe("Project-level grant");
   });
 });
 

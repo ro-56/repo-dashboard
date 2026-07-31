@@ -1,6 +1,6 @@
 # Grant scope surfaces as a source-label suffix, not a dedicated column
 
-Status: accepted
+Status: superseded by ADR-0020
 
 `PrincipalEntry.scope` (`Repo` | `Project`, ADR-0012) has been part of the data model since PD-30 but was never rendered anywhere in the roster row — the new visual design (`.references/new-design/`) doesn't show it either, since it predates ADR-0012. Rather than widening the roster grid with a dedicated scope column, a Project-level grant is marked by appending `· project` to the existing source cell: `direct` → `direct · project`, `group` → `group · project`, `grp:secops` → `grp:secops · project`. Repo-level grants (the common case) render with no suffix, matching today's behavior.
 

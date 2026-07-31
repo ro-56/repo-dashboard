@@ -23,8 +23,8 @@ export function hasDiff(entry: PrincipalEntry): boolean {
   return entry.diffStatus.status !== "None";
 }
 
-/** `direct`, `group`, or `grp:<name>`, plus a ` · project` suffix for Project-level grants
- * (ADR-0014) — never spills into the notes column. */
+/** `direct`, `group`, or `grp:<name>`, plus a `↳ ` prefix for Project-level grants
+ * (ADR-0020) — never spills into the notes column. */
 export function sourceLabel(accessType: AccessType, scope: GrantScope): string {
   const base = (() => {
     switch (accessType.type) {
@@ -36,7 +36,14 @@ export function sourceLabel(accessType: AccessType, scope: GrantScope): string {
         return `grp:${accessType.group_id}`;
     }
   })();
-  return scope === "Project" ? `${base} · project` : base;
+  return scope === "Project" ? `↳ ${base}` : base;
+}
+
+/** The `.source` cell's `title` tooltip: an explanatory string for Project-level grants
+ * (ADR-0020), since the visible `↳` prefix no longer needs truncation insurance; unchanged
+ * echo of the visible label for Repo-scoped grants. */
+export function sourceTooltip(accessType: AccessType, scope: GrantScope): string {
+  return scope === "Project" ? "Project-level grant" : sourceLabel(accessType, scope);
 }
 
 /** Roster ordering: admin → write → read, then principal label, then source (direct before group). */

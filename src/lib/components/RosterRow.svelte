@@ -1,11 +1,12 @@
 <script lang="ts">
   import type { PrincipalEntry } from "$lib/roster";
-  import { deriveRow, sourceLabel } from "$lib/rosterRow";
+  import { deriveRow, sourceLabel, sourceTooltip } from "$lib/rosterRow";
 
   let { entry }: { entry: PrincipalEntry } = $props();
 
   let row = $derived(deriveRow(entry));
   let source = $derived(sourceLabel(entry.accessType, entry.scope));
+  let sourceTitle = $derived(sourceTooltip(entry.accessType, entry.scope));
 </script>
 
 <div
@@ -21,7 +22,7 @@
     <span></span><span></span><span></span>
   </span>
   <span class="level-word {row.levelClass}" class:struck={row.struck}>{row.levelWord}</span>
-  <span class="source" title={source}>{source}</span>
+  <span class="source" title={sourceTitle}>{source}</span>
   <span class="user">{entry.principal.label}</span>
   <span class="transition">
     {#if row.showTransition}
