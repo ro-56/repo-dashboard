@@ -14,7 +14,7 @@
   .column-labels {
     box-sizing: border-box;
     display: grid;
-    grid-template-columns: 12px 26px 46px 70px 148px 132px 1fr;
+    grid-template-columns: var(--roster-cols);
     gap: var(--s-5);
     align-items: center;
     padding: var(--s-3) var(--s-7) var(--s-2) 25px;

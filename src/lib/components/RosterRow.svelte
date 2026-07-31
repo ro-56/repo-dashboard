@@ -42,7 +42,7 @@
   .roster-row {
     box-sizing: border-box;
     display: grid;
-    grid-template-columns: 12px 26px 46px 70px 148px 132px 1fr;
+    grid-template-columns: var(--roster-cols);
     gap: var(--s-5);
     align-items: center;
     height: var(--row-h);

@@ -95,6 +95,7 @@
   --bar-head: 40px;
   --bar-summary: 44px;
   --radius: 2px;
+  --roster-cols: 12px 26px 46px 70px 148px 132px 1fr;
 
   /* Channel 2 — diff state hue (never used for permission level) */
   --state-added: #10653c;
