@@ -3,16 +3,17 @@
    diff state = hue + sigil + gutter. Consumed by name — no component may hardcode
    a hex value that exists here.
    Color/spacing/type values are ported from perm-diff.css's light-theme :root block (PD-36).
-   Head bar / filter bar / notice strip geometry ported in PD-37 (--bar-head, --bar-filters,
+   Head bar / filter bar geometry ported in PD-37 (--bar-head, --bar-filters,
    --h-control, --r-selector, --r-card).
    Roster grid / repo card / project section geometry ported in PD-38 (--row-h, --card-h,
    --roster-cols, --r-chip, --h-tag) — see ADR-0009 for the reflow order this must preserve.
    Delta-chip tokens (--state-*-bg, --escalation-edge) ported in PD-41.
-   Segmented control / distribution bar / roster-row meter / sigil / escalation row tint /
-   notice badge tokens (--track, --track-active, --shadow-segment, --r-row, --segment-off,
-   --seg, --bar-admin, --bar-write, --bar-read, --escalation-row, --notice-badge,
-   --notice-badge-ink, --h-sigil, --h-chip) ported in PD-44 — unused until PD-43's breakdown
-   consumes them.
+   Segmented control / distribution bar / roster-row meter / sigil / escalation row tint
+   tokens (--track, --track-active, --shadow-segment, --r-row, --segment-off,
+   --seg, --bar-admin, --bar-write, --bar-read, --escalation-row, --h-sigil, --h-chip)
+   ported in PD-44, consumed by PD-43's breakdown.
+   (Notice-strip tokens ported in PD-44 were removed under ADR-0019 along with the
+   component itself.)
    Head-bar Run-selector panel tokens (--surface-control-alt, --t-label-sm) ported in PD-51,
    for the native-<select> restyle described in ADR-0018.
    Pending re-port: dark theme block (:root[data-theme="dark"]) and scope-suffix tokens.
@@ -146,13 +147,6 @@
   --escalation-bg: #fdf2e4;
   --escalation-edge: #e8c69e;
   --escalation-row: #fdf7ef;
-
-  /* Structural notice strip */
-  --notice-bg: #fdf6e6;
-  --notice-edge: #ecd9a8;
-  --notice-ink: #5c4a14;
-  --notice-badge: #a8791a;
-  --notice-badge-ink: #ffffff;
 
   /* Tag clusters */
   --tag-new-bg: #e8f2eb;

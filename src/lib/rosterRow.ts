@@ -11,9 +11,8 @@ const RANK: Record<Permission, number> = { Read: 1, Write: 2, Admin: 3 };
 const SOURCE_RANK: Record<AccessType["type"], number> = { Direct: 0, Group: 1, Member: 2 };
 const LEVEL_CLASS: Record<Permission, LevelClass> = { Admin: "lvl-admin", Write: "lvl-write", Read: "lvl-read" };
 
-/** A Group's own entry whose membership could not be resolved (CONTEXT.md) — shared by the
- * row's own tag (below) and the notice strip (noticeStrip.ts) so the two can't drift apart
- * on the definition. */
+/** A Group's own entry whose membership could not be resolved (CONTEXT.md), backing the
+ * row's own tag (below). */
 export function isUnresolvedGroup(entry: PrincipalEntry): boolean {
   return entry.accessType.type === "Group" && entry.membersResolved === false;
 }

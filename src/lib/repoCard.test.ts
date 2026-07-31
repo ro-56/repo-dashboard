@@ -21,7 +21,6 @@ function principal(overrides: Partial<PrincipalEntry> = {}): PrincipalEntry {
     scope: "Repo",
     permission: "Read",
     diffStatus: { status: "None" },
-    workspaceState: "present",
     membersResolved: null,
     ...overrides,
   };

@@ -67,10 +67,6 @@ _Avoid_: Snapshot A / Snapshot B (positional, says nothing about direction), "Co
 A repo present in one Snapshot's discovery and not the other. Absence means every grant on it reads as a Revoke; arrival means every grant reads as a Grant. Both are properties of discovery, not of any Principal, and both are stated once at the repo level rather than repeated on every row underneath. Distinct from a **Fetch failure**, where the repo *was* discovered and its roster is unknown rather than empty.
 _Avoid_: Deleted repo, missing repo (a repo can be absent because it was renamed, archived, or made invisible to the credential — absence is not deletion)
 
-**Workspace departure** / **Workspace arrival**:
-A user Principal holding at least one grant somewhere in one Snapshot of the Run pair and none at all in the other. A workspace-wide fact about a person, computed across the whole Roster tree, not a per-repo one — a user losing access to a single repo while keeping others is an ordinary Revoke, not a departure.
-_Avoid_: Offboarded / onboarded (implies an HR event this tool cannot observe), deleted user
-
 **Roster tree**:
 The project → repo → Principal structure returned for a given Run pair, with Grant/Revoke/Level-change markers attached in place. Computed fresh from the Run pair's full PermissionRecord/RepoFetchStatus sets on every request — never materialized or cached (see ADR-0004, `docs/adr/0004-roster-tree-computed-per-request.md`).
 _Avoid_: Diff result (too narrow — the tree also carries un-diffed roster data when the Run pair is a single Snapshot compared to itself)

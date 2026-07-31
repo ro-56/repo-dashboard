@@ -3,7 +3,6 @@
   import { goto } from "$app/navigation";
   import type { PageData } from "./$types";
   import HeadBar from "$lib/components/HeadBar.svelte";
-  import NoticeStrip from "$lib/components/NoticeStrip.svelte";
   import FilterBar from "$lib/components/FilterBar.svelte";
   import EmptyState from "$lib/components/EmptyState.svelte";
   import ProjectSection from "$lib/components/ProjectSection.svelte";
@@ -147,7 +146,6 @@
       onBulkToggle={handleBulkToggle}
       onReset={resetView}
     />
-    <NoticeStrip tree={data.tree} {same} comparisonSeq={seqs.get(data.comparisonId)!} />
 
     {#if !isEmpty}
       <RosterColumnLabels />

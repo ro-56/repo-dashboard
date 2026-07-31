@@ -53,11 +53,6 @@ pub struct PrincipalEntry {
     /// Snapshot A's value for Revoke (there is no B-side value for a revoked record).
     pub permission: Permission,
     pub diff_status: DiffStatus,
-    /// Workspace-wide fact about this Principal (`None` for a `Group` grant — Workspace
-    /// departure/arrival, per CONTEXT.md, is a "user Principal" concept only; a group's own
-    /// grant does not make it a user). Attached to every row for that Principal across every
-    /// repo, not just the ones where its access changed on this particular repo.
-    pub workspace_state: Option<WorkspaceState>,
     /// Unresolvable membership (CONTEXT.md): `None` for `Direct`/`Member` entries — only a
     /// `Group`'s own grant carries this. `Some(false)` means the group's own grant was fetched
     /// but its member list could not be, distinct from `Some(true)` (a confirmed, possibly
@@ -77,19 +72,6 @@ pub enum RepoDiscoveryState {
     /// Discovered in the Baseline, not in the Comparison — every grant on it reads as a Revoke.
     Absent,
     /// Discovered in the Comparison, not in the Baseline — every grant on it reads as a Grant.
-    Arrived,
-}
-
-/// Workspace departure / arrival (CONTEXT.md): a user Principal holding a grant somewhere in
-/// one Snapshot of the pair and nowhere at all in the other. Scoped to user Principals only
-/// (`AccessType::Direct` / `AccessType::Member`) — a `Group`'s own grant never carries this.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum WorkspaceState {
-    Present,
-    /// Held a grant somewhere in the Baseline; holds none anywhere in the Comparison.
-    Departed,
-    /// Holds a grant somewhere in the Comparison; held none anywhere in the Baseline.
     Arrived,
 }
 
@@ -213,7 +195,7 @@ fn membership_status_map(statuses: &[GroupMembershipStatus]) -> HashMap<GroupKey
 }
 
 /// A `Group`'s own grant is never a "user Principal" (CONTEXT.md) — this is the one place
-/// that distinction is drawn, shared by the distinct-user count and the workspace-state lookup.
+/// that distinction is drawn, shared by every distinct-user count in this module.
 fn is_user_access_type(access_type: &AccessType) -> bool {
     !matches!(access_type, AccessType::Group)
 }
@@ -293,27 +275,6 @@ fn build_roster_tree(
     project_statuses_a: &[ProjectFetchStatus],
     project_statuses_b: &[ProjectFetchStatus],
 ) -> RosterTree {
-    // Workspace departure/arrival (CONTEXT.md) is scoped to user Principals: a Principal
-    // holding at least one Direct/Member grant anywhere in one Snapshot and none anywhere in
-    // the other. Computed once, up front, over the whole Snapshot — never per-repo — so that
-    // losing access to one repo while keeping others never reads as a departure.
-    let users_a = user_principal_ids(&a.records);
-    let users_b = user_principal_ids(&b.records);
-    let departed: HashSet<String> = users_a.difference(&users_b).cloned().collect();
-    let arrived: HashSet<String> = users_b.difference(&users_a).cloned().collect();
-    let workspace_state = |access_type: &AccessType, principal_id: &str| -> Option<WorkspaceState> {
-        match access_type {
-            AccessType::Group => None,
-            AccessType::Direct | AccessType::Member(_) => Some(if departed.contains(principal_id) {
-                WorkspaceState::Departed
-            } else if arrived.contains(principal_id) {
-                WorkspaceState::Arrived
-            } else {
-                WorkspaceState::Present
-            }),
-        }
-    };
-
     let membership_map_a = membership_status_map(membership_a);
     let membership_map_b = membership_status_map(membership_b);
     // A `Group`'s own grant has no group id in `AccessType::Group` itself — for that access
@@ -351,7 +312,6 @@ fn build_roster_tree(
                         scope: r.scope,
                         permission: r.permission,
                         diff_status: DiffStatus::Grant,
-                        workspace_state: workspace_state(&r.access_type, &r.principal.id),
                         members_resolved: members_resolved(
                             &r.access_type,
                             &r.principal.id,
@@ -373,7 +333,6 @@ fn build_roster_tree(
                         scope: r.scope,
                         permission: r.permission,
                         diff_status: DiffStatus::Revoke,
-                        workspace_state: workspace_state(&r.access_type, &r.principal.id),
                         members_resolved: members_resolved(
                             &r.access_type,
                             &r.principal.id,
@@ -395,7 +354,6 @@ fn build_roster_tree(
                         scope: *scope,
                         permission: *to,
                         diff_status: DiffStatus::LevelChange { from: *from, to: *to, kind: *kind },
-                        workspace_state: workspace_state(access_type, &principal.id),
                         members_resolved: members_resolved(access_type, &principal.id, repo_project, repo, Side::B),
                     },
                 )
@@ -416,7 +374,6 @@ fn build_roster_tree(
             scope: r.scope,
             permission: r.permission,
             diff_status: DiffStatus::None,
-            workspace_state: workspace_state(&r.access_type, &r.principal.id),
             members_resolved: members_resolved(&r.access_type, &r.principal.id, &r.repo_project, &r.repo, Side::B),
         });
     }
@@ -847,85 +804,7 @@ mod tests {
     }
 
     #[test]
-    fn user_departing_the_workspace_is_flagged_on_every_row_left_behind() {
-        let mut conn = open_conn();
-        let a = Snapshot {
-            records: vec![
-                record("TEAM", "repo-a", "acct-1", "Ada", Permission::Read),
-                member_record("TEAM", "repo-b", "platform-eng", "acct-1", "Ada", Permission::Admin),
-            ],
-            repo_statuses: vec![ok_status("TEAM", "repo-a"), ok_status("TEAM", "repo-b")],
-        };
-        let b = Snapshot {
-            records: vec![],
-            repo_statuses: vec![ok_status("TEAM", "repo-a"), ok_status("TEAM", "repo-b")],
-        };
-
-        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[], &[]).unwrap();
-        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[], &[]).unwrap();
-
-        let result = get_roster_tree(&conn, a_id, b_id).unwrap();
-        let repo_a = repo_node(&result.tree, "TEAM", "repo-a");
-        let repo_b = repo_node(&result.tree, "TEAM", "repo-b");
-
-        assert_eq!(principal_entry(repo_a, "Ada").workspace_state, Some(WorkspaceState::Departed));
-        assert_eq!(principal_entry(repo_b, "Ada").workspace_state, Some(WorkspaceState::Departed));
-    }
-
-    #[test]
-    fn user_departing_one_repo_but_not_the_workspace_is_not_a_departure() {
-        let mut conn = open_conn();
-        let a = Snapshot {
-            records: vec![
-                record("TEAM", "repo-a", "acct-1", "Ada", Permission::Read), // kept in b
-                member_record("TEAM", "repo-b", "platform-eng", "acct-1", "Ada", Permission::Admin), // lost in b
-            ],
-            repo_statuses: vec![ok_status("TEAM", "repo-a"), ok_status("TEAM", "repo-b")],
-        };
-        let b = Snapshot {
-            records: vec![record("TEAM", "repo-a", "acct-1", "Ada", Permission::Read)],
-            repo_statuses: vec![ok_status("TEAM", "repo-a"), ok_status("TEAM", "repo-b")],
-        };
-
-        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[], &[]).unwrap();
-        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[], &[]).unwrap();
-
-        let result = get_roster_tree(&conn, a_id, b_id).unwrap();
-        let repo_a = repo_node(&result.tree, "TEAM", "repo-a");
-        let repo_b = repo_node(&result.tree, "TEAM", "repo-b");
-
-        let ada_repo_a = principal_entry(repo_a, "Ada");
-        let ada_repo_b = principal_entry(repo_b, "Ada");
-        assert_eq!(ada_repo_a.diff_status, DiffStatus::None);
-        assert_eq!(ada_repo_a.workspace_state, Some(WorkspaceState::Present));
-        assert_eq!(ada_repo_b.diff_status, DiffStatus::Revoke);
-        assert_eq!(ada_repo_b.workspace_state, Some(WorkspaceState::Present));
-    }
-
-    #[test]
-    fn user_arriving_in_the_workspace_is_flagged_arrived_and_group_grants_are_never_flagged() {
-        let mut conn = open_conn();
-        let a = Snapshot::default();
-        let b = Snapshot {
-            records: vec![
-                record("TEAM", "repo-a", "acct-9", "Nora", Permission::Write),
-                group_record("TEAM", "repo-a", "platform-eng", "Platform Engineering", Permission::Read),
-            ],
-            repo_statuses: vec![ok_status("TEAM", "repo-a")],
-        };
-
-        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &a, &[], &[]).unwrap();
-        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[], &[]).unwrap();
-
-        let result = get_roster_tree(&conn, a_id, b_id).unwrap();
-        let repo_a = repo_node(&result.tree, "TEAM", "repo-a");
-
-        assert_eq!(principal_entry(repo_a, "Nora").workspace_state, Some(WorkspaceState::Arrived));
-        assert_eq!(principal_entry(repo_a, "Platform Engineering").workspace_state, None);
-    }
-
-    #[test]
-    fn same_snapshot_pair_yields_zero_pair_stats_and_no_departures_or_arrivals() {
+    fn same_snapshot_pair_yields_zero_pair_stats() {
         let mut conn = open_conn();
         let snapshot = Snapshot {
             records: vec![
@@ -942,11 +821,6 @@ mod tests {
             result.pair,
             PairStats { added: 0, revoked: 0, changed: 0, escalations: 0, repos_hit: 0, net: 0 }
         );
-        let repo = repo_node(&result.tree, "TEAM", "repo-a");
-        assert!(repo
-            .principals
-            .iter()
-            .all(|p| p.workspace_state == Some(WorkspaceState::Present)));
     }
 
     #[test]

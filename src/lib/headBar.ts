@@ -57,7 +57,7 @@ export function selectorOptions(snapshots: SnapshotSummary[], seqs: Map<number, 
  * pair are the same Snapshot. Baseline grant count is derived from the Comparison's total minus
  * the pair's signed net, rather than carried separately, since PD-17 only returns totals for the
  * Comparison side. `same` is passed in rather than re-derived from the two ids, so the page has
- * one place that decides the Run pair is a same-Snapshot roster view, shared with NoticeStrip. */
+ * one place that decides the Run pair is a same-Snapshot roster view. */
 export function spanNote(
   baseline: SnapshotSummary,
   comparison: SnapshotSummary,

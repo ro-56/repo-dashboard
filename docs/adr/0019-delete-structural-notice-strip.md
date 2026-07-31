@@ -1,0 +1,14 @@
+# Delete the structural notice strip; Workspace departure/arrival goes unsurfaced
+
+Status: accepted
+
+The structural notice strip (`NoticeStrip.svelte`/`noticeStrip.ts`, added PD-19) is deleted outright, not restyled — superseding PD-49's planned badge-pill work (PD-52). The user's judgment, reached in a `/grill-with-docs` session, was that the strip added no value worth its screen space or maintenance cost.
+
+The strip was the sole surface for six structural facts (repo absence/arrival, Workspace departure/arrival, Fetch failure, Unresolvable membership, plus a same-Snapshot explainer sentence). Deleting it does not silently drop all six — this ADR records, fact by fact, what survives and what doesn't, so nobody "fixes" a perceived gap later without knowing it was deliberate:
+
+- **Repo absence/arrival**: unaffected. `repoCard.ts`'s `absentSide()` already strikes through and tags the repo card independently of the strip; that was always the primary surface (CLAUDE.md's diff-semantics section describes this, not the strip).
+- **Fetch failure / Unresolvable membership**: unaffected. Both already carry independent per-row tags (`fetch failed`, `members unresolved`, PD-19's acceptance criteria) — the strip's prose was supplementary narration, never the only channel. ADR-0005's consequence rule is updated to drop "or the notice strip" as a result; tags and gutters remain the two sanctioned non-hue channels.
+- **Workspace departure/arrival**: dropped entirely, by explicit user decision, not just from the UI but from the system — `WorkspaceState`/`workspace_state` computation is removed from the Rust backend (`src-tauri/src/roster.rs`) and the TypeScript `PrincipalEntry` type, and its `CONTEXT.md` glossary entries are deleted. This tool no longer computes or exposes "a user lost/gained access somewhere in the whole workspace" as a fact. If a future need for it arises, both the concept and a real surface for it should be reintroduced together — not left as a documented-but-dead field, which is worse than not having it.
+- **Same-Snapshot explainer** ("both sides point at run N — this is that run's access list on its own"): dropped. Selecting the same Snapshot for both sides of a Run pair (still a valid, non-error Run pair per CONTEXT.md) now renders a plain no-diff roster with no callout explaining why nothing is highlighted.
+
+This is worth recording as an ADR rather than a plain deletion because it reverses a decision (PD-19) made deliberately enough to earn its own ticket and its own line in ADR-0005, and because the Workspace departure/arrival loss is easy to mistake for an oversight rather than a choice — an auditor tool silently losing an audit signal is exactly the kind of thing a future maintainer should be able to trace back to an explicit decision, not a bug.

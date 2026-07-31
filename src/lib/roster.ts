@@ -22,10 +22,6 @@ export type DiffStatus =
   | { status: "Revoke" }
   | { status: "LevelChange"; from: Permission; to: Permission; kind: "Escalation" | "Demotion" };
 
-// Workspace departure/arrival (CONTEXT.md) is a "user Principal" concept only — `null` for a
-// `Group`'s own grant, since a group is never itself a user.
-export type WorkspaceState = "present" | "departed" | "arrived";
-
 // Repo absence/arrival (CONTEXT.md) — independent of whether the permissions fetch on either
 // side succeeded (see `statusA`/`statusB`, which carry that separately).
 export type RepoDiscoveryState = "present" | "absent" | "arrived";
@@ -36,7 +32,6 @@ export interface PrincipalEntry {
   scope: GrantScope;
   permission: Permission;
   diffStatus: DiffStatus;
-  workspaceState: WorkspaceState | null;
   // Unresolvable membership (CONTEXT.md): null for Direct/Member entries — only a Group's own
   // grant carries this. `false` means the group's own grant was fetched but its member list
   // could not be, distinct from `true` (a confirmed, possibly empty, member list) — both states
