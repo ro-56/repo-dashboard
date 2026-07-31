@@ -65,9 +65,11 @@ taskr add "<title>" --type task --mode afk --body "<description with acceptance 
 # Link dependencies (dependent blocks until depends-on is closed)
 taskr link <dependent-id> <depends-on-id>
 
-# Link to the original reference (if any)
-taskr link <new-ticket-id> <original-reference-id>
+# Link to the task epic (if any)
+taskr relate <original-reference-id> <new-ticket-id>
 ```
+
+Task relations are directed: `taskr relate <from> <to>` means "from" is a subtask of "to". The epic is the original reference ticket, and each new ticket is a subtask of it.
 
 For each ticket's `--body`, include:
 

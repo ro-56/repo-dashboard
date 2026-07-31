@@ -1,0 +1,3 @@
+# Credential scope for editing is checked lazily, not required upfront
+
+Writing permissions needs `repository:admin`/`project:admin` scopes beyond the read-only scopes (`read:repository:bitbucket`, `read:workspace:bitbucket`) this app has documented so far. Rather than gatekeeping the edit UI behind a proactive capability probe, the app always shows edit controls and only discovers insufficient scope when Bitbucket actually rejects a `PUT`/`DELETE` during Apply — reported like any other per-item apply failure (see `docs/adr/0022-permission-edits-staged-batch-apply.md`). One code path handles every apply failure; there's no separate probe/capability-check step to build or keep in sync with Bitbucket's scope model.

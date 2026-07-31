@@ -17,8 +17,12 @@ A permission held by a group Principal itself. Recorded whenever the group's own
 _Avoid_: Group permission (ambiguous with a member's group-derived permission)
 
 **Member grant**:
-A permission a user Principal holds because they belong to a group that holds a Group grant. Only recorded when the group's membership is resolvable. A user can simultaneously hold a Direct grant and one or more Member grants on the same repo — each is tracked as its own record, never collapsed into one. Exists at either Grant scope (Repo-level or Project-level), following whichever scope the underlying Group grant was fetched at.
+A permission a user Principal holds because they belong to a group that holds a Group grant. Only recorded when the group's membership is resolvable. A user can simultaneously hold a Direct grant and one or more Member grants on the same repo — each is tracked as its own record, never collapsed into one. Exists at either Grant scope (Repo-level or Project-level), following whichever scope the underlying Group grant was fetched at. Not independently editable — a Member grant has no Bitbucket resource of its own to change; only the underlying Group grant can be edited or removed (ADR-0021, `docs/adr/0021-permission-editing-scope-boundaries.md`).
 _Avoid_: Inherited permission, indirect permission
+
+**Create-repo permission**:
+A fourth Permission level, Project-scope only, sitting between Write and Admin in Bitbucket's real hierarchy (`Read < Write < Create-repo < Admin` — each level includes everything below it). Displayed as its own distinct value wherever a permission is shown directly, but collapsed onto Admin everywhere the code computes rather than displays — diff classification (Grant/Revoke/Escalation/Demotion) and roster summary counts treat it as admin-equivalent, so a Create-repo ↔ Admin transition between two Runs produces no diff event at all (ADR-0024, `docs/adr/0024-create-repo-modeled-distinct-computed-as-admin.md`).
+_Avoid_: create-repo-as-admin (the two are distinguished on display, just not in computation), a fifth "none" permission (considered but not real — not a documented value for this API, see ADR-0024)
 
 **Grant scope**:
 Whether a grant lives at the repo itself (Repo-level) or at its Project, cascading to every repo the Project owns (Project-level). Orthogonal to Direct/Group/Member, which describe *who* holds the grant — the same three grant kinds exist at either scope, and a Principal can simultaneously hold, e.g., a Repo-level Direct grant and a Project-level Direct grant on the same repo as two independent records, never collapsed (extends ADR-0001's per-grant-source diffing to this new dimension; see ADR-0012, `docs/adr/0012-project-level-grants-orthogonal-scope.md`).
@@ -70,3 +74,15 @@ _Avoid_: Deleted repo, missing repo (a repo can be absent because it was renamed
 **Roster tree**:
 The project → repo → Principal structure returned for a given Run pair, with Grant/Revoke/Level-change markers attached in place. Computed fresh from the Run pair's full PermissionRecord/RepoFetchStatus sets on every request — never materialized or cached (see ADR-0004, `docs/adr/0004-roster-tree-computed-per-request.md`).
 _Avoid_: Diff result (too narrow — the tree also carries un-diffed roster data when the Run pair is a single Snapshot compared to itself)
+
+**Pending edit**:
+A staged Level-change or Remove grant against a Direct or Group grant, held only in local UI state until Apply — never partial, never sent automatically. Only possible while the Comparison is the latest Snapshot; discarded outright (not carried forward) if a new Run produces a Snapshot that supersedes the one it was staged against (ADR-0022, `docs/adr/0022-permission-edits-staged-batch-apply.md`).
+_Avoid_: Draft, unsaved change
+
+**Apply**:
+The single global action that commits every currently staged Pending edit to Bitbucket as live grant-config `PUT`/`DELETE` calls, after a confirm step listing every staged change. Each Pending edit within the batch is applied independently — one failing (insufficient credential scope, a 404 from a grant already changed elsewhere, rate limiting) does not block the rest.
+_Avoid_: Save, Commit, Sync
+
+**Remove grant**:
+The live action of deleting a Direct or Group grant via Bitbucket's permissions-config API, staged as a Pending edit before Apply. Deliberately distinct from Revoke — Revoke is a diff outcome observed between two already-collected Snapshots; Remove grant is a user-initiated mutation of Bitbucket's current state, made through this dashboard.
+_Avoid_: Revoke (reserved for the diff outcome), Delete
