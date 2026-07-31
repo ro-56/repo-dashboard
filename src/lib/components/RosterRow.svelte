@@ -17,7 +17,9 @@
   class:escalation={row.isEscalation}
 >
   <span class="sigil">{row.sigil}</span>
-  <span class="meter {row.levelClass}" class:struck={row.struck}>{row.meter}</span>
+  <span class="meter {row.levelClass}" class:struck={row.struck}>
+    <span></span><span></span><span></span>
+  </span>
   <span class="level-word {row.levelClass}" class:struck={row.struck}>{row.levelWord}</span>
   <span class="source" title={source}>{source}</span>
   <span class="user">{entry.principal.label}</span>
@@ -26,9 +28,6 @@
       <span class="from">{row.from}</span>
       <span class="arrow">→</span>
       <span class="to">{row.to}</span>
-      {#if row.isEscalation}
-        <span class="esc-mark">↑</span>
-      {/if}
     {/if}
   </span>
   <span class="tags">
@@ -64,32 +63,61 @@
     border-left-color: var(--state-changed);
   }
   .roster-row.escalation {
-    background: var(--escalation-bg);
+    background: var(--escalation-row);
   }
 
   .sigil {
-    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--h-sigil);
+    height: var(--h-sigil);
+    border-radius: var(--r-chip);
     font-weight: 600;
     font-size: var(--t-id);
-    color: var(--ink-faint);
+    color: var(--ink-3);
   }
   .state-added .sigil {
+    background: var(--state-added-bg);
     color: var(--state-added);
   }
   .state-removed .sigil {
+    background: var(--state-revoked-bg);
     color: var(--state-revoked);
   }
   .state-modified .sigil {
+    background: var(--state-changed-bg);
     color: var(--state-changed);
   }
+  .escalation .sigil {
+    background: var(--escalation-bg);
+    color: var(--escalation-ink);
+  }
 
+  /* Load-bearing shape channel for permission level, not diff state (ADR-0005) — fill
+     color comes from the ink ramp, never a hue. */
   .meter {
-    /* Below --t-micro deliberately — the block glyphs are a shape, not body text. */
-    font-size: 7px;
-    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .meter span {
+    width: var(--seg);
+    height: var(--seg);
+    border-radius: 2px;
+    background: var(--segment-off);
   }
   .meter.struck {
     opacity: 0.5;
+  }
+  .meter.lvl-admin span {
+    background: var(--ink);
+  }
+  .meter.lvl-write span:nth-child(-n + 2) {
+    background: var(--ink-2);
+  }
+  .meter.lvl-read span:nth-child(1) {
+    background: var(--ink-4);
   }
 
   .level-word {
@@ -152,10 +180,6 @@
   }
   .to {
     color: var(--ink);
-  }
-  .esc-mark {
-    font-weight: 600;
-    color: var(--escalation-ink);
   }
 
   .tags {

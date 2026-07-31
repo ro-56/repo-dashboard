@@ -9,8 +9,6 @@ export type LevelClass = "lvl-admin" | "lvl-write" | "lvl-read";
 
 const RANK: Record<Permission, number> = { Read: 1, Write: 2, Admin: 3 };
 const SOURCE_RANK: Record<AccessType["type"], number> = { Direct: 0, Group: 1, Member: 2 };
-// This glyph set is the load-bearing shape channel for permission level (ADR-0005).
-export const METER: Record<Permission, string> = { Admin: "■■■", Write: "■■□", Read: "■□□" };
 const LEVEL_CLASS: Record<Permission, LevelClass> = { Admin: "lvl-admin", Write: "lvl-write", Read: "lvl-read" };
 
 /** A Group's own entry whose membership could not be resolved (CONTEXT.md) — shared by the
@@ -65,7 +63,6 @@ export interface RosterRowView {
   sigil: string;
   levelWord: string;
   levelClass: LevelClass;
-  meter: string;
   struck: boolean;
   isEscalation: boolean;
   showTransition: boolean;
@@ -84,7 +81,6 @@ export function deriveRow(entry: PrincipalEntry): RosterRowView {
   const base = {
     levelWord: levelWord(entry.permission),
     levelClass,
-    meter: METER[entry.permission],
   };
 
   const view: RosterRowView = (() => {
@@ -133,7 +129,7 @@ export function deriveRow(entry: PrincipalEntry): RosterRowView {
         return {
           ...base,
           state: "modified",
-          sigil: "~",
+          sigil: isEscalation ? "↑" : "~",
           struck: false,
           isEscalation,
           showTransition: true,

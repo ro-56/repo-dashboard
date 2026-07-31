@@ -106,6 +106,18 @@ describe("deriveRow", () => {
     expect(view.to).toBe("—");
   });
 
+  it("renders ↑ for an escalation LevelChange and ~ for a plain one", () => {
+    const escalation = deriveRow(
+      entry({ diffStatus: { status: "LevelChange", from: "Read", to: "Write", kind: "Escalation" } }),
+    );
+    expect(escalation.sigil).toBe("↑");
+
+    const demotion = deriveRow(
+      entry({ diffStatus: { status: "LevelChange", from: "Admin", to: "Read", kind: "Demotion" } }),
+    );
+    expect(demotion.sigil).toBe("~");
+  });
+
   it("tags an Escalation LevelChange, and calls out admin specifically", () => {
     const toAdmin = deriveRow(
       entry({ diffStatus: { status: "LevelChange", from: "Write", to: "Admin", kind: "Escalation" } }),
