@@ -8,6 +8,11 @@
    Roster grid / repo card / project section geometry ported in PD-38 (--row-h, --card-h,
    --roster-cols, --r-chip, --h-tag) — see ADR-0009 for the reflow order this must preserve.
    Delta-chip tokens (--state-*-bg, --escalation-edge) ported in PD-41.
+   Segmented control / distribution bar / roster-row meter / sigil / escalation row tint /
+   notice badge tokens (--track, --track-active, --shadow-segment, --r-row, --segment-off,
+   --seg, --bar-admin, --bar-write, --bar-read, --escalation-row, --notice-badge,
+   --notice-badge-ink, --h-sigil, --h-chip) ported in PD-44 — unused until PD-43's breakdown
+   consumes them.
    Pending re-port: dark theme block (:root[data-theme="dark"]) and scope-suffix tokens.
    See ADR-0014/0015/0016. */
 
@@ -102,10 +107,27 @@
   --radius: 2px;
   --h-control: 30px;
   --h-tag: 19px;
+  --h-sigil: 18px;
+  --h-chip: 20px;
   --r-selector: 7px;
   --r-card: 8px;
   --r-chip: 5px;
+  --r-row: 6px;
   --roster-cols: 26px 44px 62px 104px 210px 178px 1fr;
+
+  /* Segmented control (filter bar) */
+  --track: #e6e9ec;
+  --track-active: #ffffff;
+  --shadow-segment: 0 1px 2px rgba(20, 24, 28, .1);
+
+  /* Roster-row meter */
+  --segment-off: #dde1e5;
+  --seg: 9px;
+
+  /* Distribution bar */
+  --bar-admin: #14181c;
+  --bar-write: #7d878e;
+  --bar-read: #ccd2d7;
 
   /* Channel 2 — diff state hue (never used for permission level) */
   --state-added: #0f6039;
@@ -119,11 +141,14 @@
   --escalation-ink: #8f3600;
   --escalation-bg: #fdf2e4;
   --escalation-edge: #e8c69e;
+  --escalation-row: #fdf7ef;
 
   /* Structural notice strip */
   --notice-bg: #fdf6e6;
   --notice-edge: #ecd9a8;
   --notice-ink: #5c4a14;
+  --notice-badge: #a8791a;
+  --notice-badge-ink: #ffffff;
 
   /* Tag clusters */
   --tag-new-bg: #e8f2eb;
