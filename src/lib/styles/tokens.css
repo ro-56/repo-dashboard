@@ -1,7 +1,10 @@
-/* Design token sheet (.references/standalone/1c Token sheet.html), ADR-0005/0006/0007.
+/* Design token sheet (.references/new-design/perm-diff.css), ADR-0005/0006/0007/0014/0015/0016.
    Two channels only: permission level = weight + shape + position (never hue);
    diff state = hue + sigil + gutter. Consumed by name — no component may hardcode
-   a hex value that exists here. */
+   a hex value that exists here.
+   Pending re-port from perm-diff.css (v2 redesign, not yet applied here): color/spacing/
+   geometry scale, dark theme block (:root[data-theme="dark"]), delta-chip and scope-suffix
+   tokens. See ADR-0014/0015/0016. */
 
 @font-face {
   font-family: "IBM Plex Sans";
