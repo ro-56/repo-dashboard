@@ -9,8 +9,7 @@ export type LevelClass = "lvl-admin" | "lvl-write" | "lvl-read";
 
 const RANK: Record<Permission, number> = { Read: 1, Write: 2, Admin: 3 };
 const SOURCE_RANK: Record<AccessType["type"], number> = { Direct: 0, Group: 1, Member: 2 };
-// Exported: this glyph set is the load-bearing shape channel for permission level (ADR-0005),
-// so the summary bar's per-level stats (summaryBar.ts) reuse it rather than re-literalizing it.
+// This glyph set is the load-bearing shape channel for permission level (ADR-0005).
 export const METER: Record<Permission, string> = { Admin: "■■■", Write: "■■□", Read: "■□□" };
 const LEVEL_CLASS: Record<Permission, LevelClass> = { Admin: "lvl-admin", Write: "lvl-write", Read: "lvl-read" };
 

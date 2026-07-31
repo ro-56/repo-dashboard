@@ -3,7 +3,6 @@
   import { goto } from "$app/navigation";
   import type { PageData } from "./$types";
   import HeadBar from "$lib/components/HeadBar.svelte";
-  import SummaryBar from "$lib/components/SummaryBar.svelte";
   import NoticeStrip from "$lib/components/NoticeStrip.svelte";
   import FilterBar from "$lib/components/FilterBar.svelte";
   import EmptyState from "$lib/components/EmptyState.svelte";
@@ -139,13 +138,6 @@
   {#if data.snapshots.length === 0}
     <p class="empty-note">No runs recorded yet — open the settings drawer to connect Bitbucket credentials.</p>
   {:else}
-    <SummaryBar
-      comparison={data.comparison!}
-      pair={data.pair!}
-      {same}
-      baselineSeq={seqs.get(data.baselineId)!}
-      comparisonSeq={seqs.get(data.comparisonId)!}
-    />
     <FilterBar
       {viewMode}
       countNoteText={countNote(counts)}

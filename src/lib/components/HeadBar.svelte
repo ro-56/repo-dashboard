@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ComparisonSummary, PairStats, SnapshotSummary } from "$lib/roster";
-  import { selectorOptions, snapshotSeqs, spanNote } from "$lib/headBar";
+  import { deltaChips, selectorOptions, snapshotSeqs, spanNote } from "$lib/headBar";
 
   let {
     snapshots,
@@ -37,6 +37,7 @@
       ? spanNote(baseline, comparisonSnapshot, comparison, pair, same)
       : "",
   );
+  let chips = $derived(pair ? deltaChips(pair) : []);
 
   function handleBaselineChange(event: Event) {
     onSelectBaseline(Number((event.target as HTMLSelectElement).value));
@@ -69,6 +70,20 @@
     </div>
   {/if}
   <span class="span-note">{note}</span>
+  {#if pair}
+    <div class="delta-chips">
+      {#each chips as chip (chip.key)}
+        <span class="chip chip--{chip.tone}">
+          {#if chip.tone === "none"}
+            {chip.label}
+          {:else}
+            <span class="chip-value">{chip.value}</span>
+            <span class="chip-label">{chip.label}</span>
+          {/if}
+        </span>
+      {/each}
+    </div>
+  {/if}
   <button
     type="button"
     class="drawer-toggle"
@@ -167,6 +182,51 @@
     color: var(--ink-mute);
   }
 
+  .delta-chips {
+    display: flex;
+    align-items: center;
+    flex: none;
+    gap: var(--s-4);
+  }
+  .chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--s-3);
+    height: var(--h-control);
+    padding: 0 var(--s-5);
+    border-radius: var(--r-chip);
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: var(--t-body);
+    white-space: nowrap;
+  }
+  .chip-label {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .chip--added {
+    background: var(--state-added-bg);
+    color: var(--state-added);
+  }
+  .chip--revoked {
+    background: var(--state-revoked-bg);
+    color: var(--state-revoked);
+  }
+  .chip--changed {
+    background: var(--state-changed-bg);
+    color: var(--state-changed);
+  }
+  .chip--escalation {
+    border: 1px solid var(--escalation-edge);
+    background: var(--escalation-bg);
+    color: var(--escalation-ink);
+  }
+  .chip--none {
+    color: var(--ink-3);
+    font-weight: 400;
+  }
+
   .drawer-toggle {
     display: inline-flex;
     align-items: center;
@@ -181,5 +241,12 @@
     font-size: var(--t-body);
     line-height: 1;
     cursor: pointer;
+  }
+
+  /* Reflow order (ADR-0009): chip captions shed before anything else in the head bar. */
+  @media (max-width: 1000px) {
+    .delta-chips .chip-label {
+      display: none;
+    }
   }
 </style>

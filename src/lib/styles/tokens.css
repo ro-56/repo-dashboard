@@ -7,8 +7,9 @@
    --h-control, --r-selector, --r-card).
    Roster grid / repo card / project section geometry ported in PD-38 (--row-h, --card-h,
    --roster-cols, --r-chip, --h-tag) — see ADR-0009 for the reflow order this must preserve.
-   Pending re-port: dark theme block (:root[data-theme="dark"]), delta-chip and scope-suffix
-   tokens. See ADR-0014/0015/0016. */
+   Delta-chip tokens (--state-*-bg, --escalation-edge) ported in PD-41.
+   Pending re-port: dark theme block (:root[data-theme="dark"]) and scope-suffix tokens.
+   See ADR-0014/0015/0016. */
 
 @font-face {
   font-family: "IBM Plex Sans";
@@ -98,7 +99,6 @@
   --card-h: 40px;
   --bar-filters: 44px;
   --bar-head: 56px;
-  --bar-summary: 44px;
   --radius: 2px;
   --h-control: 30px;
   --h-tag: 19px;
@@ -109,12 +109,16 @@
 
   /* Channel 2 — diff state hue (never used for permission level) */
   --state-added: #0f6039;
+  --state-added-bg: #e8f2eb;
   --state-revoked: #93261c;
+  --state-revoked-bg: #f8ece9;
   --state-changed: #413ca0;
+  --state-changed-bg: #edecf8;
 
   /* Escalation — modifier on "changed", the one tinted row background on screen */
   --escalation-ink: #8f3600;
   --escalation-bg: #fdf2e4;
+  --escalation-edge: #e8c69e;
 
   /* Structural notice strip */
   --notice-bg: #fdf6e6;
