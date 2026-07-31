@@ -64,6 +64,9 @@ taskr add "<title>" --type task --mode afk --body "<description with acceptance 
 
 # Link dependencies (dependent blocks until depends-on is closed)
 taskr link <dependent-id> <depends-on-id>
+
+# Link to the original reference (if any)
+taskr link <new-ticket-id> <original-reference-id>
 ```
 
 For each ticket's `--body`, include:
