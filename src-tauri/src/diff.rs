@@ -83,10 +83,15 @@ fn diff_records(a: &[PermissionRecord], b: &[PermissionRecord]) -> Vec<RecordDif
             (None, Some(rb)) => Some(RecordDiff::Grant((*rb).clone())),
             (Some(ra), None) => Some(RecordDiff::Revoke((*ra).clone())),
             (Some(ra), Some(rb)) => {
-                if ra.permission == rb.permission {
+                // Classification compares admin-light-collapsed values (ADR-0024) so a
+                // CreateRepo <-> Admin transition produces no diff event at all, while
+                // `from`/`to` below still carry the raw, uncollapsed Permission for display.
+                let a_collapsed = ra.permission.admin_light();
+                let b_collapsed = rb.permission.admin_light();
+                if a_collapsed == b_collapsed {
                     None
                 } else {
-                    let kind = if rb.permission > ra.permission {
+                    let kind = if b_collapsed > a_collapsed {
                         LevelChangeKind::Escalation
                     } else {
                         LevelChangeKind::Demotion
@@ -277,6 +282,51 @@ mod tests {
                 kind: LevelChangeKind::Escalation,
             }]
         );
+    }
+
+    #[test]
+    fn write_to_create_repo_classifies_as_escalation() {
+        let a = Snapshot {
+            records: vec![record("acct-1", "Ada", Permission::Write)],
+            repo_statuses: vec![],
+        };
+        let b = Snapshot {
+            records: vec![record("acct-1", "Ada", Permission::CreateRepo)],
+            repo_statuses: vec![],
+        };
+
+        let diff = diff_snapshots(&a, &b);
+        assert_eq!(
+            diff.records,
+            vec![RecordDiff::LevelChange {
+                repo_project: "TEAM".to_string(),
+                repo: "repo-a".to_string(),
+                principal: Principal {
+                    id: "acct-1".to_string(),
+                    label: "Ada".to_string(),
+                },
+                access_type: AccessType::Direct,
+                scope: GrantScope::Repo,
+                from: Permission::Write,
+                to: Permission::CreateRepo,
+                kind: LevelChangeKind::Escalation,
+            }]
+        );
+    }
+
+    #[test]
+    fn create_repo_and_admin_produce_no_diff_in_either_direction() {
+        let create_repo_side = Snapshot {
+            records: vec![record("acct-1", "Ada", Permission::CreateRepo)],
+            repo_statuses: vec![],
+        };
+        let admin_side = Snapshot {
+            records: vec![record("acct-1", "Ada", Permission::Admin)],
+            repo_statuses: vec![],
+        };
+
+        assert!(diff_snapshots(&create_repo_side, &admin_side).records.is_empty());
+        assert!(diff_snapshots(&admin_side, &create_repo_side).records.is_empty());
     }
 
     #[test]

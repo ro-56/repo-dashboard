@@ -224,10 +224,13 @@ fn comparison_summary(b: &Snapshot) -> ComparisonSummary {
 
     let mut levels = LevelCounts::default();
     for r in &b.records {
-        match r.permission {
+        // CreateRepo collapses onto Admin here (ADR-0024) — counts, unlike display, never
+        // reason about the raw Permission directly.
+        match r.permission.admin_light() {
             Permission::Read => levels.read += 1,
             Permission::Write => levels.write += 1,
             Permission::Admin => levels.admin += 1,
+            Permission::CreateRepo => unreachable!("admin_light never returns CreateRepo"),
         }
     }
 
@@ -422,10 +425,13 @@ fn build_roster_tree(
                 change_count += 1;
             }
             if p.diff_status != DiffStatus::Revoke {
-                match p.permission {
+                // CreateRepo collapses onto Admin here (ADR-0024) — counts, unlike display,
+                // never reason about the raw Permission directly.
+                match p.permission.admin_light() {
                     Permission::Read => read_count += 1,
                     Permission::Write => write_count += 1,
                     Permission::Admin => admin_count += 1,
+                    Permission::CreateRepo => unreachable!("admin_light never returns CreateRepo"),
                 }
             }
         }
@@ -775,6 +781,26 @@ mod tests {
         assert_eq!(result.comparison.levels.read, 1);
         assert_eq!(result.comparison.levels.write, 1);
         assert_eq!(result.comparison.levels.admin, 1);
+    }
+
+    #[test]
+    fn create_repo_grant_counts_into_the_admin_bucket_workspace_wide_and_per_repo() {
+        let mut conn = open_conn();
+        let b = Snapshot {
+            records: vec![
+                project_record("TEAM", "repo-a", "acct-1", "Ada", Permission::CreateRepo),
+                record("TEAM", "repo-a", "acct-2", "Grace", Permission::Admin),
+            ],
+            repo_statuses: vec![ok_status("TEAM", "repo-a")],
+        };
+        let a_id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &Snapshot::default(), &[], &[]).unwrap();
+        let b_id = save_snapshot(&mut conn, "2026-01-02T00:00:00Z", &b, &[], &[]).unwrap();
+
+        let result = get_roster_tree(&conn, a_id, b_id).unwrap();
+
+        assert_eq!(result.comparison.levels.admin, 2);
+        let repo = repo_node(&result.tree, "TEAM", "repo-a");
+        assert_eq!(repo.admin_count, 2);
     }
 
     #[test]

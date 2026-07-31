@@ -37,17 +37,29 @@ pub fn normalize_repo_permissions(
         RawUsersResponse::Ok(perms) => {
             let records = perms
                 .into_iter()
-                .map(|p| PermissionRecord {
-                    repo_project: repo_project.to_string(),
-                    repo: repo.to_string(),
-                    principal: Principal {
-                        id: p.account_id,
-                        label: p.display_name,
-                    },
-                    access_type: AccessType::Direct,
-                    scope: GrantScope::Repo,
-                    permission: Permission::parse(&p.permission)
-                        .unwrap_or_else(|| panic!("invalid permission string: {}", p.permission)),
+                .filter_map(|p| {
+                    let permission = match Permission::parse(&p.permission) {
+                        Some(permission) => permission,
+                        None => {
+                            eprintln!(
+                                "warning: skipping record with unrecognized permission {:?} \
+                                 (repo_project={repo_project}, repo={repo}, principal={})",
+                                p.permission, p.account_id
+                            );
+                            return None;
+                        }
+                    };
+                    Some(PermissionRecord {
+                        repo_project: repo_project.to_string(),
+                        repo: repo.to_string(),
+                        principal: Principal {
+                            id: p.account_id,
+                            label: p.display_name,
+                        },
+                        access_type: AccessType::Direct,
+                        scope: GrantScope::Repo,
+                        permission,
+                    })
                 })
                 .collect();
             (
@@ -84,17 +96,29 @@ pub fn normalize_project_permissions(
         RawUsersResponse::Ok(perms) => {
             let records = perms
                 .into_iter()
-                .map(|p| PermissionRecord {
-                    repo_project: repo_project.to_string(),
-                    repo: repo.to_string(),
-                    principal: Principal {
-                        id: p.account_id,
-                        label: p.display_name,
-                    },
-                    access_type: AccessType::Direct,
-                    scope: GrantScope::Project,
-                    permission: Permission::parse(&p.permission)
-                        .unwrap_or_else(|| panic!("invalid permission string: {}", p.permission)),
+                .filter_map(|p| {
+                    let permission = match Permission::parse(&p.permission) {
+                        Some(permission) => permission,
+                        None => {
+                            eprintln!(
+                                "warning: skipping record with unrecognized permission {:?} \
+                                 (repo_project={repo_project}, repo={repo}, principal={})",
+                                p.permission, p.account_id
+                            );
+                            return None;
+                        }
+                    };
+                    Some(PermissionRecord {
+                        repo_project: repo_project.to_string(),
+                        repo: repo.to_string(),
+                        principal: Principal {
+                            id: p.account_id,
+                            label: p.display_name,
+                        },
+                        access_type: AccessType::Direct,
+                        scope: GrantScope::Project,
+                        permission,
+                    })
                 })
                 .collect();
             (
@@ -157,8 +181,17 @@ pub fn normalize_repo_group_permissions(
             let mut membership_statuses = Vec::new();
 
             for p in perms {
-                let permission = Permission::parse(&p.permission)
-                    .unwrap_or_else(|| panic!("invalid permission string: {}", p.permission));
+                let permission = match Permission::parse(&p.permission) {
+                    Some(permission) => permission,
+                    None => {
+                        eprintln!(
+                            "warning: skipping group record with unrecognized permission {:?} \
+                             (repo_project={repo_project}, repo={repo}, principal={})",
+                            p.permission, p.group_slug
+                        );
+                        continue;
+                    }
+                };
 
                 records.push(PermissionRecord {
                     repo_project: repo_project.to_string(),
@@ -220,8 +253,17 @@ pub fn normalize_project_group_permissions(
             let mut membership_statuses = Vec::new();
 
             for p in perms {
-                let permission = Permission::parse(&p.permission)
-                    .unwrap_or_else(|| panic!("invalid permission string: {}", p.permission));
+                let permission = match Permission::parse(&p.permission) {
+                    Some(permission) => permission,
+                    None => {
+                        eprintln!(
+                            "warning: skipping group record with unrecognized permission {:?} \
+                             (repo_project={repo_project}, repo={repo}, principal={})",
+                            p.permission, p.group_slug
+                        );
+                        continue;
+                    }
+                };
 
                 records.push(PermissionRecord {
                     repo_project: repo_project.to_string(),
@@ -332,6 +374,47 @@ mod tests {
     }
 
     #[test]
+    fn create_repo_permission_produces_a_create_repo_record() {
+        let (records, status) = normalize_repo_permissions(
+            "TEAM",
+            "repo-a",
+            RawUsersResponse::Ok(vec![RawUserPermission {
+                account_id: "acct-1".to_string(),
+                display_name: "Ada Lovelace".to_string(),
+                permission: "create-repo".to_string(),
+            }]),
+        );
+
+        assert_eq!(records[0].permission, Permission::CreateRepo);
+        assert_eq!(status.status, RepoStatus::Ok);
+    }
+
+    #[test]
+    fn unrecognized_permission_is_skipped_and_repo_status_stays_ok() {
+        let (records, status) = normalize_repo_permissions(
+            "TEAM",
+            "repo-a",
+            RawUsersResponse::Ok(vec![
+                RawUserPermission {
+                    account_id: "acct-1".to_string(),
+                    display_name: "Ada Lovelace".to_string(),
+                    permission: "superadmin".to_string(),
+                },
+                RawUserPermission {
+                    account_id: "acct-2".to_string(),
+                    display_name: "Grace Hopper".to_string(),
+                    permission: "read".to_string(),
+                },
+            ]),
+        );
+
+        // The unrecognized record is dropped; the valid one alongside it still lands.
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].principal.id, "acct-2");
+        assert_eq!(status.status, RepoStatus::Ok);
+    }
+
+    #[test]
     fn permission_levels_parse_case_insensitively() {
         let (records, _) = normalize_repo_permissions(
             "TEAM",
@@ -381,6 +464,44 @@ mod tests {
                 permission: Permission::Write,
             }]
         );
+    }
+
+    #[test]
+    fn group_create_repo_permission_produces_a_create_repo_record() {
+        let (records, _) = normalize_repo_group_permissions(
+            "TEAM",
+            "repo-a",
+            RawGroupsResponse::Ok(vec![RawGroupPermission {
+                group_slug: "platform-eng".to_string(),
+                group_name: "Platform Engineering".to_string(),
+                permission: "create-repo".to_string(),
+                members: RawGroupMembersResponse::FetchFailed,
+            }]),
+        );
+
+        assert_eq!(records[0].permission, Permission::CreateRepo);
+    }
+
+    #[test]
+    fn group_grant_with_unrecognized_permission_is_skipped_entirely() {
+        let (records, statuses) = normalize_repo_group_permissions(
+            "TEAM",
+            "repo-a",
+            RawGroupsResponse::Ok(vec![RawGroupPermission {
+                group_slug: "platform-eng".to_string(),
+                group_name: "Platform Engineering".to_string(),
+                permission: "superadmin".to_string(),
+                members: RawGroupMembersResponse::Ok(vec![RawMember {
+                    account_id: "acct-1".to_string(),
+                    display_name: "Ada Lovelace".to_string(),
+                }]),
+            }]),
+        );
+
+        // Neither the group's own record nor its member records survive an unrecognized
+        // permission string — both derive from the same invalid raw value.
+        assert!(records.is_empty());
+        assert!(statuses.is_empty());
     }
 
     #[test]
@@ -570,6 +691,22 @@ mod tests {
     }
 
     #[test]
+    fn project_create_repo_permission_produces_a_create_repo_record() {
+        let (records, status) = normalize_project_permissions(
+            "TEAM",
+            "repo-a",
+            RawUsersResponse::Ok(vec![RawUserPermission {
+                account_id: "acct-1".to_string(),
+                display_name: "Ada Lovelace".to_string(),
+                permission: "create-repo".to_string(),
+            }]),
+        );
+
+        assert_eq!(records[0].permission, Permission::CreateRepo);
+        assert_eq!(status.status, RepoStatus::Ok);
+    }
+
+    #[test]
     fn project_direct_fetch_failure_produces_zero_records_and_fetch_failed_status() {
         let (records, status) =
             normalize_project_permissions("TEAM", "repo-a", RawUsersResponse::FetchFailed);
@@ -582,6 +719,22 @@ mod tests {
                 status: RepoStatus::FetchFailed,
             }
         );
+    }
+
+    #[test]
+    fn project_group_create_repo_permission_produces_a_create_repo_record() {
+        let (records, _) = normalize_project_group_permissions(
+            "TEAM",
+            "repo-a",
+            RawGroupsResponse::Ok(vec![RawGroupPermission {
+                group_slug: "platform-eng".to_string(),
+                group_name: "Platform Engineering".to_string(),
+                permission: "create-repo".to_string(),
+                members: RawGroupMembersResponse::FetchFailed,
+            }]),
+        );
+
+        assert_eq!(records[0].permission, Permission::CreateRepo);
     }
 
     #[test]

@@ -365,6 +365,7 @@ fn permission_to_str(permission: Permission) -> &'static str {
     match permission {
         Permission::Read => "read",
         Permission::Write => "write",
+        Permission::CreateRepo => "create-repo",
         Permission::Admin => "admin",
     }
 }
@@ -449,6 +450,28 @@ mod tests {
         let loaded = load_snapshot(&conn, id).unwrap();
 
         assert_eq!(loaded, snapshot);
+    }
+
+    #[test]
+    fn create_repo_permission_round_trips_through_save_and_load() {
+        let mut conn = open_conn();
+        let snapshot = Snapshot {
+            records: vec![PermissionRecord {
+                repo_project: "TEAM".to_string(),
+                repo: "repo-a".to_string(),
+                principal: Principal { id: "acct-1".to_string(), label: "Ada".to_string() },
+                access_type: AccessType::Direct,
+                scope: GrantScope::Project,
+                permission: Permission::CreateRepo,
+            }],
+            repo_statuses: vec![],
+        };
+
+        let id = save_snapshot(&mut conn, "2026-01-01T00:00:00Z", &snapshot, &[], &[]).unwrap();
+        let loaded = load_snapshot(&conn, id).unwrap();
+
+        assert_eq!(loaded, snapshot);
+        assert_eq!(loaded.records[0].permission, Permission::CreateRepo);
     }
 
     #[test]

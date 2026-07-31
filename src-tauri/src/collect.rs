@@ -796,6 +796,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_project_level_create_repo_grant_completes_the_run_without_crashing() {
+        // Regression test for PD-58: Bitbucket's Project-level permissions-config API returns
+        // "create-repo" as a real value, which used to panic in normalize.rs and crash the
+        // entire Run.
+        let client = FakeBitbucketClient::new(Ok(vec![repo("TEAM", "repo-a")]))
+            .with_project_direct_permissions("TEAM", Ok(vec![user("acct-9", "Static", "create-repo")]));
+
+        let mut conn = open_conn();
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+            .await
+            .expect("a create-repo grant must not crash the Run");
+
+        let loaded = load_snapshot(&conn, snapshot_id).unwrap();
+        let project_record = loaded
+            .records
+            .iter()
+            .find(|r| r.scope == crate::model::GrantScope::Project)
+            .expect("project-scoped record should be persisted");
+        assert_eq!(project_record.permission, crate::model::Permission::CreateRepo);
+
+        let statuses = load_project_fetch_statuses(&conn, snapshot_id).unwrap();
+        assert_eq!(statuses[0].status, RepoStatus::Ok);
+    }
+
+    #[tokio::test]
     async fn project_direct_grant_is_scoped_to_project_and_persisted_for_its_repo() {
         let client = FakeBitbucketClient::new(Ok(vec![repo("TEAM", "repo-a")]))
             .with_project_direct_permissions("TEAM", Ok(vec![user("acct-9", "Static", "read")]));

@@ -21,11 +21,15 @@ pub enum AccessType {
     Member(String),
 }
 
-/// Permission level. Declaration order is significant: derived `Ord` gives `Read < Write < Admin`.
+/// Permission level. Declaration order is significant: derived `Ord` gives
+/// `Read < Write < CreateRepo < Admin`, matching Bitbucket's real Project hierarchy
+/// (`Admin ⊃ Create ⊃ Write ⊃ Read`). `CreateRepo` is Project-scope only, but that's a
+/// `GrantScope` fact, not something this type enforces (ADR-0024).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub enum Permission {
     Read,
     Write,
+    CreateRepo,
     Admin,
 }
 
@@ -40,13 +44,26 @@ pub enum GrantScope {
 }
 
 impl Permission {
-    /// Parses Bitbucket's permission strings ("read" | "write" | "admin"), case-insensitively.
+    /// Parses Bitbucket's permission strings ("read" | "write" | "create-repo" | "admin"),
+    /// case-insensitively. Returns `None` for anything else — callers decide how to recover
+    /// (never a panic here; ADR-0024).
     pub fn parse(s: &str) -> Option<Self> {
         match s.to_ascii_lowercase().as_str() {
             "read" => Some(Permission::Read),
             "write" => Some(Permission::Write),
+            "create-repo" => Some(Permission::CreateRepo),
             "admin" => Some(Permission::Admin),
             _ => None,
+        }
+    }
+
+    /// Collapses `CreateRepo` onto `Admin`; every other variant passes through unchanged.
+    /// Used only where the code *computes* (diff classification, roster counts) — never for
+    /// anything that displays a permission value (ADR-0024).
+    pub fn admin_light(self) -> Permission {
+        match self {
+            Permission::CreateRepo => Permission::Admin,
+            other => other,
         }
     }
 }
@@ -97,4 +114,48 @@ pub struct GroupMembershipStatus {
     pub repo: String,
     pub group_id: String,
     pub members_resolved: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_recognizes_create_repo_case_insensitively() {
+        assert_eq!(Permission::parse("create-repo"), Some(Permission::CreateRepo));
+        assert_eq!(Permission::parse("CREATE-REPO"), Some(Permission::CreateRepo));
+        assert_eq!(Permission::parse("Create-Repo"), Some(Permission::CreateRepo));
+    }
+
+    #[test]
+    fn parse_recognizes_read_write_admin_case_insensitively() {
+        assert_eq!(Permission::parse("read"), Some(Permission::Read));
+        assert_eq!(Permission::parse("WRITE"), Some(Permission::Write));
+        assert_eq!(Permission::parse("Admin"), Some(Permission::Admin));
+    }
+
+    #[test]
+    fn parse_returns_none_for_a_nonsense_string() {
+        assert_eq!(Permission::parse("superadmin"), None);
+        assert_eq!(Permission::parse(""), None);
+    }
+
+    #[test]
+    fn true_hierarchy_ordering_holds() {
+        assert!(Permission::Read < Permission::Write);
+        assert!(Permission::Write < Permission::CreateRepo);
+        assert!(Permission::CreateRepo < Permission::Admin);
+    }
+
+    #[test]
+    fn admin_light_collapses_create_repo_onto_admin() {
+        assert_eq!(Permission::CreateRepo.admin_light(), Permission::Admin);
+    }
+
+    #[test]
+    fn admin_light_passes_other_variants_through_unchanged() {
+        assert_eq!(Permission::Read.admin_light(), Permission::Read);
+        assert_eq!(Permission::Write.admin_light(), Permission::Write);
+        assert_eq!(Permission::Admin.admin_light(), Permission::Admin);
+    }
 }
