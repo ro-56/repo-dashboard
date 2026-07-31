@@ -54,19 +54,23 @@
   </div>
   {#if baseline && comparisonSnapshot}
     <div class="selectors">
-      <span class="selector-label">baseline</span>
-      <select class="selector" value={baselineId} onchange={handleBaselineChange}>
-        {#each options as option (option.id)}
-          <option value={option.id}>{option.label}</option>
-        {/each}
-      </select>
+      <div class="selector-panel">
+        <span class="selector-label">baseline</span>
+        <select class="selector" value={baselineId} onchange={handleBaselineChange}>
+          {#each options as option (option.id)}
+            <option value={option.id}>{option.label}</option>
+          {/each}
+        </select>
+      </div>
       <button type="button" class="swap" onclick={onSwap} aria-label="Swap baseline and comparison">⇄</button>
-      <span class="selector-label">comparison</span>
-      <select class="selector" value={comparisonId} onchange={handleComparisonChange}>
-        {#each options as option (option.id)}
-          <option value={option.id}>{option.label}</option>
-        {/each}
-      </select>
+      <div class="selector-panel">
+        <span class="selector-label">comparison</span>
+        <select class="selector" value={comparisonId} onchange={handleComparisonChange}>
+          {#each options as option (option.id)}
+            <option value={option.id}>{option.label}</option>
+          {/each}
+        </select>
+      </div>
     </div>
   {/if}
   <span class="span-note">{note}</span>
@@ -109,52 +113,72 @@
 
   .wordmark {
     display: flex;
-    align-items: baseline;
+    flex-direction: column;
     flex: none;
-    gap: var(--s-5);
+    gap: var(--s-1);
   }
   .brand {
     font-family: var(--font-mono);
     font-weight: 600;
     font-size: var(--t-head);
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
     color: var(--ink);
   }
   .eyebrow {
     font-family: var(--font-sans);
     font-weight: 500;
     font-size: var(--t-tag);
-    letter-spacing: 0.11em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: var(--ink-mute);
+    color: var(--ink-3);
   }
 
   .selectors {
     display: flex;
     align-items: center;
     flex: none;
-    gap: var(--s-6);
+    gap: var(--s-3);
+  }
+  .selector-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 150px;
+    padding: var(--s-3) var(--s-6);
+    border: 1px solid var(--control-edge);
+    border-radius: var(--r-selector);
+    background: var(--surface-control-alt);
+    cursor: pointer;
+  }
+  .selector-panel:focus-within {
+    border-color: var(--ink);
+    background: var(--surface);
   }
   .selector-label {
     font-family: var(--font-sans);
     font-weight: 500;
-    font-size: var(--t-tag);
-    letter-spacing: 0.09em;
+    font-size: var(--t-label-sm);
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: var(--ink-mute);
+    color: var(--ink-3);
   }
   .selector {
-    display: inline-flex;
-    align-items: center;
-    height: var(--h-control);
-    min-width: 196px;
-    padding: 0 var(--s-6);
-    border: 1px solid var(--control-edge);
-    border-radius: var(--r-selector);
-    background: var(--surface);
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: none;
     font-family: var(--font-mono);
     font-size: var(--t-body);
     color: var(--ink);
+    cursor: pointer;
+  }
+  .selector:focus {
+    outline: none;
+  }
+  .selector-panel:focus-within .selector {
+    font-weight: 500;
   }
   .swap {
     display: inline-flex;
@@ -164,10 +188,10 @@
     height: 26px;
     border: 1px solid var(--control-edge);
     border-radius: var(--r-selector);
-    background: var(--surface-sunken);
+    background: var(--surface);
     color: var(--ink-3);
     font-family: var(--font-sans);
-    font-size: var(--t-body-s);
+    font-size: var(--t-meta);
     cursor: pointer;
   }
 
@@ -177,9 +201,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-family: var(--font-mono);
     font-size: var(--t-body-s);
-    color: var(--ink-mute);
+    color: var(--ink-4);
   }
 
   .delta-chips {
@@ -187,10 +210,11 @@
     align-items: center;
     flex: none;
     gap: var(--s-4);
+    margin-left: auto;
   }
   .chip {
     display: inline-flex;
-    align-items: baseline;
+    align-items: center;
     gap: var(--s-3);
     height: var(--h-control);
     padding: 0 var(--s-5);
@@ -232,11 +256,11 @@
     align-items: center;
     justify-content: center;
     flex: none;
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
     border: 1px solid var(--control-edge);
-    border-radius: var(--r-selector);
-    background: var(--surface-sunken);
+    border-radius: var(--r-card);
+    background: var(--surface);
     color: var(--ink-3);
     font-size: var(--t-body);
     line-height: 1;

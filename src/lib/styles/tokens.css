@@ -13,6 +13,8 @@
    --seg, --bar-admin, --bar-write, --bar-read, --escalation-row, --notice-badge,
    --notice-badge-ink, --h-sigil, --h-chip) ported in PD-44 — unused until PD-43's breakdown
    consumes them.
+   Head-bar Run-selector panel tokens (--surface-control-alt, --t-label-sm) ported in PD-51,
+   for the native-<select> restyle described in ADR-0018.
    Pending re-port: dark theme block (:root[data-theme="dark"]) and scope-suffix tokens.
    See ADR-0014/0015/0016. */
 
@@ -64,6 +66,7 @@
   --surface: #ffffff;
   --surface-raised: #fafbfc;
   --surface-sunken: #f7f8f9;
+  --surface-control-alt: #fbfcfd;
   --canvas: #f4f6f7;
   --canvas-head: #f0f2f4;
 
@@ -83,6 +86,7 @@
   /* Type scale */
   --t-micro: 10px;
   --t-tag: 10px;
+  --t-label-sm: 9.5px;
   --t-meta: 12px;
   --t-body-s: 12.5px;
   --t-body: 13px;

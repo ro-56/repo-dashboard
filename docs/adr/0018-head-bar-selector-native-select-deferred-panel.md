@@ -1,0 +1,7 @@
+# Head bar Run selectors stay a native `<select>`, not a custom panel control
+
+The v2 mockup (`perm-diff-ledger-light.dc.html`) renders each Run selector as a custom two-line "label over value" panel with no visible native-select chrome, and gives the comparison side a persistent ink-border/white-background "active" treatment the baseline side never has. Building that exactly would mean replacing the native `<select>` with a custom pressable control — its own open/close state, a dropdown/listbox, click-outside handling — real new interaction code, unlike every other fix in this design-review pass (PD-43/PD-51), which is CSS/markup-only against existing controls.
+
+We're keeping the native `<select>`, restyled to approximate the panel look (a stacked label above the select, borderless select nested in a bordered/padded wrapper the label shares), and using `:focus-within` on that wrapper to stand in for the mockup's active-state highlight — it lights up whichever selector the user is actually interacting with, rather than statically favoring the comparison side the way the static mockup screenshot does. This means the head bar will never look pixel-identical to the mockup's idle state (neither selector shows the active look at rest, and the mockup's baseline-always-muted/comparison-always-active convention isn't reproduced), which is a deliberate scope trade-off, not an oversight.
+
+A custom panel control that matches the mockup exactly (including its at-rest active/idle asymmetry) is deferred to a future ticket.
