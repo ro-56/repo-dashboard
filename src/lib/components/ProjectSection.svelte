@@ -52,17 +52,14 @@
 
 <style>
   .project {
-    margin-top: var(--s-7);
-  }
-  .project:first-child {
-    margin-top: 0;
+    margin-bottom: var(--s-9);
   }
 
   .project-head {
     display: flex;
     align-items: center;
-    gap: var(--s-7);
-    padding: 0 var(--s-1) var(--s-2);
+    gap: var(--s-6);
+    padding: 0 var(--s-2) var(--s-4);
     border-bottom: 2px solid var(--ink);
   }
 
@@ -85,10 +82,9 @@
   }
 
   .repo-cards {
-    margin-top: var(--s-2);
     display: flex;
     flex-direction: column;
-    gap: var(--s-2);
+    gap: var(--s-4);
   }
 
   /* Reflow order (ADR-0009): project meta sheds after the repo card's grants text and bar. */

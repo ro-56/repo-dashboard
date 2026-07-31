@@ -15,9 +15,9 @@
     box-sizing: border-box;
     display: grid;
     grid-template-columns: var(--roster-cols);
-    gap: var(--s-5);
+    gap: var(--s-6);
     align-items: center;
-    padding: var(--s-3) var(--s-7) var(--s-2) 25px;
+    padding: var(--s-4) var(--s-8) var(--s-4) 30px;
     background: var(--canvas-head);
     border-bottom: 1px solid var(--rule);
     font-family: var(--font-sans);

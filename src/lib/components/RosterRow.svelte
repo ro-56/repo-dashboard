@@ -43,10 +43,10 @@
     box-sizing: border-box;
     display: grid;
     grid-template-columns: var(--roster-cols);
-    gap: var(--s-5);
+    gap: var(--s-6);
     align-items: center;
     height: var(--row-h);
-    padding: 0 var(--s-6);
+    padding: 0 var(--s-7);
     border-bottom: 1px solid var(--rule-row);
     border-left: 3px solid transparent;
     font-family: var(--font-mono);
@@ -167,9 +167,9 @@
   .tag {
     display: inline-flex;
     align-items: center;
-    height: 14px;
+    height: var(--h-tag);
     padding: 0 var(--s-3);
-    border-radius: var(--radius);
+    border-radius: var(--r-chip);
     font-family: var(--font-sans);
     font-size: var(--t-tag);
     font-weight: 500;

@@ -84,19 +84,19 @@
   .repo-card {
     background: var(--surface);
     border: 1px solid var(--rule);
-    border-radius: var(--radius);
+    border-radius: var(--r-card);
     overflow: hidden;
   }
 
   .repo-head {
     box-sizing: border-box;
     display: grid;
-    grid-template-columns: 12px 232px 62px 148px 1fr auto;
-    gap: 10px;
+    grid-template-columns: 11px 250px 74px 148px 1fr auto;
+    gap: var(--s-7);
     align-items: center;
     width: 100%;
     height: var(--card-h);
-    padding: 0 var(--s-6);
+    padding: 0 var(--s-7);
     border: none;
     background: var(--surface);
     font: inherit;
@@ -140,9 +140,9 @@
   }
   .bar {
     display: inline-block;
-    width: 58px;
-    height: 6px;
-    border-radius: 1px;
+    width: 74px;
+    height: 8px;
+    border-radius: 2px;
   }
 
   .grants {
@@ -157,9 +157,9 @@
   .tag {
     display: inline-flex;
     align-items: center;
-    height: 14px;
+    height: var(--h-tag);
     padding: 0 var(--s-3);
-    border-radius: var(--radius);
+    border-radius: var(--r-chip);
     font-family: var(--font-sans);
     font-size: var(--t-tag);
     font-weight: 500;
@@ -190,10 +190,12 @@
     border-top: 1px solid var(--rule-row);
   }
 
-  /* Reflow order (ADR-0009): grants text sheds first, then the distribution bar. */
+  /* Reflow order (ADR-0009): grants text sheds first, then the distribution bar. Thresholds are
+     unchanged from v1 (1300/1200) — the v2 mockup's own reflow block keeps these same breakpoints
+     despite its wider path/bar tracks, so there's no evidence the new widths require a bump. */
   @media (max-width: 1300px) {
     .repo-head {
-      grid-template-columns: 12px 232px 62px 1fr auto;
+      grid-template-columns: 11px 250px 74px 1fr auto;
     }
     .grants {
       display: none;
@@ -202,7 +204,7 @@
 
   @media (max-width: 1200px) {
     .repo-head {
-      grid-template-columns: 12px 232px 1fr auto;
+      grid-template-columns: 11px 250px 1fr auto;
     }
     .bar-cell {
       display: none;
