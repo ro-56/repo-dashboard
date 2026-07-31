@@ -57,33 +57,31 @@
   .tabs {
     display: flex;
     flex: none;
-    height: var(--h-control);
-    border: 1px solid var(--control-edge);
+    padding: 2px;
     border-radius: var(--r-card);
-    overflow: hidden;
+    background: var(--track);
   }
   .tab {
     display: inline-flex;
     align-items: center;
     flex: none;
-    height: 100%;
+    height: 28px;
     white-space: nowrap;
     padding: 0 var(--s-7);
     border: none;
-    border-left: 1px solid var(--control-edge);
-    background: var(--surface);
+    border-radius: var(--r-row);
+    background: none;
     font-family: var(--font-sans);
     font-weight: 500;
     font-size: var(--t-body-s);
-    color: var(--ink-3);
+    color: var(--ink-4);
     cursor: pointer;
   }
-  .tab:first-child {
-    border-left: none;
-  }
   .tab.active {
-    background: var(--ink);
-    color: var(--surface);
+    background: var(--track-active);
+    box-shadow: var(--shadow-segment);
+    font-weight: 600;
+    color: var(--ink);
   }
 
   .right-controls {
