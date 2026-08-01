@@ -65,6 +65,10 @@
 }
 
 :root {
+  /* Hints the browser to render native controls (e.g. <select> popups) in a matching
+     light/dark palette instead of defaulting to light regardless of theme. */
+  color-scheme: light;
+
   /* Surfaces */
   --surface: #ffffff;
   --surface-raised: #fafbfc;
@@ -177,6 +181,8 @@
 }
 
 :root[data-theme="dark"] {
+  color-scheme: dark;
+
   /* Surfaces — perm-diff.css's dark block converges --surface-head/--surface-card/
      --surface-control/--surface-bar/--col-head onto the same handful of near-identical dark
      tones; tokens.css's single --surface/--surface-sunken/--canvas-head follow that same
