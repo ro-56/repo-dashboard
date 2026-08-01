@@ -1,9 +1,8 @@
-//! Applies a batch of staged permission edits (PD-59/PD-60/PD-61) to live Bitbucket. Each
+//! Applies a batch of staged permission edits (PD-59/PD-60/PD-61/PD-62) to live Bitbucket. Each
 //! `PendingEditRequest` is routed to the matching `BitbucketClient` write method and applied
-//! independently (ADR-0022) — one item failing never blocks the rest of the batch. Direct/Repo
-//! (PD-60) and Direct/Project (PD-61) are wired to real client calls; `Group` targets exist on
-//! `EditTarget` so Ticket 3 (PD-62) can reuse this same shape without remodeling it, but routing
-//! them here is out of scope until the UI can produce them.
+//! independently (ADR-0022) — one item failing never blocks the rest of the batch. All four
+//! `(scope, target)` combinations — Direct/Repo (PD-60), Direct/Project (PD-61), Group/Repo and
+//! Group/Project (PD-62) — are wired to real client calls.
 
 use serde::{Deserialize, Serialize};
 
@@ -74,11 +73,9 @@ pub struct ApplyResult {
     pub outcome: Result<(), ApplyError>,
 }
 
-/// Routes one edit to the matching `BitbucketClient` write method. `Repo` + `Direct` (PD-60) and
-/// `Project` + `Direct` (PD-61) are wired for real — `Project` scope targets `edit.repo_project`
-/// as the project key, cascading to every repo it owns, rather than `edit.repo`. `Group` targets
-/// aren't reachable from the UI yet (menus only render for Direct entries), so they surface as
-/// an `Other` error rather than panicking, keeping this match total.
+/// Routes one edit to the matching `BitbucketClient` write method. `Project` scope targets
+/// `edit.repo_project` as the project key, cascading to every repo it owns, rather than
+/// `edit.repo` — true for both `Direct` (PD-61) and `Group` (PD-62) targets.
 async fn apply_one<C: BitbucketClient>(
     client: &C,
     workspace: &str,
@@ -105,9 +102,26 @@ async fn apply_one<C: BitbucketClient>(
                 .await
                 .map_err(ApplyError::from),
         },
-        _ => Err(ApplyError::Other(
-            "this scope/target combination isn't supported yet".to_string(),
-        )),
+        (GrantScope::Repo, EditTarget::Group(group_slug)) => match &edit.action {
+            EditAction::SetLevel(permission) => client
+                .set_repo_group_permission(workspace, &edit.repo, group_slug, *permission)
+                .await
+                .map_err(ApplyError::from),
+            EditAction::Remove => client
+                .remove_repo_group_permission(workspace, &edit.repo, group_slug)
+                .await
+                .map_err(ApplyError::from),
+        },
+        (GrantScope::Project, EditTarget::Group(group_slug)) => match &edit.action {
+            EditAction::SetLevel(permission) => client
+                .set_project_group_permission(workspace, &edit.repo_project, group_slug, *permission)
+                .await
+                .map_err(ApplyError::from),
+            EditAction::Remove => client
+                .remove_project_group_permission(workspace, &edit.repo_project, group_slug)
+                .await
+                .map_err(ApplyError::from),
+        },
     }
 }
 
@@ -164,6 +178,36 @@ mod tests {
         account_id: String,
     }
 
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    struct GroupSetCall {
+        workspace: String,
+        repo: String,
+        group_slug: String,
+        permission: Permission,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    struct GroupRemoveCall {
+        workspace: String,
+        repo: String,
+        group_slug: String,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    struct ProjectGroupSetCall {
+        workspace: String,
+        project_key: String,
+        group_slug: String,
+        permission: Permission,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    struct ProjectGroupRemoveCall {
+        workspace: String,
+        project_key: String,
+        group_slug: String,
+    }
+
     /// Follows `collect.rs`'s `FakeBitbucketClient` pattern: canned per-key results plus call
     /// tracking, so tests assert externally observable behaviour (which method was called, with
     /// what arguments, and what `ApplyResult` came back) rather than internal control flow. The
@@ -175,10 +219,18 @@ mod tests {
         remove_results: HashMap<String, Result<(), ClientError>>,
         project_set_results: HashMap<String, Result<(), ClientError>>,
         project_remove_results: HashMap<String, Result<(), ClientError>>,
+        group_set_results: HashMap<String, Result<(), ClientError>>,
+        group_remove_results: HashMap<String, Result<(), ClientError>>,
+        project_group_set_results: HashMap<String, Result<(), ClientError>>,
+        project_group_remove_results: HashMap<String, Result<(), ClientError>>,
         set_calls: Mutex<Vec<SetCall>>,
         remove_calls: Mutex<Vec<RemoveCall>>,
         project_set_calls: Mutex<Vec<ProjectSetCall>>,
         project_remove_calls: Mutex<Vec<ProjectRemoveCall>>,
+        group_set_calls: Mutex<Vec<GroupSetCall>>,
+        group_remove_calls: Mutex<Vec<GroupRemoveCall>>,
+        project_group_set_calls: Mutex<Vec<ProjectGroupSetCall>>,
+        project_group_remove_calls: Mutex<Vec<ProjectGroupRemoveCall>>,
     }
 
     impl FakeClient {
@@ -203,6 +255,26 @@ mod tests {
 
         fn with_project_remove_result(mut self, account_id: &str, result: Result<(), ClientError>) -> Self {
             self.project_remove_results.insert(account_id.to_string(), result);
+            self
+        }
+
+        fn with_group_set_result(mut self, group_slug: &str, result: Result<(), ClientError>) -> Self {
+            self.group_set_results.insert(group_slug.to_string(), result);
+            self
+        }
+
+        fn with_group_remove_result(mut self, group_slug: &str, result: Result<(), ClientError>) -> Self {
+            self.group_remove_results.insert(group_slug.to_string(), result);
+            self
+        }
+
+        fn with_project_group_set_result(mut self, group_slug: &str, result: Result<(), ClientError>) -> Self {
+            self.project_group_set_results.insert(group_slug.to_string(), result);
+            self
+        }
+
+        fn with_project_group_remove_result(mut self, group_slug: &str, result: Result<(), ClientError>) -> Self {
+            self.project_group_remove_results.insert(group_slug.to_string(), result);
             self
         }
     }
@@ -306,6 +378,66 @@ mod tests {
             });
             self.project_remove_results.get(account_id).cloned().unwrap_or(Ok(()))
         }
+
+        async fn set_repo_group_permission(
+            &self,
+            workspace: &str,
+            repo: &str,
+            group_slug: &str,
+            permission: Permission,
+        ) -> Result<(), ClientError> {
+            self.group_set_calls.lock().unwrap().push(GroupSetCall {
+                workspace: workspace.to_string(),
+                repo: repo.to_string(),
+                group_slug: group_slug.to_string(),
+                permission,
+            });
+            self.group_set_results.get(group_slug).cloned().unwrap_or(Ok(()))
+        }
+
+        async fn remove_repo_group_permission(
+            &self,
+            workspace: &str,
+            repo: &str,
+            group_slug: &str,
+        ) -> Result<(), ClientError> {
+            self.group_remove_calls.lock().unwrap().push(GroupRemoveCall {
+                workspace: workspace.to_string(),
+                repo: repo.to_string(),
+                group_slug: group_slug.to_string(),
+            });
+            self.group_remove_results.get(group_slug).cloned().unwrap_or(Ok(()))
+        }
+
+        async fn set_project_group_permission(
+            &self,
+            workspace: &str,
+            project_key: &str,
+            group_slug: &str,
+            permission: Permission,
+        ) -> Result<(), ClientError> {
+            self.project_group_set_calls.lock().unwrap().push(ProjectGroupSetCall {
+                workspace: workspace.to_string(),
+                project_key: project_key.to_string(),
+                group_slug: group_slug.to_string(),
+                permission,
+            });
+            self.project_group_set_results.get(group_slug).cloned().unwrap_or(Ok(()))
+        }
+
+        async fn remove_project_group_permission(
+            &self,
+            workspace: &str,
+            project_key: &str,
+            group_slug: &str,
+        ) -> Result<(), ClientError> {
+            self.project_group_remove_calls.lock().unwrap().push(ProjectGroupRemoveCall {
+                workspace: workspace.to_string(),
+                project_key: project_key.to_string(),
+                group_slug: group_slug.to_string(),
+            });
+            self.project_group_remove_results.get(group_slug).cloned().unwrap_or(Ok(()))
+        }
     }
 
     fn set_level_edit(repo: &str, account_id: &str, permission: Permission) -> PendingEditRequest {
@@ -342,6 +474,46 @@ mod tests {
         PendingEditRequest {
             scope: GrantScope::Project,
             target: EditTarget::Direct(account_id.to_string()),
+            repo_project: project_key.to_string(),
+            repo: "repo-a".to_string(),
+            action: EditAction::Remove,
+        }
+    }
+
+    fn set_level_group_edit(repo: &str, group_slug: &str, permission: Permission) -> PendingEditRequest {
+        PendingEditRequest {
+            scope: GrantScope::Repo,
+            target: EditTarget::Group(group_slug.to_string()),
+            repo_project: "TEAM".to_string(),
+            repo: repo.to_string(),
+            action: EditAction::SetLevel(permission),
+        }
+    }
+
+    fn remove_group_edit(repo: &str, group_slug: &str) -> PendingEditRequest {
+        PendingEditRequest {
+            scope: GrantScope::Repo,
+            target: EditTarget::Group(group_slug.to_string()),
+            repo_project: "TEAM".to_string(),
+            repo: repo.to_string(),
+            action: EditAction::Remove,
+        }
+    }
+
+    fn set_level_project_group_edit(project_key: &str, group_slug: &str, permission: Permission) -> PendingEditRequest {
+        PendingEditRequest {
+            scope: GrantScope::Project,
+            target: EditTarget::Group(group_slug.to_string()),
+            repo_project: project_key.to_string(),
+            repo: "repo-a".to_string(),
+            action: EditAction::SetLevel(permission),
+        }
+    }
+
+    fn remove_project_group_edit(project_key: &str, group_slug: &str) -> PendingEditRequest {
+        PendingEditRequest {
+            scope: GrantScope::Project,
+            target: EditTarget::Group(group_slug.to_string()),
             repo_project: project_key.to_string(),
             repo: "repo-a".to_string(),
             action: EditAction::Remove,
@@ -439,20 +611,148 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_group_target_is_not_yet_routed_and_reports_a_typed_error_rather_than_panicking() {
+    async fn a_group_set_level_edit_routes_to_set_repo_group_permission_with_the_right_arguments() {
         let client = FakeClient::new();
-        let edits = vec![PendingEditRequest {
-            scope: GrantScope::Repo,
-            target: EditTarget::Group("platform-eng".to_string()),
-            repo_project: "TEAM".to_string(),
-            repo: "repo-a".to_string(),
-            action: EditAction::SetLevel(Permission::Write),
-        }];
+        let edits = vec![set_level_group_edit("repo-a", "platform-eng", Permission::Write)];
 
         let results = apply_pending_edits(&client, "ws", edits).await;
 
-        assert!(matches!(results[0].outcome, Err(ApplyError::Other(_))));
-        assert!(client.set_calls.lock().unwrap().is_empty());
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].outcome, Ok(()));
+        let calls = client.group_set_calls.lock().unwrap();
+        assert_eq!(
+            calls[0],
+            GroupSetCall {
+                workspace: "ws".to_string(),
+                repo: "repo-a".to_string(),
+                group_slug: "platform-eng".to_string(),
+                permission: Permission::Write,
+            }
+        );
+        assert!(client.group_remove_calls.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_group_remove_edit_routes_to_remove_repo_group_permission_with_the_right_arguments() {
+        let client = FakeClient::new();
+        let edits = vec![remove_group_edit("repo-a", "platform-eng")];
+
+        let results = apply_pending_edits(&client, "ws", edits).await;
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].outcome, Ok(()));
+        let calls = client.group_remove_calls.lock().unwrap();
+        assert_eq!(
+            calls[0],
+            GroupRemoveCall {
+                workspace: "ws".to_string(),
+                repo: "repo-a".to_string(),
+                group_slug: "platform-eng".to_string(),
+            }
+        );
+        assert!(client.group_set_calls.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_project_scoped_group_set_level_edit_routes_to_set_project_group_permission_with_the_right_arguments() {
+        let client = FakeClient::new();
+        let edits = vec![set_level_project_group_edit("TEAM", "platform-eng", Permission::Admin)];
+
+        let results = apply_pending_edits(&client, "ws", edits).await;
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].outcome, Ok(()));
+        let calls = client.project_group_set_calls.lock().unwrap();
+        assert_eq!(
+            calls[0],
+            ProjectGroupSetCall {
+                workspace: "ws".to_string(),
+                project_key: "TEAM".to_string(),
+                group_slug: "platform-eng".to_string(),
+                permission: Permission::Admin,
+            }
+        );
+        assert!(client.project_group_remove_calls.lock().unwrap().is_empty());
+        assert!(client.group_set_calls.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_project_scoped_group_remove_edit_routes_to_remove_project_group_permission_with_the_right_arguments() {
+        let client = FakeClient::new();
+        let edits = vec![remove_project_group_edit("TEAM", "platform-eng")];
+
+        let results = apply_pending_edits(&client, "ws", edits).await;
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].outcome, Ok(()));
+        let calls = client.project_group_remove_calls.lock().unwrap();
+        assert_eq!(
+            calls[0],
+            ProjectGroupRemoveCall {
+                workspace: "ws".to_string(),
+                project_key: "TEAM".to_string(),
+                group_slug: "platform-eng".to_string(),
+            }
+        );
+        assert!(client.project_group_set_calls.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn group_edits_fail_independently_of_each_other_and_of_direct_edits_in_the_same_batch() {
+        let client = FakeClient::new()
+            .with_group_set_result("locked-group", Err(ClientError::Other("boom".to_string())))
+            .with_project_group_remove_result("acct-group", Err(ClientError::Unauthorized));
+        let edits = vec![
+            set_level_group_edit("repo-a", "locked-group", Permission::Write),
+            remove_project_group_edit("TEAM", "acct-group"),
+            set_level_edit("repo-b", "acct-ok", Permission::Read),
+        ];
+
+        let results = apply_pending_edits(&client, "ws", edits).await;
+
+        assert_eq!(results.len(), 3);
+        assert_eq!(results[0].outcome, Err(ApplyError::Other("boom".to_string())));
+        assert_eq!(results[1].outcome, Err(ApplyError::Unauthorized));
+        assert_eq!(results[2].outcome, Ok(()));
+        assert_eq!(client.group_set_calls.lock().unwrap().len(), 1);
+        assert_eq!(client.project_group_remove_calls.lock().unwrap().len(), 1);
+        assert_eq!(client.set_calls.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn unauthorized_and_rate_limited_client_errors_surface_distinctly_for_group_edits() {
+        let client = FakeClient::new()
+            .with_group_remove_result("locked-group", Err(ClientError::Unauthorized))
+            .with_project_group_set_result("rate-limited-group", Err(ClientError::RateLimited));
+        let edits = vec![
+            remove_group_edit("repo-a", "locked-group"),
+            set_level_project_group_edit("TEAM", "rate-limited-group", Permission::Read),
+        ];
+
+        let results = apply_pending_edits(&client, "ws", edits).await;
+
+        assert_eq!(results[0].outcome, Err(ApplyError::Unauthorized));
+        assert_eq!(results[1].outcome, Err(ApplyError::RateLimited));
+    }
+
+    #[tokio::test]
+    async fn a_batch_mixing_direct_and_group_edits_across_both_scopes_applies_each_independently() {
+        let client = FakeClient::new();
+        let edits = vec![
+            set_level_edit("repo-a", "acct-1", Permission::Write),
+            set_level_group_edit("repo-a", "group-1", Permission::Admin),
+            remove_project_edit("TEAM", "acct-2"),
+            remove_project_group_edit("TEAM", "group-2"),
+        ];
+
+        let results = apply_pending_edits(&client, "ws", edits).await;
+
+        assert_eq!(results.len(), 4);
+        assert!(results.iter().all(|r| r.outcome == Ok(())));
+        assert_eq!(client.set_calls.lock().unwrap().len(), 1);
+        assert_eq!(client.group_set_calls.lock().unwrap().len(), 1);
+        assert_eq!(client.project_remove_calls.lock().unwrap().len(), 1);
+        assert_eq!(client.project_group_remove_calls.lock().unwrap().len(), 1);
     }
 
     #[tokio::test]

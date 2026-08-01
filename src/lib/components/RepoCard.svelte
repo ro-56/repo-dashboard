@@ -22,6 +22,7 @@
     viewMode,
     toggled,
     onToggle,
+    projectPrincipals,
     pending,
     editingEnabled,
     onStage,
@@ -33,6 +34,10 @@
     viewMode: ViewMode;
     toggled: boolean;
     onToggle: () => void;
+    // Every repo's principals across the owning Project (PD-62's cascade-count candidate pool
+    // for Project-scope Group rows) — computed once in ProjectSection.svelte, passed through
+    // unchanged here.
+    projectPrincipals: PrincipalEntry[];
     pending: PendingEdits;
     editingEnabled: boolean;
     onStage: (edit: StagedEdit) => void;
@@ -98,6 +103,8 @@
           {entry}
           repoProject={repo.repoProject}
           repo={repo.repo}
+          repoPrincipals={repo.principals}
+          {projectPrincipals}
           {pending}
           {editingEnabled}
           {onStage}

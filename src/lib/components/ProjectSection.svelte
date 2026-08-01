@@ -35,6 +35,10 @@
   let counts = $derived(countBadges(projectBreakdown(project)));
   let meta = $derived(projectMeta(project));
   let repos = $derived(visibleRepos(project, viewMode));
+  // Every repo's principals across the whole Project, unfiltered by `viewMode` (PD-62) — the
+  // cascade-count candidate pool for a Project-scope Group grant needs every Member it derives,
+  // not just whichever repos "Changes only" happens to be showing right now.
+  let projectPrincipals = $derived(project.repos.flatMap((r) => r.principals));
 </script>
 
 {#if repos.length > 0}
@@ -53,6 +57,7 @@
           {viewMode}
           toggled={isToggled(project.repoProject, repo.repo)}
           onToggle={() => onToggle(project.repoProject, repo.repo)}
+          {projectPrincipals}
           {pending}
           {editingEnabled}
           {onStage}

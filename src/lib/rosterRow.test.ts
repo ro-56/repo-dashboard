@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  cascadeMemberCount,
+  cascadeNote,
   compareEntries,
   deriveRow,
   editTargetForEntry,
@@ -287,9 +289,21 @@ describe("editTargetForEntry", () => {
     expect(editTargetForEntry(e)).toEqual({ type: "Direct", id: "u1" });
   });
 
-  it("is null for Group entries and Member entries, at either scope", () => {
-    expect(editTargetForEntry(entry({ accessType: { type: "Group" }, scope: "Repo" }))).toBeNull();
-    expect(editTargetForEntry(entry({ accessType: { type: "Group" }, scope: "Project" }))).toBeNull();
+  it("targets Group entries at Repo scope", () => {
+    const e = entry({ principal: { id: "platform-eng", label: "Platform Eng" }, accessType: { type: "Group" }, scope: "Repo" });
+    expect(editTargetForEntry(e)).toEqual({ type: "Group", id: "platform-eng" });
+  });
+
+  it("targets Group entries at Project scope too", () => {
+    const e = entry({
+      principal: { id: "platform-eng", label: "Platform Eng" },
+      accessType: { type: "Group" },
+      scope: "Project",
+    });
+    expect(editTargetForEntry(e)).toEqual({ type: "Group", id: "platform-eng" });
+  });
+
+  it("is null for Member entries at either scope — permanent, per ADR-0021", () => {
     expect(
       editTargetForEntry(entry({ accessType: { type: "Member", group_id: "secops" }, scope: "Repo" })),
     ).toBeNull();
@@ -299,9 +313,77 @@ describe("editTargetForEntry", () => {
   });
 });
 
+describe("cascadeMemberCount", () => {
+  const group = entry({
+    principal: { id: "platform-eng", label: "Platform Eng" },
+    accessType: { type: "Group" },
+    scope: "Repo",
+    membersResolved: true,
+  });
+
+  function member(id: string, groupId = "platform-eng", scope: PrincipalEntry["scope"] = "Repo"): PrincipalEntry {
+    return entry({ principal: { id, label: id }, accessType: { type: "Member", group_id: groupId }, scope });
+  }
+
+  it("is null for a non-Group entry", () => {
+    const direct = entry({ accessType: { type: "Direct" } });
+    expect(cascadeMemberCount(direct, [member("m1")])).toBeNull();
+  });
+
+  it("is null when the group's membership is unresolvable, rather than crashing", () => {
+    const unresolved = { ...group, membersResolved: false as const };
+    expect(cascadeMemberCount(unresolved, [member("m1"), member("m2")])).toBeNull();
+  });
+
+  it("is 0 for a group with no resolvable members among the candidates", () => {
+    expect(cascadeMemberCount(group, [])).toBe(0);
+    expect(cascadeMemberCount(group, [member("m1", "some-other-group")])).toBe(0);
+  });
+
+  it("counts a single derived member", () => {
+    expect(cascadeMemberCount(group, [member("m1")])).toBe(1);
+  });
+
+  it("counts several derived members, ignoring ones from a different group or scope", () => {
+    const candidates = [
+      member("m1"),
+      member("m2"),
+      member("m3", "some-other-group"),
+      member("m4", "platform-eng", "Project"), // same group, different scope — not this grant's cascade
+    ];
+    expect(cascadeMemberCount(group, candidates)).toBe(2);
+  });
+
+  it("scopes to Project-level members for a Project-scope group", () => {
+    const projectGroup = { ...group, scope: "Project" as const };
+    const candidates = [
+      member("m1", "platform-eng", "Project"),
+      member("m2", "platform-eng", "Project"),
+      member("m3"), // Repo-scope — not this Project-level grant's cascade
+    ];
+    expect(cascadeMemberCount(projectGroup, candidates)).toBe(2);
+  });
+});
+
+describe("cascadeNote", () => {
+  it("is null when the count is null or undefined", () => {
+    expect(cascadeNote(null)).toBeNull();
+    expect(cascadeNote(undefined)).toBeNull();
+  });
+
+  it("singularizes 'member' for a count of exactly 1", () => {
+    expect(cascadeNote(1)).toBe("removing this also drops access for 1 member");
+  });
+
+  it("pluralizes for 0 and for any count greater than 1", () => {
+    expect(cascadeNote(0)).toBe("removing this also drops access for 0 members");
+    expect(cascadeNote(4)).toBe("removing this also drops access for 4 members");
+  });
+});
+
 describe("rowMenu", () => {
   it("is null for entries editTargetForEntry rejects", () => {
-    expect(rowMenu(entry({ accessType: { type: "Group" } }), undefined)).toBeNull();
+    expect(rowMenu(entry({ accessType: { type: "Member", group_id: "secops" } }), undefined)).toBeNull();
   });
 
   it("offers Read/Write/Admin, highlighting the entry's current level when nothing is staged", () => {
@@ -355,5 +437,48 @@ describe("rowMenu", () => {
       { level: "Write", active: true },
       { level: "Admin", active: false },
     ]);
+  });
+
+  it("offers Read/Write/Admin for a Group entry, same as Direct", () => {
+    const menu = rowMenu(entry({ accessType: { type: "Group" }, scope: "Repo", permission: "Admin" }), undefined);
+    expect(menu?.effectiveLevel).toBe("Admin");
+    expect(menu?.levelOptions.find((o) => o.level === "Admin")?.active).toBe(true);
+  });
+
+  it("carries the Project-scope cascade note for a Group entry too", () => {
+    const menu = rowMenu(entry({ accessType: { type: "Group" }, scope: "Project" }), undefined);
+    expect(menu?.scopeNote).toBe("Project-level grant");
+  });
+
+  it("surfaces the cascade count for a Group entry from the given candidates", () => {
+    const group = entry({
+      principal: { id: "platform-eng", label: "Platform Eng" },
+      accessType: { type: "Group" },
+      scope: "Repo",
+      membersResolved: true,
+    });
+    const member = entry({
+      principal: { id: "m1", label: "m1" },
+      accessType: { type: "Member", group_id: "platform-eng" },
+      scope: "Repo",
+    });
+    const menu = rowMenu(group, undefined, [member]);
+    expect(menu?.cascadeCount).toBe(1);
+  });
+
+  it("is null cascadeCount for a Group entry with unresolvable membership", () => {
+    const group = entry({
+      principal: { id: "locked", label: "Locked Group" },
+      accessType: { type: "Group" },
+      scope: "Repo",
+      membersResolved: false,
+    });
+    const menu = rowMenu(group, undefined, []);
+    expect(menu?.cascadeCount).toBeNull();
+  });
+
+  it("is null cascadeCount for a Direct entry regardless of candidates", () => {
+    const menu = rowMenu(entry({ accessType: { type: "Direct" }, scope: "Repo" }), undefined);
+    expect(menu?.cascadeCount).toBeNull();
   });
 });

@@ -101,6 +101,46 @@ pub trait BitbucketClient {
         project_key: &str,
         account_id: &str,
     ) -> impl std::future::Future<Output = Result<(), ClientError>> + Send;
+
+    /// Sets a Group grant's level on a repo (PD-62). `PUT
+    /// /2.0/repositories/{workspace}/{repo}/permissions-config/groups/{group_slug}` —
+    /// requires `repository:admin` scope, checked only lazily (ADR-0023).
+    fn set_repo_group_permission(
+        &self,
+        workspace: &str,
+        repo: &str,
+        group_slug: &str,
+        permission: Permission,
+    ) -> impl std::future::Future<Output = Result<(), ClientError>> + Send;
+
+    /// Removes a Group grant from a repo entirely (PD-62). `DELETE` on the same
+    /// `permissions-config/groups/{group_slug}` path as `set_repo_group_permission`.
+    fn remove_repo_group_permission(
+        &self,
+        workspace: &str,
+        repo: &str,
+        group_slug: &str,
+    ) -> impl std::future::Future<Output = Result<(), ClientError>> + Send;
+
+    /// Sets a Group grant's level on a Project (PD-62), cascading to every repo it owns. `PUT
+    /// /2.0/workspaces/{workspace}/projects/{project_key}/permissions-config/groups/{group_slug}`
+    /// — requires `project:admin` scope, checked only lazily (ADR-0023).
+    fn set_project_group_permission(
+        &self,
+        workspace: &str,
+        project_key: &str,
+        group_slug: &str,
+        permission: Permission,
+    ) -> impl std::future::Future<Output = Result<(), ClientError>> + Send;
+
+    /// Removes a Group grant from a Project entirely (PD-62). `DELETE` on the same
+    /// `permissions-config/groups/{group_slug}` path as `set_project_group_permission`.
+    fn remove_project_group_permission(
+        &self,
+        workspace: &str,
+        project_key: &str,
+        group_slug: &str,
+    ) -> impl std::future::Future<Output = Result<(), ClientError>> + Send;
 }
 
 const RETRY_BACKOFF: std::time::Duration = std::time::Duration::from_millis(500);
@@ -387,6 +427,58 @@ impl BitbucketClient for RealBitbucketClient {
     ) -> Result<(), ClientError> {
         let url = format!(
             "https://api.bitbucket.org/2.0/workspaces/{workspace}/projects/{project_key}/permissions-config/users/{account_id}"
+        );
+        self.write_with_retry(reqwest::Method::DELETE, &url, None).await
+    }
+
+    async fn set_repo_group_permission(
+        &self,
+        workspace: &str,
+        repo: &str,
+        group_slug: &str,
+        permission: Permission,
+    ) -> Result<(), ClientError> {
+        let url = format!(
+            "https://api.bitbucket.org/2.0/repositories/{workspace}/{repo}/permissions-config/groups/{group_slug}"
+        );
+        let body = serde_json::json!({ "permission": permission.as_str() });
+        self.write_with_retry(reqwest::Method::PUT, &url, Some(&body)).await
+    }
+
+    async fn remove_repo_group_permission(
+        &self,
+        workspace: &str,
+        repo: &str,
+        group_slug: &str,
+    ) -> Result<(), ClientError> {
+        let url = format!(
+            "https://api.bitbucket.org/2.0/repositories/{workspace}/{repo}/permissions-config/groups/{group_slug}"
+        );
+        self.write_with_retry(reqwest::Method::DELETE, &url, None).await
+    }
+
+    async fn set_project_group_permission(
+        &self,
+        workspace: &str,
+        project_key: &str,
+        group_slug: &str,
+        permission: Permission,
+    ) -> Result<(), ClientError> {
+        let url = format!(
+            "https://api.bitbucket.org/2.0/workspaces/{workspace}/projects/{project_key}/permissions-config/groups/{group_slug}"
+        );
+        let body = serde_json::json!({ "permission": permission.as_str() });
+        self.write_with_retry(reqwest::Method::PUT, &url, Some(&body)).await
+    }
+
+    async fn remove_project_group_permission(
+        &self,
+        workspace: &str,
+        project_key: &str,
+        group_slug: &str,
+    ) -> Result<(), ClientError> {
+        let url = format!(
+            "https://api.bitbucket.org/2.0/workspaces/{workspace}/projects/{project_key}/permissions-config/groups/{group_slug}"
         );
         self.write_with_retry(reqwest::Method::DELETE, &url, None).await
     }

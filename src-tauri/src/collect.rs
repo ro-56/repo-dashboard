@@ -451,6 +451,44 @@ mod tests {
         ) -> Result<(), ClientError> {
             Ok(())
         }
+
+        async fn set_repo_group_permission(
+            &self,
+            _workspace: &str,
+            _repo: &str,
+            _group_slug: &str,
+            _permission: crate::model::Permission,
+        ) -> Result<(), ClientError> {
+            Ok(())
+        }
+
+        async fn remove_repo_group_permission(
+            &self,
+            _workspace: &str,
+            _repo: &str,
+            _group_slug: &str,
+        ) -> Result<(), ClientError> {
+            Ok(())
+        }
+
+        async fn set_project_group_permission(
+            &self,
+            _workspace: &str,
+            _project_key: &str,
+            _group_slug: &str,
+            _permission: crate::model::Permission,
+        ) -> Result<(), ClientError> {
+            Ok(())
+        }
+
+        async fn remove_project_group_permission(
+            &self,
+            _workspace: &str,
+            _project_key: &str,
+            _group_slug: &str,
+        ) -> Result<(), ClientError> {
+            Ok(())
+        }
     }
 
     fn open_conn() -> Connection {

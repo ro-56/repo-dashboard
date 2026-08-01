@@ -27,6 +27,10 @@ export interface StagedEdit {
   request: PendingEditRequest;
   principalLabel: string;
   beforeLevel: Permission;
+  // How many Member grants derive from this Group grant (rosterRow.ts's `cascadeMemberCount`,
+  // ADR-0022/PD-62) — only ever set for a Group `Remove` action; `null` when membership is
+  // unresolvable (CONTEXT.md), `undefined` for anything else (Direct edits, Group level changes).
+  cascadeCount?: number | null;
 }
 
 export type PendingEdits = Map<string, StagedEdit>;
@@ -61,6 +65,8 @@ export interface ConfirmRow {
   principalLabel: string;
   fromLevel: string;
   toLevel: string; // "removed" for a Remove action
+  // Carried straight through from the staged edit (PD-62) — see `StagedEdit.cascadeCount`.
+  cascadeCount?: number | null;
 }
 
 /** The confirm dialog's view model — every staged change, sorted for stable, scannable review
@@ -74,6 +80,7 @@ export function confirmRows(pending: PendingEdits): ConfirmRow[] {
       principalLabel: edit.principalLabel,
       fromLevel: edit.beforeLevel.toLowerCase(),
       toLevel: edit.request.action.type === "SetLevel" ? edit.request.action.level.toLowerCase() : "removed",
+      cascadeCount: edit.cascadeCount,
     }))
     .sort((a, b) => a.repo.localeCompare(b.repo) || a.principalLabel.localeCompare(b.principalLabel));
 }

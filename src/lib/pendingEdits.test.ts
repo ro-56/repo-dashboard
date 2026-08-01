@@ -125,6 +125,33 @@ describe("confirmRows", () => {
       toLevel: "removed",
     });
   });
+
+  it("carries a staged Group removal's cascadeCount straight through", () => {
+    const groupRemoval = removeEdit({
+      request: {
+        scope: "Repo",
+        target: { type: "Group", id: "platform-eng" },
+        repoProject: "TEAM",
+        repo: "repo-c",
+        action: { type: "Remove" },
+      },
+      principalLabel: "Platform Eng",
+      cascadeCount: 4,
+    });
+    const pending = stageEdit(new Map(), groupRemoval);
+
+    const rows = confirmRows(pending);
+
+    expect(rows[0].cascadeCount).toBe(4);
+  });
+
+  it("leaves cascadeCount undefined for edits that never set it", () => {
+    const pending = stageEdit(new Map(), levelEdit());
+
+    const rows = confirmRows(pending);
+
+    expect(rows[0].cascadeCount).toBeUndefined();
+  });
 });
 
 describe("toApplyPayload", () => {

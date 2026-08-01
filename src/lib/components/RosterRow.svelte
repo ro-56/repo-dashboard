@@ -1,12 +1,14 @@
 <script lang="ts">
   import type { PrincipalEntry } from "$lib/roster";
-  import { deriveRow, editTargetForEntry, pendingRowView, rowMenu, sourceLabel, sourceTooltip } from "$lib/rosterRow";
+  import { cascadeNote, deriveRow, editTargetForEntry, pendingRowView, rowMenu, sourceLabel, sourceTooltip } from "$lib/rosterRow";
   import { editKey, type EditableLevel, type PendingEdits, type StagedEdit } from "$lib/pendingEdits";
 
   let {
     entry,
     repoProject,
     repo,
+    repoPrincipals,
+    projectPrincipals,
     pending,
     editingEnabled,
     onStage,
@@ -15,23 +17,29 @@
     entry: PrincipalEntry;
     repoProject: string;
     repo: string;
+    // Cascade-count candidate pools (PD-62): this repo's own principals for a Repo-scope Group
+    // entry, every repo's principals across the owning Project for a Project-scope one — see
+    // `cascadeMemberCount` (rosterRow.ts) for why the pool differs by scope.
+    repoPrincipals: PrincipalEntry[];
+    projectPrincipals: PrincipalEntry[];
     pending: PendingEdits;
     editingEnabled: boolean;
     onStage: (edit: StagedEdit) => void;
     onUndo: (key: string) => void;
   } = $props();
 
-  // Direct/Repo entries only (editTargetForEntry) — Group, Project-scope, and Member rows get
-  // no menu in this ticket (PD-60).
+  // Direct and Group entries, at either scope (editTargetForEntry) — Member rows get no menu at
+  // all, permanently (ADR-0021).
   let target = $derived(editTargetForEntry(entry));
   let key = $derived(target ? editKey(entry.scope, target, repoProject, repo) : null);
   let staged = $derived(key ? pending.get(key) : undefined);
   let row = $derived(deriveRow(entry, pendingRowView(staged)));
   let source = $derived(sourceLabel(entry.accessType, entry.scope));
   let sourceTitle = $derived(sourceTooltip(entry.accessType, entry.scope));
+  let cascadeCandidates = $derived(entry.scope === "Project" ? projectPrincipals : repoPrincipals);
   // Menus are absent, not just disabled, while the Comparison isn't the latest Snapshot
   // (ADR-0022) — editing against a historical view would mutate the present based on the past.
-  let menu = $derived(editingEnabled ? rowMenu(entry, staged) : null);
+  let menu = $derived(editingEnabled ? rowMenu(entry, staged, cascadeCandidates) : null);
 
   let menuOpen = $state(false);
   let menuTrigger = $state<HTMLButtonElement | undefined>(undefined);
@@ -86,6 +94,9 @@
       request: { scope: entry.scope, target, repoProject, repo, action: { type: "Remove" } },
       principalLabel: entry.principal.label,
       beforeLevel: entry.permission,
+      // Reuses whatever the open menu already computed (PD-62) rather than recomputing, so the
+      // confirm dialog is guaranteed to show the exact same count the user saw before staging.
+      cascadeCount: target.type === "Group" ? (menu?.cascadeCount ?? null) : undefined,
     });
   }
 
@@ -150,6 +161,9 @@
               <span class="menu-note">{menu.scopeNote}</span>
             {/if}
             <span class="menu-divider"></span>
+            {#if menu.cascadeCount !== null}
+              <span class="menu-cascade">{cascadeNote(menu.cascadeCount)}</span>
+            {/if}
             <button type="button" class="menu-remove" onclick={selectRemove}>✕ Remove access</button>
           </div>
         {/if}
@@ -406,6 +420,12 @@
     font-size: var(--t-tag);
     line-height: 1.4;
     color: var(--ink-3);
+  }
+  .menu-cascade {
+    font-family: var(--font-sans);
+    font-size: var(--t-tag);
+    line-height: 1.4;
+    color: var(--state-revoked);
   }
   .level-opt {
     flex: 1;

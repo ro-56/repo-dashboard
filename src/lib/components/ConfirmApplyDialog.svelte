@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ConfirmRow, ResultRow } from "$lib/pendingEdits";
+  import { cascadeNote } from "$lib/rosterRow";
 
   let {
     open,
@@ -49,10 +50,15 @@
         <h2 class="title">Apply {rows.length} {rows.length === 1 ? "change" : "changes"}</h2>
         <ul class="rows">
           {#each rows as row (row.key)}
-            <li class="row">
-              <span class="path">{row.repoProject}/{row.repo}</span>
-              <span class="principal">{row.principalLabel}</span>
-              <span class="transition">{row.fromLevel} → {row.toLevel}</span>
+            <li class="row-item">
+              <div class="row">
+                <span class="path">{row.repoProject}/{row.repo}</span>
+                <span class="principal">{row.principalLabel}</span>
+                <span class="transition">{row.fromLevel} → {row.toLevel}</span>
+              </div>
+              {#if row.cascadeCount != null}
+                <div class="cascade-note">{cascadeNote(row.cascadeCount)}</div>
+              {/if}
             </li>
           {/each}
         </ul>
@@ -113,6 +119,11 @@
     overflow-y: auto;
   }
 
+  .row-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+  }
   .row {
     display: flex;
     align-items: center;
@@ -120,6 +131,11 @@
     font-family: var(--font-mono);
     font-size: var(--t-body-s);
     color: var(--ink);
+  }
+  .cascade-note {
+    font-family: var(--font-sans);
+    font-size: var(--t-tag);
+    color: var(--state-revoked);
   }
   .path {
     flex: none;
