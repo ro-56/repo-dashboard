@@ -94,3 +94,7 @@ _Avoid_: Partial Run (blurs the rule that Run always means full discovery), Sync
 **Refresh target**:
 The one repo (for a Repo-scope edit) or Project (for a Project-scope edit) whose grants a Refresh re-fetches live, identified directly from a successful edit's `repo`/`repo_project`. A Project-scope target cascades to every repo the source Snapshot already records under that Project — not a freshly discovered repo list — since Project-scope grants are duplicated onto every owned repo's records at collection time (see Grant scope). A `FetchFailed` on a target means zero records for it, identical to a Run's convention, since a Snapshot carries no marker distinguishing whether a Run or a Refresh produced it.
 _Avoid_: Affected repo (imprecise about Project-scope cascading), Dirty repo
+
+**Export**:
+A one-off CSV file generated from the whole-workspace Roster tree for sharing with a reviewer or offline archiving — not a recurring reporting path, and the dashboard remains the source of truth regardless (ADR-0026, `docs/adr/0026-roster-export-csv-only-carve-out.md`). Always a flat, unfiltered, diff-free roster of the Comparison Snapshot alone — no diff markers, no view-mode/filter state, no notion of "what's on screen." Produced via a native Save As dialog, never sent by the app itself.
+_Avoid_: Report (implies a recurring artifact), download (says nothing about format/content scope)

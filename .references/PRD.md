@@ -31,7 +31,7 @@ Single admin / small trusted team, running the tool locally. No login system, no
 ### Explicit non-goals (do not build)
 - Multi-workspace or multi-provider support. Single Bitbucket Cloud workspace, hardcoded like today (`unisoma`), configurable but not multi-tenant.
 - Any notification/alerting channel (email, Slack, etc.). Purely pull-based — user opens the app to check.
-- Excel/CSV export. The dashboard fully replaces the Excel report; don't maintain both output paths.
+- Excel/CSV export as a *recurring reporting path*. The dashboard remains the source of truth for ongoing audits — don't build a parallel spreadsheet-based workflow. (Carve-out: a one-off CSV Roster export, for sharing a snapshot with a reviewer or archiving offline, is in scope — see ADR-0026.)
 - Login, roles, or any multi-user permission model for the tool itself.
 - Group membership tracked as a first-class diffable entity. Match `main.py`'s current model: group grants are flattened into per-user rows before storage/diff; group origin is kept as metadata (e.g. "via group X") but is not itself a diffed dimension.
 

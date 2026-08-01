@@ -28,6 +28,7 @@
     "git-commit": "off",
     "to-issues": "off",
     "to-prd": "off",
-    "write-a-skill": "off"
+    "write-a-skill": "off",
+    "wayfinder": "user-invocable-only"
   }
 }

@@ -19,7 +19,7 @@ Work is tracked in taskr (`.tickets/`, prefix `PD`). Run `taskr ready` to see un
 
 - Multi-workspace or multi-provider support — single hardcoded-but-configurable Bitbucket Cloud workspace.
 - Any notification/alerting channel — purely pull-based.
-- Excel/CSV export — the dashboard fully replaces the old Excel report.
+- Excel/CSV export as a recurring reporting path — the dashboard remains the source of truth. (Carve-out: a one-off CSV Roster export is in scope — see ADR-0026.)
 - Login, roles, or any multi-user auth model.
 - Group membership as a diffable entity — group grants are flattened into per-user rows at collection time; the originating group is kept only as metadata (`access_type: group:<name>`), never diffed as its own dimension.
 

@@ -16,14 +16,21 @@
             <span style="font-weight:500;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#5b656d">repository access audit</span>
           </div>
           <div style="display:flex;align-items:center;gap:6px;flex:none">
-            <div style="display:flex;flex-direction:column;gap:1px;padding:6px 12px;border:1px solid #dfe3e7;border-radius:7px;background:#fbfcfd;cursor:pointer;min-width:150px">
+            <div style="display:flex;flex-direction:column;gap:1px;padding:6px 12px;border:1px solid {{ baselineBorder }};border-radius:7px;background:#fbfcfd;cursor:pointer;min-width:150px">
               <span style="font-weight:500;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:#5b656d">baseline</span>
-              <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#14181c">run 11 · Jul 16</span>
+              <select style="border:none;background:transparent;padding:0;font-family:'IBM Plex Mono',monospace;font-size:13px;color:#14181c;cursor:pointer;appearance:none;width:100%" onFocus="{{ focusBaseline }}" onBlur="{{ blurSelect }}" value="run11" onChange="{{ noop }}">
+                <option value="run9">run 9 · Jun 18</option>
+                <option value="run10">run 10 · Jul 02</option>
+                <option value="run11">run 11 · Jul 16</option>
+              </select>
             </div>
             <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:1px solid #dfe3e7;border-radius:7px;background:#ffffff;color:#5b656d;font-size:12px;cursor:pointer">⇄</span>
-            <div style="display:flex;flex-direction:column;gap:1px;padding:6px 12px;border:1px solid #14181c;border-radius:7px;background:#ffffff;cursor:pointer;min-width:150px">
+            <div style="display:flex;flex-direction:column;gap:1px;padding:6px 12px;border:1px solid {{ comparisonBorder }};border-radius:7px;background:#ffffff;cursor:pointer;min-width:150px">
               <span style="font-weight:500;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:#5b656d">comparison</span>
-              <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:500;color:#14181c">run 12 · Jul 29</span>
+              <select style="border:none;background:transparent;padding:0;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:500;color:#14181c;cursor:pointer;appearance:none;width:100%" onFocus="{{ focusComparison }}" onBlur="{{ blurSelect }}" value="run12" onChange="{{ noop }}">
+                <option value="run12">run 12 · Jul 29</option>
+                <option value="run11">run 11 · Jul 16</option>
+              </select>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex:none">
@@ -46,15 +53,13 @@
             <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6b757d">57 live · 12 changed · 59 rows</span>
             <span style="display:inline-flex;align-items:center;height:30px;padding:0 11px;border:1px solid #dfe3e7;border-radius:8px;background:#ffffff;font-weight:500;font-size:12.5px;color:#3d464e;cursor:pointer">Collapse all</span>
             <span style="display:inline-flex;align-items:center;height:30px;padding:0 11px;border:1px solid #dfe3e7;border-radius:8px;background:#ffffff;font-weight:500;font-size:12.5px;color:#3d464e;cursor:pointer">Reset</span>
+            <sc-if value="{{ hasPending }}" hint-placeholder-val="{{ false }}">
+              <span style="display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:8px;background:#8f3600;font-weight:600;font-size:12.5px;color:#ffffff;cursor:pointer" onClick="{{ openApply }}">Apply {{ pendingCount }} change{{ pendingPlural }}</span>
+            </sc-if>
             <span style="display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px;border-radius:8px;background:#14181c;font-weight:600;font-size:12.5px;color:#ffffff;cursor:pointer">
               <span style="font-size:12px">⇩</span>Export audit
             </span>
           </div>
-        </div>
-
-        <div style="box-sizing:border-box;display:flex;align-items:center;gap:10px;flex:none;padding:9px 18px;background:#fdf6e6;border-bottom:1px solid #ecd9a8">
-          <span style="flex:none;display:inline-flex;align-items:center;height:19px;padding:0 7px;border-radius:5px;background:#a8791a;font-weight:600;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:#fff">structural</span>
-          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:#5c4a14">legacy-ingest is absent from the comparison run. Ravi Chandra and Yuki Sato no longer hold access to any repository. metrics-api could not be fetched this run. contractors-2026 membership could not be resolved.</span>
         </div>
 
         <div style="box-sizing:border-box;display:grid;grid-template-columns:26px 44px 62px 104px 210px 178px 1fr;gap:12px;align-items:center;flex:none;padding:8px 18px 8px 30px;background:#f0f2f4;border-bottom:1px solid #e0e4e7;font-size:10px;font-weight:600;letter-spacing:.11em;text-transform:uppercase;color:#5b656d">
@@ -71,12 +76,6 @@
                   <sc-for list="{{ project.chips }}" as="chip" hint-placeholder-count="2">
                     <span style="display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;background:{{ chip.bg }};color:{{ chip.ink }};font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:11.5px">{{ chip.label }}</span>
                   </sc-for>
-                </span>
-                <span style="display:flex;align-items:center;gap:5px">
-                  <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;color:{{ project.syncInk }};font-size:13px;cursor:pointer;animation:{{ project.syncSpin }}" style-hover="background:#eef0f2" onClick="{{ project.startSync }}" title="Sync this project">⟳</span>
-                  <sc-if value="{{ project.syncedLabel }}" hint-placeholder-val="{{ false }}">
-                    <span style="font-size:10.5px;font-weight:600;color:{{ project.syncedInk }}">{{ project.syncedLabel }}</span>
-                  </sc-if>
                 </span>
               </header>
               <div style="display:flex;flex-direction:column;gap:8px">
@@ -100,12 +99,6 @@
                         <sc-for list="{{ repo.tags }}" as="tag" hint-placeholder-count="0">
                           <span style="display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;border:1px solid {{ tag.border }};background:{{ tag.bg }};color:{{ tag.ink }};font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap">{{ tag.label }}</span>
                         </sc-for>
-                        <span style="display:flex;align-items:center;gap:5px">
-                          <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:5px;color:{{ repo.syncInk }};font-size:12px;cursor:pointer;animation:{{ repo.syncSpin }}" style-hover="background:#eef0f2" onClick="{{ repo.startSync }}" title="Sync this repo">⟳</span>
-                          <sc-if value="{{ repo.syncedLabel }}" hint-placeholder-val="{{ false }}">
-                            <span style="font-size:10px;font-weight:600;color:{{ repo.syncedInk }}">{{ repo.syncedLabel }}</span>
-                          </sc-if>
-                        </span>
                       </span>
                     </div>
                     <sc-if value="{{ repo.open }}" hint-placeholder-val="{{ true }}">
@@ -119,7 +112,7 @@
                               <span style="width:9px;height:9px;border-radius:2px;background:{{ row.seg3 }}"></span>
                             </span>
                             <span style="font-weight:{{ row.levelWeight }};color:{{ row.levelColor }};text-decoration:{{ row.deco }};text-decoration-color:#c98d84;opacity:{{ row.levelOpacity }}">{{ row.levelWord }}</span>
-                            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6b757d">{{ row.source }}</span>
+                            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6b757d" title="{{ row.sourceTooltip }}">{{ row.source }}</span>
                             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px;color:#14181c">{{ row.user }}</span>
                             <span style="display:flex;align-items:center;gap:6px;white-space:nowrap;font-family:'IBM Plex Mono',monospace;font-size:12.5px">
                               <sc-if value="{{ row.showTransition }}" hint-placeholder-val="{{ true }}">
@@ -228,13 +221,57 @@
 
           </div>
         </aside>
+
+        <sc-if value="{{ applyOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="position:fixed;inset:0;background:rgba(20,24,28,.32);z-index:50;display:flex;align-items:center;justify-content:center">
+            <div style="width:460px;max-height:70vh;display:flex;flex-direction:column;background:#ffffff;border-radius:10px;box-shadow:0 20px 48px rgba(20,24,28,.28)">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid #eef0f2">
+                <span style="font-weight:600;font-size:14px;color:#14181c">{{ applyTitle }}</span>
+                <span style="cursor:pointer;color:#5b656d;font-size:14px" onClick="{{ closeApply }}">×</span>
+              </div>
+              <sc-if value="{{ showApplyList }}" hint-placeholder-val="{{ true }}">
+                <div style="flex:1;min-height:0;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px">
+                  <sc-for list="{{ applyItems }}" as="item" hint-placeholder-count="3">
+                    <div style="display:flex;flex-direction:column;gap:2px;padding:9px 11px;border:1px solid #eef0f2;border-radius:7px;background:#fafbfc">
+                      <span style="font-size:12.5px;font-weight:600;color:#14181c">{{ item.user }}</span>
+                      <span style="font-size:11.5px;color:#6b757d">{{ item.desc }}</span>
+                      <sc-if value="{{ item.cascadeNote }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size:11px;color:#8f3600">{{ item.cascadeNote }}</span>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="display:flex;gap:8px;padding:14px 18px;border-top:1px solid #eef0f2">
+                  <span style="display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 14px;border-radius:7px;background:#14181c;font-weight:600;font-size:12.5px;color:#ffffff;cursor:pointer" onClick="{{ confirmApply }}">Apply to Bitbucket</span>
+                  <span style="display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 14px;border-radius:7px;border:1px solid #dfe3e7;background:#ffffff;font-weight:500;font-size:12.5px;color:#5b656d;cursor:pointer" onClick="{{ closeApply }}">Cancel</span>
+                </div>
+              </sc-if>
+              <sc-if value="{{ showApplyResults }}" hint-placeholder-val="{{ false }}">
+                <div style="flex:1;min-height:0;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:8px">
+                  <sc-for list="{{ applyResultsList }}" as="r" hint-placeholder-count="3">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <span style="color:#0f6039;font-size:13px">✓</span>
+                      <span style="font-size:12.5px;color:#14181c">{{ r.user }}</span>
+                      <span style="font-size:11.5px;color:#6b757d">{{ r.desc }} — applied</span>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="display:flex;gap:8px;padding:14px 18px;border-top:1px solid #eef0f2">
+                  <span style="display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 14px;border-radius:7px;background:#14181c;font-weight:600;font-size:12.5px;color:#ffffff;cursor:pointer" onClick="{{ doRefresh }}">{{ refreshLabel }}</span>
+                  <span style="display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 14px;border-radius:7px;border:1px solid #dfe3e7;background:#ffffff;font-weight:500;font-size:12.5px;color:#5b656d;cursor:pointer" onClick="{{ closeApply }}">Close</span>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
       </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900}}">
-const RANK = { Read: 1, Write: 2, Admin: 3 };
+const RANK = { Read: 1, Write: 2, Admin: 3, CreateRepo: 3 };
 const SRANK = { direct: 0, group: 1, member: 2 };
-const FILLED = { Admin: 3, Write: 2, Read: 1 };
+const FILLED = { Admin: 3, Write: 2, Read: 1, CreateRepo: 3 };
 const LEVELS = ["Read", "Write", "Admin"];
+const LEVEL_WORD = { Read: "read", Write: "write", Admin: "admin", CreateRepo: "create-repo" };
 
 // [name, level, source, groupId, diff, unresolved, scope]
 const DATA = [
@@ -266,11 +303,12 @@ const DATA = [
     ] },
   ] },
   { name: "DATA", repos: [
-    { repo: "warehouse-etl", a: 2, w: 3, r: 8, p: [
+    { repo: "warehouse-etl", a: 3, w: 3, r: 8, p: [
       ["analytics-admins", "Admin", "group", "", null, null, "project"],
       ["Dana Whitfield", "Admin", "direct", "", null],
       ["Elif Demir", "Write", "direct", "", "grant"],
       ["Jae Moon", "Admin", "direct", "", ["Read", "Admin", "Escalation"]],
+      ["Grace Liu", "CreateRepo", "direct", "", null],
       ["Sam Boyle", "Read", "direct", "", "revoke"],
     ] },
     { repo: "metrics-api", a: 0, w: 0, r: 0, failed: true, p: [] },
@@ -279,9 +317,9 @@ const DATA = [
 ];
 
 const LIGHT = {
-  segOn: { Admin: "#14181c", Write: "#4b555d", Read: "#6b757d" },
+  segOn: { Admin: "#14181c", Write: "#4b555d", Read: "#6b757d", CreateRepo: "#14181c" },
   segOff: "#dde1e5",
-  level: { Admin: { color: "#14181c", weight: 600 }, Write: { color: "#3d464e", weight: 500 }, Read: { color: "#6b757d", weight: 400 } },
+  level: { Admin: { color: "#14181c", weight: 600 }, Write: { color: "#3d464e", weight: 500 }, Read: { color: "#6b757d", weight: 400 }, CreateRepo: { color: "#14181c", weight: 600 } },
   add: { ink: "#0f6039", bg: "#e8f2eb", border: "#a8cdb8" },
   rem: { ink: "#93261c", bg: "#f8ece9", border: "#e0b6b0" },
   chg: { ink: "#413ca0", bg: "#edecf8", border: "#c3c0e8" },
@@ -299,7 +337,7 @@ const LIGHT = {
 const DARK = {
   segOn: { Admin: "#eef2f4", Write: "#a8b2b9", Read: "#79838a" },
   segOff: "#2f363b",
-  level: { Admin: { color: "#eef2f4", weight: 600 }, Write: { color: "#b6bfc6", weight: 500 }, Read: { color: "#8b959c", weight: 400 } },
+  level: { Admin: { color: "#eef2f4", weight: 600 }, Write: { color: "#b6bfc6", weight: 500 }, Read: { color: "#8b959c", weight: 400 }, CreateRepo: { color: "#eef2f4", weight: 600 } },
   add: { ink: "#5fd39d", bg: "rgba(63,190,134,.14)", border: "rgba(63,190,134,.4)" },
   rem: { ink: "#f08d85", bg: "rgba(239,107,98,.14)", border: "rgba(239,107,98,.4)" },
   chg: { ink: "#b3a4ff", bg: "rgba(157,139,255,.16)", border: "rgba(157,139,255,.42)" },
@@ -319,7 +357,23 @@ function sourceLabel(e) {
   if (e[2] === "direct") base = "direct";
   else if (e[2] === "group") base = "group";
   else base = "grp:" + e[3];
-  return e[6] === "project" ? base + " · project" : base;
+  return e[6] === "project" ? "↳ " + base : base;
+}
+
+function sourceTooltip(e) {
+  let base;
+  if (e[2] === "direct") base = "direct";
+  else if (e[2] === "group") base = "group";
+  else base = "grp:" + e[3];
+  return e[6] === "project" ? "Project-level grant" : base;
+}
+
+function countGroupMembers(groupName) {
+  let n = 0;
+  for (const project of DATA) for (const repo of project.repos) for (const e of repo.p) {
+    if (e[2] === "member" && e[3] === groupName) n++;
+  }
+  return n;
 }
 
 function deriveRow(e, T, rowId, scopeCounts, projectName, ctx) {
@@ -334,7 +388,8 @@ function deriveRow(e, T, rowId, scopeCounts, projectName, ctx) {
   const row = {
     user: e[0],
     source: sourceLabel(e),
-    levelWord: effLevel.toLowerCase(),
+    sourceTooltip: sourceTooltip(e),
+    levelWord: LEVEL_WORD[effLevel] || effLevel.toLowerCase(),
     levelColor: lvl.color,
     levelWeight: lvl.weight,
     levelOpacity: 1,
@@ -395,11 +450,17 @@ function deriveRow(e, T, rowId, scopeCounts, projectName, ctx) {
   row.menuOpen = ctx.openRowId === rowId;
   row.toggleMenu = () => ctx.toggleMenu(rowId);
   row.scopeNote = scope === "project" ? ("Project-level grant — applies to all " + (scopeCounts[scopeKey] || 1) + " repos " + projectName + " owns.") : "";
+  const cascade = e[2] === "group" ? countGroupMembers(e[0]) : 0;
+  const meta = {
+    user: e[0],
+    scopeDesc: scope === "project" ? "project-level · " + projectName : "repo · " + rowId.split("::")[1],
+    cascade,
+  };
   row.levelOptions = LEVELS.map((L) => {
     const active = L === effLevel;
-    return { label: L, bg: active ? T.level[L].color : "transparent", ink: active ? T.activeInk : T.level[L].color, apply: () => ctx.setLevel(scopeKey, L, baseLevel) };
+    return { label: L, bg: active ? T.level[L].color : "transparent", ink: active ? T.activeInk : T.level[L].color, apply: () => ctx.setLevel(scopeKey, L, baseLevel, meta) };
   });
-  row.doRemove = () => ctx.doRemove(scopeKey);
+  row.doRemove = () => ctx.doRemove(scopeKey, meta);
   return row;
 }
 
@@ -446,17 +507,10 @@ function build(T, ctx) {
       pb.added += b.added; pb.removed += b.removed; pb.modified += b.modified; pb.esc += b.esc;
       grantsTotal += repo.a + repo.w + repo.r;
     }
-    const projSyncKey = "project::" + project.name;
     return {
       name: project.name,
       meta: project.repos.length + " repositories · " + grantsTotal + " grants",
       chips: chips(pb, T),
-      syncing: !!ctx.syncing[projSyncKey],
-      syncSpin: ctx.syncing[projSyncKey] ? "spin 700ms linear infinite" : "none",
-      syncInk: ctx.syncing[projSyncKey] ? T.chg.ink : T.neutral.ink,
-      syncedInk: T.add.ink,
-      syncedLabel: ctx.syncedAt[projSyncKey] ? "✓ synced" : "",
-      startSync: () => ctx.startSync(projSyncKey, { type: "project", project: project.name }),
       repos: project.repos.map((repo) => {
         const b = breakdown(repo);
         const open = b.added + b.removed + b.modified > 0;
@@ -464,15 +518,8 @@ function build(T, ctx) {
         const tags = [];
         if (repo.gone) tags.push({ label: "absent from run 12", bg: T.rem.bg, border: T.rem.border, ink: T.rem.ink });
         else if (repo.failed) tags.push({ label: "fetch failed", bg: T.neutral.bg, border: T.neutral.border, ink: T.neutral.ink });
-        const repoSyncKey = "repo::" + project.name + "::" + repo.repo;
         return {
           pathPrefix: project.name.toLowerCase() + "/",
-          syncing: !!ctx.syncing[repoSyncKey],
-          syncSpin: ctx.syncing[repoSyncKey] ? "spin 700ms linear infinite" : "none",
-          syncInk: ctx.syncing[repoSyncKey] ? T.chg.ink : T.neutral.ink,
-          syncedInk: T.add.ink,
-          syncedLabel: ctx.syncedAt[repoSyncKey] ? "✓ synced" : "",
-          startSync: () => ctx.startSync(repoSyncKey, { type: "repo", project: project.name, repo: repo.repo }),
           name: repo.repo,
           caret: open ? "▼" : "▶",
           open,
@@ -507,34 +554,35 @@ class Component extends DCLogic {
     openRowId: null, pending: {},
     drawerOpen: false, credEditing: false, running: false,
     pendingDeleteId: null, deletedIds: [], theme: "light",
-    syncing: {}, syncedAt: {},
+    applyOpen: false, applyPhase: "list", applyResultsList: [], refreshing: false,
+    focusedSelector: null,
   };
 
   toggleMenu = (rowId) => this.setState((s) => ({ openRowId: s.openRowId === rowId ? null : rowId }));
-  setLevel = (key, level, baseLevel) => this.setState((s) => {
+  setLevel = (key, level, baseLevel, meta) => this.setState((s) => {
     const pending = { ...s.pending };
-    if (level === baseLevel) delete pending[key]; else pending[key] = { type: "level", level };
+    if (level === baseLevel) delete pending[key]; else pending[key] = { type: "level", level, baseLevel, ...meta };
     return { pending, openRowId: null };
   });
-  doRemove = (key) => this.setState((s) => ({ pending: { ...s.pending, [key]: { type: "remove" } }, openRowId: null }));
+  doRemove = (key, meta) => this.setState((s) => ({ pending: { ...s.pending, [key]: { type: "remove", ...meta } }, openRowId: null }));
   undo = (key) => this.setState((s) => { const pending = { ...s.pending }; delete pending[key]; return { pending }; });
 
-  startSync = (key, scope) => {
-    if (this.state.syncing[key]) return;
-    this.setState((s) => ({ syncing: { ...s.syncing, [key]: true } }));
-    setTimeout(() => {
-      this.setState((s) => {
-        const pending = { ...s.pending };
-        const prefixes = scope.type === "project"
-          ? ["proj::" + scope.project + "::", scope.project + "::"]
-          : [scope.project + "::" + scope.repo + "::"];
-        Object.keys(pending).forEach((pk) => { if (prefixes.some((p) => pk.startsWith(p))) delete pending[pk]; });
-        const syncing = { ...s.syncing };
-        delete syncing[key];
-        return { pending, syncing, syncedAt: { ...s.syncedAt, [key]: true } };
-      });
-    }, 900);
+  openApply = () => this.setState({ applyOpen: true, applyPhase: "list" });
+  closeApply = () => this.setState({ applyOpen: false });
+  confirmApply = () => this.setState((s) => {
+    const results = Object.values(s.pending).map((p) => ({
+      user: p.user,
+      desc: p.type === "remove" ? "Remove access (" + p.scopeDesc + ")" : (p.baseLevel + " → " + p.level + " (" + p.scopeDesc + ")"),
+    }));
+    return { pending: {}, applyPhase: "results", applyResultsList: results };
+  });
+  doRefresh = () => {
+    if (this.state.refreshing) return;
+    this.setState({ refreshing: true });
+    setTimeout(() => this.setState({ refreshing: false, applyOpen: false }), 900);
   };
+  focusSelector = (name) => this.setState({ focusedSelector: name });
+  blurSelector = () => this.setState({ focusedSelector: null });
 
   toggleDrawer = () => this.setState((s) => ({ drawerOpen: !s.drawerOpen }));
   startCredsEdit = () => this.setState({ credEditing: true });
@@ -551,11 +599,37 @@ class Component extends DCLogic {
   setTheme = (theme) => this.setState({ theme });
 
   renderVals() {
-    const ctx = { openRowId: this.state.openRowId, pending: this.state.pending, toggleMenu: this.toggleMenu, setLevel: this.setLevel, doRemove: this.doRemove, undo: this.undo, syncing: this.state.syncing, syncedAt: this.state.syncedAt, startSync: this.startSync };
+    const ctx = { openRowId: this.state.openRowId, pending: this.state.pending, toggleMenu: this.toggleMenu, setLevel: this.setLevel, doRemove: this.doRemove, undo: this.undo };
     const T = LIGHT;
     const activePillShadow = "0 1px 2px rgba(20,24,28,.1)";
+    const pendingEntries = Object.values(this.state.pending);
+    const pendingCount = pendingEntries.length;
     return {
       optA: build(T, ctx),
+      hasPending: pendingCount > 0,
+      pendingCount,
+      pendingPlural: pendingCount === 1 ? "" : "s",
+      openApply: this.openApply,
+      closeApply: this.closeApply,
+      confirmApply: this.confirmApply,
+      applyOpen: this.state.applyOpen,
+      applyTitle: this.state.applyPhase === "results" ? "Apply results" : "Review " + pendingCount + " staged change" + (pendingCount === 1 ? "" : "s"),
+      showApplyList: this.state.applyPhase === "list",
+      showApplyResults: this.state.applyPhase === "results",
+      applyItems: pendingEntries.map((p) => ({
+        user: p.user,
+        desc: p.type === "remove" ? "Remove access — " + p.scopeDesc : p.baseLevel + " → " + p.level + " — " + p.scopeDesc,
+        cascadeNote: p.cascade ? "Cascades to " + p.cascade + " member grant(s)" : "",
+      })),
+      applyResultsList: this.state.applyResultsList,
+      doRefresh: this.doRefresh,
+      refreshLabel: this.state.refreshing ? "Refreshing…" : "Refresh affected snapshots",
+      focusBaseline: () => this.focusSelector("baseline"),
+      focusComparison: () => this.focusSelector("comparison"),
+      blurSelect: this.blurSelector,
+      noop: () => {},
+      baselineBorder: this.state.focusedSelector === "baseline" ? "#14181c" : "#dfe3e7",
+      comparisonBorder: this.state.focusedSelector === "comparison" ? "#14181c" : "#dfe3e7",
       drawerOpen: this.state.drawerOpen,
       drawerTransform: this.state.drawerOpen ? "translateX(0)" : "translateX(100%)",
       drawerBorder: this.state.drawerOpen ? "#14181c" : "#dfe3e7",
