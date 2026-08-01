@@ -34,12 +34,34 @@
   let menu = $derived(editingEnabled ? rowMenu(entry, staged) : null);
 
   let menuOpen = $state(false);
+  let menuTrigger = $state<HTMLButtonElement | undefined>(undefined);
+  // `.repo-card` clips overflow (for its rounded corners), so an absolutely-positioned menu
+  // inside it gets cut off whenever it extends past the card's edge. Positioning it `fixed`
+  // from the trigger's own screen coordinates escapes that clipping ancestor entirely.
+  let menuPos = $state<{ top: number; right: number } | null>(null);
+
   function toggleMenu() {
-    menuOpen = !menuOpen;
+    if (menuOpen) {
+      closeMenu();
+      return;
+    }
+    if (menuTrigger) {
+      const rect = menuTrigger.getBoundingClientRect();
+      menuPos = { top: rect.bottom + 4, right: window.innerWidth - rect.right };
+    }
+    menuOpen = true;
   }
   function closeMenu() {
     menuOpen = false;
   }
+
+  // A fixed-position menu doesn't track the trigger during scroll — closing on scroll avoids
+  // it visibly detaching from the row that opened it.
+  $effect(() => {
+    if (!menuOpen) return;
+    window.addEventListener("scroll", closeMenu, true);
+    return () => window.removeEventListener("scroll", closeMenu, true);
+  });
 
   // Re-selecting the row's true current level is treated as "undo this edit" rather than
   // staging a no-op SetLevel — matches the reference design's setLevel behaviour.
@@ -104,6 +126,7 @@
     {#if menu}
       <span class="menu-wrap">
         <button
+          bind:this={menuTrigger}
           type="button"
           class="menu-trigger"
           aria-haspopup="true"
@@ -113,9 +136,9 @@
         >
           ⋯
         </button>
-        {#if menuOpen}
+        {#if menuOpen && menuPos}
           <div class="menu-scrim" onclick={closeMenu} aria-hidden="true"></div>
-          <div class="menu">
+          <div class="menu" style:top="{menuPos.top}px" style:right="{menuPos.right}px">
             <div class="menu-levels">
               {#each menu.levelOptions as opt (opt.level)}
                 <button type="button" class="level-opt" class:active={opt.active} onclick={() => selectLevel(opt.level)}>
@@ -330,7 +353,6 @@
   }
 
   .menu-wrap {
-    position: relative;
     flex: none;
     margin-left: auto;
   }
@@ -360,9 +382,7 @@
     background: transparent;
   }
   .menu {
-    position: absolute;
-    top: 24px;
-    right: 0;
+    position: fixed;
     z-index: 30;
     display: flex;
     flex-direction: column;
