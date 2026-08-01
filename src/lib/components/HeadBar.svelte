@@ -17,7 +17,6 @@
     pendingCount,
     canApply,
     onApplyClick,
-    onExportClick,
   }: {
     snapshots: SnapshotSummary[];
     baselineId: number | null;
@@ -33,7 +32,6 @@
     pendingCount: number;
     canApply: boolean;
     onApplyClick: () => void;
-    onExportClick: () => void;
   } = $props();
 
   let seqs = $derived(snapshotSeqs(snapshots));
@@ -99,11 +97,6 @@
   {#if canApply}
     <button type="button" class="apply-btn" onclick={onApplyClick}>
       Apply {pendingCount} changes
-    </button>
-  {/if}
-  {#if comparisonSnapshot}
-    <button type="button" class="export-btn" onclick={onExportClick}>
-      <span class="export-icon">⇩</span>Export
     </button>
   {/if}
   <button
@@ -269,25 +262,6 @@
     font-weight: 400;
   }
 
-  .export-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--s-3);
-    flex: none;
-    height: var(--h-control);
-    padding: 0 var(--s-6);
-    border: 1px solid var(--ink);
-    border-radius: var(--r-chip);
-    background: var(--ink);
-    font-family: var(--font-sans);
-    font-weight: 600;
-    font-size: var(--t-body-s);
-    color: var(--surface);
-    cursor: pointer;
-  }
-  .export-icon {
-    font-size: var(--t-meta);
-  }
   .apply-btn {
     display: inline-flex;
     align-items: center;

@@ -283,7 +283,6 @@
     {pendingCount}
     canApply={applyIsEnabled}
     onApplyClick={openApplyDialog}
-    onExportClick={handleExport}
   />
   {#if data.snapshots.length === 0}
     <div class="canvas">
@@ -298,6 +297,7 @@
       onSetViewMode={setViewMode}
       onBulkToggle={handleBulkToggle}
       onReset={resetView}
+      onExportClick={handleExport}
     />
 
     {#if !isEmpty}
