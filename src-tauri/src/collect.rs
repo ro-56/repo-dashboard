@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use rusqlite::Connection;
 
-use crate::client::{BitbucketClient, ClientError};
+use crate::client::{BitbucketClient, ClientError, RepoInfo};
 use crate::diff::Snapshot;
 use crate::model::{
     GroupMembershipStatus, PermissionRecord, ProjectFetchStatus, RepoFetchStatus, RepoStatus,
@@ -21,6 +21,173 @@ use crate::normalize::{
     RawGroupPermission, RawGroupsResponse, RawMember, RawUsersResponse,
 };
 use crate::storage::save_snapshot;
+
+/// Caches each group's resolved membership by group id for the lifetime of a Run (or a
+/// Refresh), so a group granting access to many repos/Projects only costs one
+/// `list_group_members` call. Shared between repo-level and Project-level group resolution
+/// since both draw from the same group id space.
+pub type MemberCache = HashMap<String, Result<Vec<RawMember>, ClientError>>;
+
+/// Result of fetching and normalizing one repo's Direct + Group permissions.
+pub struct RepoFetchResult {
+    pub records: Vec<PermissionRecord>,
+    pub membership_statuses: Vec<GroupMembershipStatus>,
+    pub status: RepoFetchStatus,
+}
+
+/// Result of fetching one Project's raw Direct + Group permissions responses. Left
+/// un-normalized (rather than turned into `PermissionRecord`s) because a Project's grants are
+/// flattened into a record per repo it owns — the caller normalizes once per repo using these
+/// cached raw responses.
+pub struct ProjectFetchResult {
+    pub raw_users: RawUsersResponse,
+    pub raw_groups: RawGroupsResponse,
+    pub status: ProjectFetchStatus,
+}
+
+/// Resolves one group's membership, consulting/populating `member_cache` first so a group
+/// referenced by many repos or Projects only costs one `list_group_members` call.
+async fn resolve_group_members<C: BitbucketClient>(
+    client: &C,
+    workspace: &str,
+    group_slug: &str,
+    member_cache: &mut MemberCache,
+) -> Result<Vec<RawMember>, ClientError> {
+    match member_cache.get(group_slug) {
+        Some(cached) => cached.clone(),
+        None => {
+            let result = client.list_group_members(workspace, group_slug).await;
+            member_cache.insert(group_slug.to_string(), result.clone());
+            result
+        }
+    }
+}
+
+/// Fetches and normalizes a single repo's Direct + Group permissions (including per-group
+/// membership resolution via `member_cache`). Callable independently of the Run's
+/// repo-discovery loop, e.g. by Refresh (PD-68) for a narrow, explicit list of repos.
+pub async fn fetch_repo_permissions<C: BitbucketClient>(
+    client: &C,
+    workspace: &str,
+    repo: &RepoInfo,
+    member_cache: &mut MemberCache,
+) -> Result<RepoFetchResult, RunError> {
+    let raw = match client.list_direct_permissions(workspace, &repo.repo).await {
+        Ok(perms) => RawUsersResponse::Ok(perms),
+        Err(ClientError::Unauthorized) => return Err(RunError::CredentialRejected),
+        Err(ClientError::RateLimited) | Err(ClientError::Other(_)) => {
+            RawUsersResponse::FetchFailed
+        }
+    };
+    let (mut records, direct_status) =
+        normalize_repo_permissions(&repo.repo_project, &repo.repo, raw);
+
+    let raw_groups = match client.list_group_permissions(workspace, &repo.repo).await {
+        Ok(groups) => {
+            let mut resolved = Vec::with_capacity(groups.len());
+            for group in groups {
+                let members_result =
+                    resolve_group_members(client, workspace, &group.group_slug, member_cache)
+                        .await;
+                let members = match members_result {
+                    Ok(members) => RawGroupMembersResponse::Ok(members),
+                    Err(ClientError::Unauthorized) => return Err(RunError::CredentialRejected),
+                    Err(ClientError::RateLimited) | Err(ClientError::Other(_)) => {
+                        RawGroupMembersResponse::FetchFailed
+                    }
+                };
+                resolved.push(RawGroupPermission { members, ..group });
+            }
+            RawGroupsResponse::Ok(resolved)
+        }
+        Err(ClientError::Unauthorized) => return Err(RunError::CredentialRejected),
+        Err(ClientError::RateLimited) | Err(ClientError::Other(_)) => {
+            RawGroupsResponse::FetchFailed
+        }
+    };
+    let group_fetch_failed = matches!(raw_groups, RawGroupsResponse::FetchFailed);
+    let (mut group_records, membership_statuses) =
+        normalize_repo_group_permissions(&repo.repo_project, &repo.repo, raw_groups);
+    records.append(&mut group_records);
+
+    let status = if direct_status.status == RepoStatus::FetchFailed || group_fetch_failed {
+        RepoStatus::FetchFailed
+    } else {
+        RepoStatus::Ok
+    };
+
+    Ok(RepoFetchResult {
+        records,
+        membership_statuses,
+        status: RepoFetchStatus {
+            repo_project: repo.repo_project.clone(),
+            repo: repo.repo.clone(),
+            status,
+        },
+    })
+}
+
+/// Fetches a single Project's Direct + Group permissions (including per-group membership
+/// resolution via `member_cache`), independent of any specific repo or the Run's overall loop
+/// state. Callable directly by Refresh (PD-68) for a narrow, explicit list of Projects.
+pub async fn fetch_project_permissions<C: BitbucketClient>(
+    client: &C,
+    workspace: &str,
+    project_key: &str,
+    member_cache: &mut MemberCache,
+) -> Result<ProjectFetchResult, RunError> {
+    let raw_project_users = match client
+        .list_project_direct_permissions(workspace, project_key)
+        .await
+    {
+        Ok(perms) => RawUsersResponse::Ok(perms),
+        Err(ClientError::Unauthorized) => return Err(RunError::CredentialRejected),
+        Err(ClientError::RateLimited) | Err(ClientError::Other(_)) => {
+            RawUsersResponse::FetchFailed
+        }
+    };
+
+    let raw_project_groups = match client
+        .list_project_group_permissions(workspace, project_key)
+        .await
+    {
+        Ok(groups) => {
+            let mut resolved = Vec::with_capacity(groups.len());
+            for group in groups {
+                let members_result =
+                    resolve_group_members(client, workspace, &group.group_slug, member_cache)
+                        .await;
+                let members = match members_result {
+                    Ok(members) => RawGroupMembersResponse::Ok(members),
+                    Err(ClientError::Unauthorized) => return Err(RunError::CredentialRejected),
+                    Err(ClientError::RateLimited) | Err(ClientError::Other(_)) => {
+                        RawGroupMembersResponse::FetchFailed
+                    }
+                };
+                resolved.push(RawGroupPermission { members, ..group });
+            }
+            RawGroupsResponse::Ok(resolved)
+        }
+        Err(ClientError::Unauthorized) => return Err(RunError::CredentialRejected),
+        Err(ClientError::RateLimited) | Err(ClientError::Other(_)) => {
+            RawGroupsResponse::FetchFailed
+        }
+    };
+
+    let status = if matches!(raw_project_users, RawUsersResponse::FetchFailed)
+        || matches!(raw_project_groups, RawGroupsResponse::FetchFailed)
+    {
+        RepoStatus::FetchFailed
+    } else {
+        RepoStatus::Ok
+    };
+
+    Ok(ProjectFetchResult {
+        raw_users: raw_project_users,
+        raw_groups: raw_project_groups,
+        status: ProjectFetchStatus { project_key: project_key.to_string(), status },
+    })
+}
 
 /// A Discovery failure (glossary, `CONTEXT.md`) aborts before any Snapshot row exists.
 /// `CredentialRejected` covers a 401 at any point in the Run — discovery or a later call —
@@ -62,122 +229,26 @@ pub async fn collect_and_store<C: BitbucketClient>(
     // group granting access to many repos only costs one `list_group_members` call (the
     // caching improvement agreed in the PD-5 design session). Shared between repo-level and
     // Project-level group resolution since both draw from the same group id space.
-    let mut member_cache: HashMap<String, Result<Vec<RawMember>, ClientError>> = HashMap::new();
+    let mut member_cache: MemberCache = HashMap::new();
     // Caches each Project's raw Direct/Group responses by project key, so a Project owning
     // many repos only costs one `list_project_direct_permissions` and one
     // `list_project_group_permissions` call (PD-29), mirroring `member_cache` above.
     let mut project_cache: HashMap<String, (RawUsersResponse, RawGroupsResponse)> = HashMap::new();
 
     for repo in repos {
-        let raw = match client.list_direct_permissions(workspace, &repo.repo).await {
-            Ok(perms) => RawUsersResponse::Ok(perms),
-            Err(ClientError::Unauthorized) => return Err(RunError::CredentialRejected),
-            Err(ClientError::RateLimited) | Err(ClientError::Other(_)) => {
-                RawUsersResponse::FetchFailed
-            }
-        };
-        let (mut direct_records, direct_status) =
-            normalize_repo_permissions(&repo.repo_project, &repo.repo, raw);
-        records.append(&mut direct_records);
-
-        let raw_groups = match client.list_group_permissions(workspace, &repo.repo).await {
-            Ok(groups) => {
-                let mut resolved = Vec::with_capacity(groups.len());
-                for group in groups {
-                    let members_result = match member_cache.get(&group.group_slug) {
-                        Some(cached) => cached.clone(),
-                        None => {
-                            let result = client
-                                .list_group_members(workspace, &group.group_slug)
-                                .await;
-                            member_cache.insert(group.group_slug.clone(), result.clone());
-                            result
-                        }
-                    };
-                    let members = match members_result {
-                        Ok(members) => RawGroupMembersResponse::Ok(members),
-                        Err(ClientError::Unauthorized) => return Err(RunError::CredentialRejected),
-                        Err(ClientError::RateLimited) | Err(ClientError::Other(_)) => {
-                            RawGroupMembersResponse::FetchFailed
-                        }
-                    };
-                    resolved.push(RawGroupPermission { members, ..group });
-                }
-                RawGroupsResponse::Ok(resolved)
-            }
-            Err(ClientError::Unauthorized) => return Err(RunError::CredentialRejected),
-            Err(ClientError::RateLimited) | Err(ClientError::Other(_)) => {
-                RawGroupsResponse::FetchFailed
-            }
-        };
-        let group_fetch_failed = matches!(raw_groups, RawGroupsResponse::FetchFailed);
-        let (mut group_records, mut membership_statuses) =
-            normalize_repo_group_permissions(&repo.repo_project, &repo.repo, raw_groups);
-        records.append(&mut group_records);
-        group_membership_statuses.append(&mut membership_statuses);
+        let repo_result = fetch_repo_permissions(client, workspace, &repo, &mut member_cache).await?;
+        records.extend(repo_result.records);
+        group_membership_statuses.extend(repo_result.membership_statuses);
 
         if !project_cache.contains_key(&repo.repo_project) {
-            let raw_project_users = match client
-                .list_project_direct_permissions(workspace, &repo.repo_project)
-                .await
-            {
-                Ok(perms) => RawUsersResponse::Ok(perms),
-                Err(ClientError::Unauthorized) => return Err(RunError::CredentialRejected),
-                Err(ClientError::RateLimited) | Err(ClientError::Other(_)) => {
-                    RawUsersResponse::FetchFailed
-                }
-            };
-
-            let raw_project_groups = match client
-                .list_project_group_permissions(workspace, &repo.repo_project)
-                .await
-            {
-                Ok(groups) => {
-                    let mut resolved = Vec::with_capacity(groups.len());
-                    for group in groups {
-                        let members_result = match member_cache.get(&group.group_slug) {
-                            Some(cached) => cached.clone(),
-                            None => {
-                                let result = client
-                                    .list_group_members(workspace, &group.group_slug)
-                                    .await;
-                                member_cache.insert(group.group_slug.clone(), result.clone());
-                                result
-                            }
-                        };
-                        let members = match members_result {
-                            Ok(members) => RawGroupMembersResponse::Ok(members),
-                            Err(ClientError::Unauthorized) => {
-                                return Err(RunError::CredentialRejected)
-                            }
-                            Err(ClientError::RateLimited) | Err(ClientError::Other(_)) => {
-                                RawGroupMembersResponse::FetchFailed
-                            }
-                        };
-                        resolved.push(RawGroupPermission { members, ..group });
-                    }
-                    RawGroupsResponse::Ok(resolved)
-                }
-                Err(ClientError::Unauthorized) => return Err(RunError::CredentialRejected),
-                Err(ClientError::RateLimited) | Err(ClientError::Other(_)) => {
-                    RawGroupsResponse::FetchFailed
-                }
-            };
-
-            let project_status = if matches!(raw_project_users, RawUsersResponse::FetchFailed)
-                || matches!(raw_project_groups, RawGroupsResponse::FetchFailed)
-            {
-                RepoStatus::FetchFailed
-            } else {
-                RepoStatus::Ok
-            };
-            project_statuses.push(ProjectFetchStatus {
-                project_key: repo.repo_project.clone(),
-                status: project_status,
-            });
-
-            project_cache
-                .insert(repo.repo_project.clone(), (raw_project_users, raw_project_groups));
+            let project_result =
+                fetch_project_permissions(client, workspace, &repo.repo_project, &mut member_cache)
+                    .await?;
+            project_statuses.push(project_result.status);
+            project_cache.insert(
+                repo.repo_project.clone(),
+                (project_result.raw_users, project_result.raw_groups),
+            );
         }
 
         let (cached_project_users, cached_project_groups) = project_cache
@@ -198,16 +269,7 @@ pub async fn collect_and_store<C: BitbucketClient>(
         records.append(&mut project_group_records);
         group_membership_statuses.append(&mut project_membership_statuses);
 
-        let status = if direct_status.status == RepoStatus::FetchFailed || group_fetch_failed {
-            RepoStatus::FetchFailed
-        } else {
-            RepoStatus::Ok
-        };
-        repo_statuses.push(RepoFetchStatus {
-            repo_project: repo.repo_project,
-            repo: repo.repo,
-            status,
-        });
+        repo_statuses.push(repo_result.status);
     }
 
     let snapshot = Snapshot { records, repo_statuses };
