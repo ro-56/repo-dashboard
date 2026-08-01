@@ -46,7 +46,7 @@ pub struct PendingEditRequest {
 /// "rate limited" vs. an opaque failure differently) without reusing that type directly —
 /// `ClientError` isn't `Serialize` and belongs to the read-path abstraction, not the wire
 /// contract this command exposes to the frontend.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "message")]
 pub enum ApplyError {
     Unauthorized,
@@ -65,8 +65,10 @@ impl From<ClientError> for ApplyError {
 }
 
 /// One edit's outcome, paired with the request it came from so the frontend can match a result
-/// back to its staged edit without relying on array-order bookkeeping.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// back to its staged edit without relying on array-order bookkeeping. `Deserialize` (PD-70) is
+/// for `refresh_snapshot`, which takes a batch of these back in as its own input — the same
+/// shape `apply_pending_edits` just handed the frontend.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApplyResult {
     pub request: PendingEditRequest,

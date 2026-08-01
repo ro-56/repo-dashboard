@@ -26,11 +26,13 @@
   } from "$lib/filterBar";
   import { emptyStateFor } from "$lib/emptyState";
   import {
+    canRefresh,
     clearEdits,
     confirmRows,
     resultRows,
     settleApplied,
     stageEdit,
+    successfulResults,
     toApplyPayload,
     undoEdit,
     type ApplyResult,
@@ -167,13 +169,20 @@
   let dialogSnapshot = $state<PendingEdits>(new Map());
   let dialogResults = $state<ApplyResult[] | null>(null);
   let dialogError = $state<string | null>(null);
+  // The Snapshot the batch's edits were staged against — `editingEnabled` only allows staging
+  // while `data.comparisonId` is the latest Snapshot, so that's exactly the Snapshot Refresh
+  // must copy from.
+  let dialogSourceSnapshotId = $state<number | null>(null);
+  let refreshing = $state(false);
 
   let dialogRows = $derived(confirmRows(dialogSnapshot));
   let dialogResultRows = $derived(dialogResults ? resultRows(dialogSnapshot, dialogResults) : []);
+  let dialogCanRefresh = $derived(dialogResults !== null && canRefresh(dialogResults));
 
   function openApplyDialog() {
     if (!applyIsEnabled) return;
     dialogSnapshot = new Map(pending);
+    dialogSourceSnapshotId = data.comparisonId;
     dialogPhase = "review";
     dialogResults = null;
     dialogError = null;
@@ -202,6 +211,32 @@
 
   function closeApplyDialog() {
     dialogOpen = false;
+  }
+
+  // Refresh (PD-70): a narrow, Repo-scope-only copy-plus-fetch, offered right in the results
+  // view. On success it clears the remaining Pending edits exactly as a Run does, refreshes the
+  // snapshot list, and auto-selects the new Snapshot as the Comparison (baseline untouched).
+  async function refreshAffected() {
+    if (dialogResults === null || dialogSourceSnapshotId === null) return;
+    refreshing = true;
+    dialogError = null;
+    try {
+      const newSnapshotId = await invoke<number>("refresh_snapshot", {
+        sourceSnapshotId: dialogSourceSnapshotId,
+        results: successfulResults(dialogResults),
+      });
+      dialogOpen = false;
+      pending = clearEdits();
+      const params = new URLSearchParams({
+        baseline: String(data.baselineId),
+        comparison: String(newSnapshotId),
+      });
+      await goto(`?${params.toString()}`, { invalidateAll: true, keepFocus: true, noScroll: true });
+    } catch (err) {
+      dialogError = String(err);
+    } finally {
+      refreshing = false;
+    }
   }
 </script>
 
@@ -273,9 +308,12 @@
   rows={dialogRows}
   resultRows={dialogResultRows}
   errorMessage={dialogError}
+  canRefresh={dialogCanRefresh}
+  {refreshing}
   onConfirm={confirmApply}
   onCancel={cancelApplyDialog}
   onClose={closeApplyDialog}
+  onRefresh={refreshAffected}
 />
 
 <style>

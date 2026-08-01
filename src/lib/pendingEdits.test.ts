@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   applyErrorMessage,
+  canRefresh,
   clearEdits,
   confirmRows,
   editKey,
   resultRows,
   settleApplied,
   stageEdit,
+  successfulResults,
   toApplyPayload,
   undoEdit,
   type ApplyResult,
@@ -250,5 +252,45 @@ describe("resultRows", () => {
     expect(rows[0].principalLabel).toBe("");
     expect(rows[0].fromLevel).toBe("");
     expect(rows[0].ok).toBe(true);
+  });
+});
+
+function repoScopeResult(ok: boolean): ApplyResult {
+  return {
+    request: levelEdit().request,
+    outcome: ok ? { Ok: null } : { Err: { type: "Other", message: "boom" } },
+  };
+}
+
+function projectScopeResult(ok: boolean): ApplyResult {
+  return {
+    request: { ...levelEdit().request, scope: "Project" },
+    outcome: ok ? { Ok: null } : { Err: { type: "Other", message: "boom" } },
+  };
+}
+
+describe("successfulResults", () => {
+  it("keeps only the Ok outcomes", () => {
+    const results = [repoScopeResult(true), repoScopeResult(false)];
+
+    expect(successfulResults(results)).toEqual([results[0]]);
+  });
+});
+
+describe("canRefresh", () => {
+  it("is true for an all-succeeded, all-Repo-scope batch", () => {
+    expect(canRefresh([repoScopeResult(true), repoScopeResult(true)])).toBe(true);
+  });
+
+  it("is false for an all-failed batch", () => {
+    expect(canRefresh([repoScopeResult(false), repoScopeResult(false)])).toBe(false);
+  });
+
+  it("is false for a mixed-scope batch with a successful Project-scope edit", () => {
+    expect(canRefresh([repoScopeResult(true), projectScopeResult(true)])).toBe(false);
+  });
+
+  it("ignores scope on failed results — only successful edits count toward the gate", () => {
+    expect(canRefresh([repoScopeResult(true), projectScopeResult(false)])).toBe(true);
   });
 });

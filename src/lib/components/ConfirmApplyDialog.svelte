@@ -8,18 +8,24 @@
     rows,
     resultRows,
     errorMessage,
+    canRefresh,
+    refreshing,
     onConfirm,
     onCancel,
     onClose,
+    onRefresh,
   }: {
     open: boolean;
     phase: "review" | "applying" | "results";
     rows: ConfirmRow[];
     resultRows: ResultRow[];
     errorMessage: string | null;
+    canRefresh: boolean;
+    refreshing: boolean;
     onConfirm: () => void;
     onCancel: () => void;
     onClose: () => void;
+    onRefresh: () => void;
   } = $props();
 </script>
 
@@ -43,8 +49,16 @@
           {/each}
         </ul>
         <p class="rerun-note">Re-run to see this reflected — a Snapshot never updates itself.</p>
+        {#if errorMessage}
+          <p class="error">{errorMessage}</p>
+        {/if}
         <div class="actions">
-          <button type="button" class="btn btn-primary" onclick={onClose}>Close</button>
+          <button type="button" class="btn btn-ghost" disabled={refreshing} onclick={onClose}>Close</button>
+          {#if canRefresh}
+            <button type="button" class="btn btn-primary" disabled={refreshing} onclick={onRefresh}>
+              {refreshing ? "Refreshing…" : "Refresh affected"}
+            </button>
+          {/if}
         </div>
       {:else}
         <h2 class="title">Apply {rows.length} {rows.length === 1 ? "change" : "changes"}</h2>

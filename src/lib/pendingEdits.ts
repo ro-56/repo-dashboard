@@ -130,6 +130,22 @@ export interface ResultRow extends ConfirmRow {
   errorMessage?: string;
 }
 
+/** The successful subset of a batch's `ApplyResult`s — the only ones Refresh (PD-70) ever
+ * touches, both to decide whether to offer it and to build the exact payload it sends. */
+export function successfulResults(results: ApplyResult[]): ApplyResult[] {
+  return results.filter((result) => "Ok" in result.outcome);
+}
+
+/** Whether "Refresh affected" should be offered for this batch: at least one edit succeeded,
+ * and every successful edit is Repo-scope (this tracer bullet, PD-70, doesn't handle
+ * Project-scope targets yet — a follow-on ticket removes this restriction). An all-failed
+ * batch, or one with any successful Project-scope edit, falls back to the existing re-run
+ * prompt instead. */
+export function canRefresh(results: ApplyResult[]): boolean {
+  const succeeded = successfulResults(results);
+  return succeeded.length > 0 && succeeded.every((result) => result.request.scope === "Repo");
+}
+
 /** The confirm dialog's post-apply results view: one row per `ApplyResult`, re-attaching the
  * display context (principal label, before-level) from the snapshot of `pending` the batch was
  * built from, since the wire-level `ApplyResult` only carries what `apply_pending_edits` itself

@@ -5,6 +5,7 @@ pub mod credentials;
 pub mod diff;
 pub mod model;
 pub mod normalize;
+pub mod refresh;
 pub mod roster;
 pub mod storage;
 
@@ -14,6 +15,7 @@ use apply::{ApplyResult, PendingEditRequest};
 use client::RealBitbucketClient;
 use collect::{collect_and_store, RunError};
 use credentials::{Credentials, CredentialsState};
+use refresh::RefreshError;
 
 /// A `tokio::sync::Mutex`, not `std::sync::Mutex` — `run_now` holds this guard across
 /// `.await` points inside `collect_and_store`, and only an async-aware guard is `Send`.
@@ -120,6 +122,29 @@ async fn apply_pending_edits(
     Ok(apply::apply_pending_edits(&client, &creds.workspace, edits).await)
 }
 
+/// Thin wrapper around `refresh::refresh_and_store` — all meaningful logic lives there and is
+/// covered by `cargo test`; this command only wires managed state to it and stringifies the
+/// error for the frontend.
+#[tauri::command]
+async fn refresh_snapshot(
+    credentials: tauri::State<'_, CredentialsState>,
+    db: tauri::State<'_, DbState>,
+    source_snapshot_id: i64,
+    results: Vec<ApplyResult>,
+) -> Result<i64, String> {
+    let creds = credentials.0.get()?.ok_or_else(|| "no credentials set".to_string())?;
+    let client = RealBitbucketClient::new(creds.username, creds.app_password);
+    let run_at = chrono::Utc::now().to_rfc3339();
+
+    let mut conn = db.0.lock().await;
+    refresh::refresh_and_store(&client, &mut conn, &creds.workspace, source_snapshot_id, &run_at, &results)
+        .await
+        .map_err(|e| match e {
+            RefreshError::CredentialRejected => "credential rejected".to_string(),
+            RefreshError::StorageFailed(msg) => format!("could not save refresh: {msg}"),
+        })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -140,7 +165,8 @@ pub fn run() {
             list_snapshots,
             get_roster_tree,
             delete_snapshot,
-            apply_pending_edits
+            apply_pending_edits,
+            refresh_snapshot
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
