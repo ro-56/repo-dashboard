@@ -183,7 +183,7 @@ export function rowMenu(entry: PrincipalEntry, staged: StagedEdit | undefined, c
   };
 }
 
-function levelWord(permission: Permission): string {
+export function levelWord(permission: Permission): string {
   return permission === "CreateRepo" ? "create-repo" : permission.toLowerCase();
 }
 

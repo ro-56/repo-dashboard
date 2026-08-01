@@ -1,8 +1,13 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { save } from "@tauri-apps/plugin-dialog";
+  import { writeTextFile } from "@tauri-apps/plugin-fs";
   import { SvelteSet } from "svelte/reactivity";
   import { goto } from "$app/navigation";
   import type { PageData } from "./$types";
+  import type { RosterTreeResult } from "$lib/roster";
+  import type { CredentialsSummary } from "$lib/credentials";
+  import { exportFilename, rosterToCsv } from "$lib/rosterExport";
   import HeadBar from "$lib/components/HeadBar.svelte";
   import FilterBar from "$lib/components/FilterBar.svelte";
   import EmptyState from "$lib/components/EmptyState.svelte";
@@ -238,6 +243,28 @@
       refreshing = false;
     }
   }
+
+  // Export (PD-72/PD-74): always the Comparison Snapshot alone, diff-free and unfiltered —
+  // fetched fresh via get_roster_tree(comparisonId, comparisonId) rather than reusing data.tree,
+  // since the dashboard's own tree is diffed against whatever Baseline is currently selected.
+  async function handleExport() {
+    const comparisonSnapshot = data.snapshots.find((s) => s.id === data.comparisonId);
+    if (!comparisonSnapshot) return;
+
+    const [result, credentials] = await Promise.all([
+      invoke<RosterTreeResult>("get_roster_tree", {
+        snapshotAId: data.comparisonId,
+        snapshotBId: data.comparisonId,
+      }),
+      invoke<CredentialsSummary>("get_credentials"),
+    ]);
+
+    const filename = exportFilename(credentials.workspace ?? "workspace", comparisonSnapshot.runAt);
+    const path = await save({ defaultPath: filename, filters: [{ name: "CSV", extensions: ["csv"] }] });
+    if (!path) return;
+
+    await writeTextFile(path, rosterToCsv(result.tree, comparisonSnapshot.runAt));
+  }
 </script>
 
 <main class="dashboard">
@@ -256,6 +283,7 @@
     {pendingCount}
     canApply={applyIsEnabled}
     onApplyClick={openApplyDialog}
+    onExportClick={handleExport}
   />
   {#if data.snapshots.length === 0}
     <div class="canvas">
