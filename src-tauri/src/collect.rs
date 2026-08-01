@@ -189,6 +189,17 @@ pub async fn fetch_project_permissions<C: BitbucketClient>(
     })
 }
 
+/// One tick of live per-repo progress for a Run, reported via the `progress` callback injected
+/// into `collect_and_store` (ADR-0013). `index` is 1-indexed; `total` is the repo count from
+/// discovery and is unchanged across every call in a Run.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunProgress {
+    pub index: u32,
+    pub total: u32,
+    pub repo: String,
+}
+
 /// A Discovery failure (glossary, `CONTEXT.md`) aborts before any Snapshot row exists.
 /// `CredentialRejected` covers a 401 at any point in the Run — discovery or a later call —
 /// since the credential is dead workspace-wide, not scoped to one call.
@@ -209,6 +220,7 @@ pub async fn collect_and_store<C: BitbucketClient>(
     conn: &mut Connection,
     workspace: &str,
     run_at: &str,
+    progress: &mut impl FnMut(RunProgress),
 ) -> Result<i64, RunError> {
     let repos = client
         .list_repositories(workspace)
@@ -220,6 +232,7 @@ pub async fn collect_and_store<C: BitbucketClient>(
             }
             ClientError::Other(msg) => RunError::DiscoveryFailed(msg),
         })?;
+    let total = repos.len() as u32;
 
     let mut records: Vec<PermissionRecord> = Vec::new();
     let mut repo_statuses: Vec<RepoFetchStatus> = Vec::new();
@@ -235,7 +248,9 @@ pub async fn collect_and_store<C: BitbucketClient>(
     // `list_project_group_permissions` call (PD-29), mirroring `member_cache` above.
     let mut project_cache: HashMap<String, (RawUsersResponse, RawGroupsResponse)> = HashMap::new();
 
-    for repo in repos {
+    for (i, repo) in repos.into_iter().enumerate() {
+        progress(RunProgress { index: i as u32 + 1, total, repo: repo.repo.clone() });
+
         let repo_result = fetch_repo_permissions(client, workspace, &repo, &mut member_cache).await?;
         records.extend(repo_result.records);
         group_membership_statuses.extend(repo_result.membership_statuses);
@@ -598,7 +613,7 @@ mod tests {
         .with_direct_permissions("repo-b", Ok(vec![user("acct-2", "Grace", "read")]));
 
         let mut conn = open_conn();
-        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {})
             .await
             .unwrap();
 
@@ -619,7 +634,7 @@ mod tests {
         .with_direct_permissions("repo-b", Ok(vec![user("acct-2", "Grace", "read")]));
 
         let mut conn = open_conn();
-        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {})
             .await
             .unwrap();
 
@@ -645,7 +660,7 @@ mod tests {
             );
 
         let mut conn = open_conn();
-        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {})
             .await
             .unwrap();
 
@@ -671,7 +686,7 @@ mod tests {
             .with_group_permissions("repo-a", Ok(vec![]));
 
         let mut conn = open_conn();
-        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {})
             .await
             .unwrap();
 
@@ -687,7 +702,7 @@ mod tests {
             .with_group_permissions("repo-a", Err(ClientError::Other("boom".to_string())));
 
         let mut conn = open_conn();
-        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {})
             .await
             .unwrap();
 
@@ -703,7 +718,7 @@ mod tests {
         let client = FakeBitbucketClient::new(Err(ClientError::Unauthorized));
 
         let mut conn = open_conn();
-        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z").await;
+        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {}).await;
 
         assert_eq!(result, Err(RunError::CredentialRejected));
         assert_eq!(snapshot_count(&conn), 0);
@@ -719,7 +734,7 @@ mod tests {
         .with_direct_permissions("repo-b", Err(ClientError::Unauthorized));
 
         let mut conn = open_conn();
-        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z").await;
+        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {}).await;
 
         assert_eq!(result, Err(RunError::CredentialRejected));
         assert_eq!(snapshot_count(&conn), 0);
@@ -735,7 +750,7 @@ mod tests {
         .with_group_permissions("repo-b", Err(ClientError::Unauthorized));
 
         let mut conn = open_conn();
-        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z").await;
+        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {}).await;
 
         assert_eq!(result, Err(RunError::CredentialRejected));
         assert_eq!(snapshot_count(&conn), 0);
@@ -746,7 +761,7 @@ mod tests {
         let client = FakeBitbucketClient::new(Err(ClientError::Other("network error".to_string())));
 
         let mut conn = open_conn();
-        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z").await;
+        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {}).await;
 
         assert!(matches!(result, Err(RunError::DiscoveryFailed(_))));
         assert_eq!(snapshot_count(&conn), 0);
@@ -757,7 +772,7 @@ mod tests {
         let client = FakeBitbucketClient::new(Ok(vec![]));
 
         let mut conn = open_conn();
-        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {})
             .await
             .unwrap();
 
@@ -779,7 +794,7 @@ mod tests {
             );
 
         let mut conn = open_conn();
-        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {})
             .await
             .unwrap();
 
@@ -811,7 +826,7 @@ mod tests {
             .with_group_members("empty-group", Ok(vec![]));
 
         let mut conn = open_conn();
-        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {})
             .await
             .unwrap();
 
@@ -837,7 +852,7 @@ mod tests {
             .with_group_members("locked-group", Err(ClientError::Other("boom".to_string())));
 
         let mut conn = open_conn();
-        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {})
             .await
             .unwrap();
 
@@ -873,7 +888,7 @@ mod tests {
         .with_group_members("platform-eng", Ok(vec![member("acct-1", "Ada")]));
 
         let mut conn = open_conn();
-        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {})
             .await
             .unwrap();
 
@@ -898,7 +913,7 @@ mod tests {
             .with_group_members("locked-group", Err(ClientError::Unauthorized));
 
         let mut conn = open_conn();
-        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z").await;
+        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {}).await;
 
         assert_eq!(result, Err(RunError::CredentialRejected));
         assert_eq!(snapshot_count(&conn), 0);
@@ -915,7 +930,7 @@ mod tests {
             .with_group_members("platform-eng", Ok(vec![member("acct-2", "Grace")]));
 
         let mut conn = open_conn();
-        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {})
             .await
             .unwrap();
 
@@ -944,7 +959,7 @@ mod tests {
             .with_project_direct_permissions("TEAM", Ok(vec![user("acct-9", "Static", "create-repo")]));
 
         let mut conn = open_conn();
-        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {})
             .await
             .expect("a create-repo grant must not crash the Run");
 
@@ -966,7 +981,7 @@ mod tests {
             .with_project_direct_permissions("TEAM", Ok(vec![user("acct-9", "Static", "read")]));
 
         let mut conn = open_conn();
-        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {})
             .await
             .unwrap();
 
@@ -994,7 +1009,7 @@ mod tests {
         .with_project_direct_permissions("TEAM", Ok(vec![user("acct-9", "Static", "read")]));
 
         let mut conn = open_conn();
-        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {})
             .await
             .unwrap();
 
@@ -1028,7 +1043,7 @@ mod tests {
             .with_group_members("platform-eng", Ok(vec![member("acct-1", "Ada")]));
 
         let mut conn = open_conn();
-        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {})
             .await
             .unwrap();
 
@@ -1056,7 +1071,7 @@ mod tests {
         .with_direct_permissions("repo-a", Ok(vec![user("acct-1", "Ada", "admin")]));
 
         let mut conn = open_conn();
-        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {})
             .await
             .unwrap();
 
@@ -1091,7 +1106,7 @@ mod tests {
             .with_project_direct_permissions("TEAM", Err(ClientError::Unauthorized));
 
         let mut conn = open_conn();
-        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z").await;
+        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {}).await;
 
         assert_eq!(result, Err(RunError::CredentialRejected));
         assert_eq!(snapshot_count(&conn), 0);
@@ -1103,7 +1118,7 @@ mod tests {
             .with_project_group_permissions("TEAM", Err(ClientError::Unauthorized));
 
         let mut conn = open_conn();
-        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z").await;
+        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {}).await;
 
         assert_eq!(result, Err(RunError::CredentialRejected));
         assert_eq!(snapshot_count(&conn), 0);
@@ -1119,7 +1134,7 @@ mod tests {
             .with_group_members("locked-group", Err(ClientError::Unauthorized));
 
         let mut conn = open_conn();
-        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z").await;
+        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {}).await;
 
         assert_eq!(result, Err(RunError::CredentialRejected));
         assert_eq!(snapshot_count(&conn), 0);
@@ -1137,7 +1152,7 @@ mod tests {
         .with_direct_permissions("repo-c", Ok(vec![user("acct-1", "Ada", "admin")]));
 
         let mut conn = open_conn();
-        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {})
             .await
             .unwrap();
 
@@ -1177,7 +1192,7 @@ mod tests {
             .with_direct_permissions("repo-a", Ok(vec![user("acct-1", "Ada", "admin")]));
 
         let mut conn = open_conn();
-        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z")
+        let snapshot_id = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {})
             .await
             .expect("collect_and_store should succeed against a fresh db");
 
@@ -1213,7 +1228,7 @@ mod tests {
         conn.execute("DROP TABLE project_fetch_statuses", []).unwrap();
         let mut conn = conn;
 
-        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z").await;
+        let result = collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {}).await;
         assert!(result.is_err(), "expected the run to report failure");
 
         let snapshots = crate::storage::list_snapshots(&conn).unwrap();
@@ -1221,6 +1236,118 @@ mod tests {
             snapshots.len(),
             0,
             "a failed Run must never leave a partially-committed Snapshot behind"
+        );
+    }
+
+    #[tokio::test]
+    async fn progress_is_reported_once_per_repo_in_order_before_that_repos_fetches() {
+        let client = FakeBitbucketClient::new(Ok(vec![
+            repo("TEAM", "repo-a"),
+            repo("TEAM", "repo-b"),
+            repo("TEAM", "repo-c"),
+        ]));
+
+        let mut conn = open_conn();
+        let mut seen = Vec::new();
+        collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |p| seen.push(p))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            seen,
+            vec![
+                RunProgress { index: 1, total: 3, repo: "repo-a".to_string() },
+                RunProgress { index: 2, total: 3, repo: "repo-b".to_string() },
+                RunProgress { index: 3, total: 3, repo: "repo-c".to_string() },
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_repos_first_time_project_fetch_is_folded_into_that_repos_single_progress_tick() {
+        // repo-a and repo-b share Project "TEAM"; the Project is only fetched once, on
+        // repo-a's turn (PD-29's project_cache), but that must never produce its own event.
+        let client = FakeBitbucketClient::new(Ok(vec![
+            repo("TEAM", "repo-a"),
+            repo("TEAM", "repo-b"),
+        ]))
+        .with_project_direct_permissions("TEAM", Ok(vec![user("acct-9", "Static", "read")]));
+
+        let mut conn = open_conn();
+        let mut seen = Vec::new();
+        collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |p| seen.push(p))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            seen,
+            vec![
+                RunProgress { index: 1, total: 2, repo: "repo-a".to_string() },
+                RunProgress { index: 2, total: 2, repo: "repo-b".to_string() },
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn discovery_failure_produces_no_progress_calls() {
+        let client = FakeBitbucketClient::new(Err(ClientError::Other("network error".to_string())));
+
+        let mut conn = open_conn();
+        let mut seen = Vec::new();
+        let result =
+            collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |p| seen.push(p))
+                .await;
+
+        assert!(matches!(result, Err(RunError::DiscoveryFailed(_))));
+        assert!(seen.is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_repo_level_fetch_failed_does_not_alter_that_repos_progress_call_and_the_run_continues(
+    ) {
+        let client = FakeBitbucketClient::new(Ok(vec![
+            repo("TEAM", "repo-a"),
+            repo("TEAM", "repo-b"),
+        ]))
+        .with_direct_permissions("repo-a", Err(ClientError::Other("boom".to_string())));
+
+        let mut conn = open_conn();
+        let mut seen = Vec::new();
+        collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |p| seen.push(p))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            seen,
+            vec![
+                RunProgress { index: 1, total: 2, repo: "repo-a".to_string() },
+                RunProgress { index: 2, total: 2, repo: "repo-b".to_string() },
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn credential_rejected_mid_run_produces_no_further_progress_calls_after_the_failure() {
+        let client = FakeBitbucketClient::new(Ok(vec![
+            repo("TEAM", "repo-a"),
+            repo("TEAM", "repo-b"),
+            repo("TEAM", "repo-c"),
+        ]))
+        .with_direct_permissions("repo-b", Err(ClientError::Unauthorized));
+
+        let mut conn = open_conn();
+        let mut seen = Vec::new();
+        let result =
+            collect_and_store(&client, &mut conn, "ws", "2026-01-01T00:00:00Z", &mut |p| seen.push(p))
+                .await;
+
+        assert_eq!(result, Err(RunError::CredentialRejected));
+        assert_eq!(
+            seen,
+            vec![
+                RunProgress { index: 1, total: 3, repo: "repo-a".to_string() },
+                RunProgress { index: 2, total: 3, repo: "repo-b".to_string() },
+            ]
         );
     }
 }

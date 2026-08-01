@@ -9,7 +9,7 @@ pub mod refresh;
 pub mod roster;
 pub mod storage;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 use apply::{ApplyResult, PendingEditRequest};
 use client::RealBitbucketClient;
@@ -60,6 +60,7 @@ fn get_credentials(state: tauri::State<CredentialsState>) -> Result<CredentialsS
 /// the frontend.
 #[tauri::command]
 async fn run_now(
+    app_handle: tauri::AppHandle,
     credentials: tauri::State<'_, CredentialsState>,
     db: tauri::State<'_, DbState>,
 ) -> Result<i64, String> {
@@ -69,7 +70,9 @@ async fn run_now(
     let run_at = chrono::Utc::now().to_rfc3339();
 
     let mut conn = db.0.lock().await;
-    collect_and_store(&client, &mut conn, &creds.workspace, &run_at)
+    collect_and_store(&client, &mut conn, &creds.workspace, &run_at, &mut |progress| {
+        let _ = app_handle.emit("run-progress", progress);
+    })
         .await
         .map_err(|e| match e {
             RunError::CredentialRejected => "credential rejected".to_string(),

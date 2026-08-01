@@ -543,7 +543,7 @@ mod tests {
     }
 
     async fn build_source_snapshot(client: &FakeBitbucketClient, conn: &mut Connection) -> i64 {
-        collect_and_store(client, conn, "ws", "2026-01-01T00:00:00Z").await.unwrap()
+        collect_and_store(client, conn, "ws", "2026-01-01T00:00:00Z", &mut |_| {}).await.unwrap()
     }
 
     #[tokio::test]
