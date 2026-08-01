@@ -15,4 +15,7 @@
     height: 100%;
     margin: 0;
   }
+  :global(body) {
+    background: var(--canvas);
+  }
 </style>

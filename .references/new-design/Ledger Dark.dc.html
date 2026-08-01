@@ -7,7 +7,7 @@
 </head>
 <body>
 <x-dc>
-<helmet data-dc-atomics=""><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"><style>body{margin:0;background:#101315;font-family:"IBM Plex Sans",system-ui,sans-serif}a{color:#eef2f4}a:hover{color:#b3a4ff}</style></helmet>
+<helmet data-dc-atomics=""><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"><style>body{margin:0;background:#101315;font-family:"IBM Plex Sans",system-ui,sans-serif}a{color:#eef2f4}a:hover{color:#b3a4ff}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style></helmet>
       <div style="width:100vw;height:100vh;min-width:1180px;overflow:hidden;background:#15181b;display:flex;flex-direction:column">
 
         <header style="display:flex;align-items:center;gap:22px;height:56px;flex:none;padding:0 18px;border-bottom:1px solid #2b3136;background:#191d21">
@@ -46,6 +46,9 @@
             <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#98a2a9">57 live · 12 changed · 59 rows</span>
             <span style="display:inline-flex;align-items:center;height:30px;padding:0 11px;border:1px solid #2f363b;border-radius:8px;background:#1e2327;font-weight:500;font-size:12.5px;color:#b6bfc6;cursor:pointer">Collapse all</span>
             <span style="display:inline-flex;align-items:center;height:30px;padding:0 11px;border:1px solid #2f363b;border-radius:8px;background:#1e2327;font-weight:500;font-size:12.5px;color:#b6bfc6;cursor:pointer">Reset</span>
+            <span style="display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px;border-radius:8px;background:#f4f6f7;font-weight:600;font-size:12.5px;color:#14181c;cursor:pointer">
+              <span style="font-size:12px">⇩</span>Export audit
+            </span>
           </div>
         </div>
 
@@ -65,6 +68,12 @@
                   <sc-for list="{{ project.chips }}" as="chip" hint-placeholder-count="2">
                     <span style="display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;background:{{ chip.bg }};color:{{ chip.ink }};font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:11.5px">{{ chip.label }}</span>
                   </sc-for>
+                </span>
+                <span style="display:flex;align-items:center;gap:5px">
+                  <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;color:{{ project.syncInk }};font-size:13px;cursor:pointer;animation:{{ project.syncSpin }}" style-hover="background:#23282d" onClick="{{ project.startSync }}" title="Sync this project">⟳</span>
+                  <sc-if value="{{ project.syncedLabel }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size:10.5px;font-weight:600;color:{{ project.syncedInk }}">{{ project.syncedLabel }}</span>
+                  </sc-if>
                 </span>
               </header>
               <div style="display:flex;flex-direction:column;gap:8px">
@@ -88,6 +97,12 @@
                         <sc-for list="{{ repo.tags }}" as="tag" hint-placeholder-count="0">
                           <span style="display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;border:1px solid {{ tag.border }};background:{{ tag.bg }};color:{{ tag.ink }};font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap">{{ tag.label }}</span>
                         </sc-for>
+                        <span style="display:flex;align-items:center;gap:5px">
+                          <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:5px;color:{{ repo.syncInk }};font-size:12px;cursor:pointer;animation:{{ repo.syncSpin }}" style-hover="background:#23282d" onClick="{{ repo.startSync }}" title="Sync this repo">⟳</span>
+                          <sc-if value="{{ repo.syncedLabel }}" hint-placeholder-val="{{ false }}">
+                            <span style="font-size:10px;font-weight:600;color:{{ repo.syncedInk }}">{{ repo.syncedLabel }}</span>
+                          </sc-if>
+                        </span>
                       </span>
                     </div>
                     <sc-if value="{{ repo.open }}" hint-placeholder-val="{{ true }}">
@@ -428,10 +443,17 @@ function build(T, ctx) {
       pb.added += b.added; pb.removed += b.removed; pb.modified += b.modified; pb.esc += b.esc;
       grantsTotal += repo.a + repo.w + repo.r;
     }
+    const projSyncKey = "project::" + project.name;
     return {
       name: project.name,
       meta: project.repos.length + " repositories · " + grantsTotal + " grants",
       chips: chips(pb, T),
+      syncing: !!ctx.syncing[projSyncKey],
+      syncSpin: ctx.syncing[projSyncKey] ? "spin 700ms linear infinite" : "none",
+      syncInk: ctx.syncing[projSyncKey] ? T.chg.ink : T.neutral.ink,
+      syncedInk: T.add.ink,
+      syncedLabel: ctx.syncedAt[projSyncKey] ? "✓ synced" : "",
+      startSync: () => ctx.startSync(projSyncKey, { type: "project", project: project.name }),
       repos: project.repos.map((repo) => {
         const b = breakdown(repo);
         const open = b.added + b.removed + b.modified > 0;
@@ -439,8 +461,15 @@ function build(T, ctx) {
         const tags = [];
         if (repo.gone) tags.push({ label: "absent from run 12", bg: T.rem.bg, border: T.rem.border, ink: T.rem.ink });
         else if (repo.failed) tags.push({ label: "fetch failed", bg: T.neutral.bg, border: T.neutral.border, ink: T.neutral.ink });
+        const repoSyncKey = "repo::" + project.name + "::" + repo.repo;
         return {
           pathPrefix: project.name.toLowerCase() + "/",
+          syncing: !!ctx.syncing[repoSyncKey],
+          syncSpin: ctx.syncing[repoSyncKey] ? "spin 700ms linear infinite" : "none",
+          syncInk: ctx.syncing[repoSyncKey] ? T.chg.ink : T.neutral.ink,
+          syncedInk: T.add.ink,
+          syncedLabel: ctx.syncedAt[repoSyncKey] ? "✓ synced" : "",
+          startSync: () => ctx.startSync(repoSyncKey, { type: "repo", project: project.name, repo: repo.repo }),
           name: repo.repo,
           caret: open ? "▼" : "▶",
           open,
@@ -475,6 +504,7 @@ class Component extends DCLogic {
     openRowId: null, pending: {},
     drawerOpen: false, credEditing: false, running: false,
     pendingDeleteId: null, deletedIds: [], theme: "dark",
+    syncing: {}, syncedAt: {},
   };
 
   toggleMenu = (rowId) => this.setState((s) => ({ openRowId: s.openRowId === rowId ? null : rowId }));
@@ -485,6 +515,23 @@ class Component extends DCLogic {
   });
   doRemove = (key) => this.setState((s) => ({ pending: { ...s.pending, [key]: { type: "remove" } }, openRowId: null }));
   undo = (key) => this.setState((s) => { const pending = { ...s.pending }; delete pending[key]; return { pending }; });
+
+  startSync = (key, scope) => {
+    if (this.state.syncing[key]) return;
+    this.setState((s) => ({ syncing: { ...s.syncing, [key]: true } }));
+    setTimeout(() => {
+      this.setState((s) => {
+        const pending = { ...s.pending };
+        const prefixes = scope.type === "project"
+          ? ["proj::" + scope.project + "::", scope.project + "::"]
+          : [scope.project + "::" + scope.repo + "::"];
+        Object.keys(pending).forEach((pk) => { if (prefixes.some((p) => pk.startsWith(p))) delete pending[pk]; });
+        const syncing = { ...s.syncing };
+        delete syncing[key];
+        return { pending, syncing, syncedAt: { ...s.syncedAt, [key]: true } };
+      });
+    }, 900);
+  };
 
   toggleDrawer = () => this.setState((s) => ({ drawerOpen: !s.drawerOpen }));
   startCredsEdit = () => this.setState({ credEditing: true });
@@ -501,7 +548,7 @@ class Component extends DCLogic {
   setTheme = (theme) => this.setState({ theme });
 
   renderVals() {
-    const ctx = { openRowId: this.state.openRowId, pending: this.state.pending, toggleMenu: this.toggleMenu, setLevel: this.setLevel, doRemove: this.doRemove, undo: this.undo };
+    const ctx = { openRowId: this.state.openRowId, pending: this.state.pending, toggleMenu: this.toggleMenu, setLevel: this.setLevel, doRemove: this.doRemove, undo: this.undo, syncing: this.state.syncing, syncedAt: this.state.syncedAt, startSync: this.startSync };
     const activePillShadow = "0 1px 2px rgba(0,0,0,.4)";
     return {
       optC: build(DARK, ctx),

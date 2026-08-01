@@ -258,7 +258,9 @@
     onApplyClick={openApplyDialog}
   />
   {#if data.snapshots.length === 0}
-    <p class="empty-note">No runs recorded yet — open the settings drawer to connect Bitbucket credentials.</p>
+    <div class="canvas">
+      <p class="empty-note">No runs recorded yet — open the settings drawer to connect Bitbucket credentials.</p>
+    </div>
   {:else}
     <FilterBar
       {viewMode}

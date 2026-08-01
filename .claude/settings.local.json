@@ -17,5 +17,17 @@
       "Bash(git commit *)",
       "Bash(python3 *)"
     ]
+  },
+  "skillOverrides": {
+    "grill-with-docs": "user-invocable-only",
+    "implement": "user-invocable-only",
+    "to-spec": "user-invocable-only",
+    "to-ticket": "user-invocable-only",
+    "handoff": "user-invocable-only",
+    "wayfindes": "user-invocable-only",
+    "git-commit": "off",
+    "to-issues": "off",
+    "to-prd": "off",
+    "write-a-skill": "off"
   }
 }
