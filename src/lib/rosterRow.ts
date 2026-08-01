@@ -2,6 +2,7 @@
 // Pure functions only — markup and colour live in RosterRow.svelte's scoped styles,
 // keyed off the `state`/`levelClass` strings returned here, not inline style strings.
 
+import type { EditableLevel, EditTarget, StagedEdit } from "./pendingEdits";
 import type { AccessType, GrantScope, Permission, PrincipalEntry } from "./roster";
 
 export type RowState = "same" | "added" | "removed" | "modified";
@@ -70,7 +71,25 @@ export function sortedPrincipals(entries: PrincipalEntry[]): PrincipalEntry[] {
 
 export interface RosterRowTag {
   label: string;
-  kind: "esc" | "unresolved";
+  kind: "esc" | "unresolved" | "pending-level" | "pending-remove";
+}
+
+/** A staged edit's effect on how a row displays, decoupled from `StagedEdit`'s wire shape so
+ * `deriveRow` only ever reasons about display-relevant fields. */
+export interface PendingRowView {
+  kind: "level" | "remove";
+  beforeLevel: Permission;
+  afterLevel?: Permission;
+}
+
+/** Adapts a `pendingEdits.ts` `StagedEdit` into `deriveRow`'s pending-display input. `undefined`
+ * in, `undefined` out — a row with nothing staged renders exactly as before this feature. */
+export function pendingRowView(staged: StagedEdit | undefined): PendingRowView | undefined {
+  if (!staged) return undefined;
+  if (staged.request.action.type === "SetLevel") {
+    return { kind: "level", beforeLevel: staged.beforeLevel, afterLevel: staged.request.action.level };
+  }
+  return { kind: "remove", beforeLevel: staged.beforeLevel };
 }
 
 export interface RosterRowView {
@@ -86,15 +105,53 @@ export interface RosterRowView {
   tags: RosterRowTag[];
 }
 
+const EDITABLE_LEVELS: EditableLevel[] = ["Read", "Write", "Admin"];
+
+/** The edit target a row's menu would stage against, or `null` when this entry can't be edited
+ * at all — Group grants, Project-scope grants, and Member rows all get no menu in this ticket
+ * (PD-60; PD-61/PD-62 extend this same shape to Group and Project scope). */
+export function editTargetForEntry(entry: PrincipalEntry): EditTarget | null {
+  if (entry.accessType.type !== "Direct" || entry.scope !== "Repo") return null;
+  return { type: "Direct", id: entry.principal.id };
+}
+
+export interface LevelMenuOption {
+  level: EditableLevel;
+  active: boolean;
+}
+
+export interface RowMenu {
+  levelOptions: LevelMenuOption[];
+  effectiveLevel: EditableLevel;
+}
+
+/** Builds the row menu's Read/Write/Admin options, highlighting whichever level is already
+ * staged (if any) rather than the row's true current level — matching the reference design's
+ * `effLevel`, so reopening the menu after staging a change shows the choice just made. Returns
+ * `null` for anything `editTargetForEntry` won't produce a target for. */
+export function rowMenu(entry: PrincipalEntry, staged: StagedEdit | undefined): RowMenu | null {
+  if (!editTargetForEntry(entry)) return null;
+  const effectiveLevel: EditableLevel =
+    staged?.request.action.type === "SetLevel" ? staged.request.action.level : (adminLight(entry.permission) as EditableLevel);
+  return {
+    levelOptions: EDITABLE_LEVELS.map((level) => ({ level, active: level === effectiveLevel })),
+    effectiveLevel,
+  };
+}
+
 function levelWord(permission: Permission): string {
   return permission === "CreateRepo" ? "create-repo" : permission.toLowerCase();
 }
 
-export function deriveRow(entry: PrincipalEntry): RosterRowView {
+export function deriveRow(entry: PrincipalEntry, pending?: PendingRowView): RosterRowView {
   const status = entry.diffStatus;
-  const levelClass = LEVEL_CLASS[adminLight(entry.permission)];
+  // A pending level-change previews its target level immediately (matching the reference
+  // design's `effLevel`) — the meter/level-word reflect what Apply would set, not what's
+  // currently live, since that's the whole point of showing it as "pending".
+  const effPermission = pending?.kind === "level" && pending.afterLevel !== undefined ? pending.afterLevel : entry.permission;
+  const levelClass = LEVEL_CLASS[adminLight(effPermission)];
   const base = {
-    levelWord: levelWord(entry.permission),
+    levelWord: levelWord(effPermission),
     levelClass,
   };
 
@@ -160,6 +217,29 @@ export function deriveRow(entry: PrincipalEntry): RosterRowView {
   // Member rows beneath it, since an unresolved group derives none.
   if (isUnresolvedGroup(entry)) {
     view.tags = [...view.tags, { label: "members unresolved", kind: "unresolved" }];
+  }
+
+  // A staged edit overrides whatever the diff engine says (ADR-0022: pending state previews
+  // what Apply would do, taking precedence over the read-only comparison view) — but existing
+  // tags (escalation, unresolved) stay, with the pending tag prepended ahead of them.
+  if (pending) {
+    if (pending.kind === "level") {
+      view.state = "modified";
+      view.sigil = "~";
+      view.struck = false;
+      view.showTransition = true;
+      view.from = levelWord(pending.beforeLevel);
+      view.to = base.levelWord;
+      view.tags = [{ label: "pending · unsaved", kind: "pending-level" }, ...view.tags];
+    } else {
+      view.state = "modified";
+      view.sigil = "−";
+      view.struck = true;
+      view.showTransition = true;
+      view.from = levelWord(pending.beforeLevel);
+      view.to = "removed";
+      view.tags = [{ label: "pending removal", kind: "pending-remove" }, ...view.tags];
+    }
   }
 
   return view;

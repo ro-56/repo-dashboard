@@ -11,6 +11,7 @@
     repoTags,
   } from "$lib/repoCard";
   import type { ViewMode } from "$lib/filterBar";
+  import type { PendingEdits, StagedEdit } from "$lib/pendingEdits";
   import CountBadges from "./CountBadges.svelte";
   import RosterRow from "./RosterRow.svelte";
 
@@ -21,6 +22,10 @@
     viewMode,
     toggled,
     onToggle,
+    pending,
+    editingEnabled,
+    onStage,
+    onUndo,
   }: {
     repo: RepoNode;
     comparisonId: number;
@@ -28,6 +33,10 @@
     viewMode: ViewMode;
     toggled: boolean;
     onToggle: () => void;
+    pending: PendingEdits;
+    editingEnabled: boolean;
+    onStage: (edit: StagedEdit) => void;
+    onUndo: (key: string) => void;
   } = $props();
 
   // `toggled` records whether the user has clicked this card away from its computed default;
@@ -85,7 +94,15 @@
   {#if open}
     <div class="roster">
       {#each roster as entry (principalEntryKey(entry))}
-        <RosterRow {entry} />
+        <RosterRow
+          {entry}
+          repoProject={repo.repoProject}
+          repo={repo.repo}
+          {pending}
+          {editingEnabled}
+          {onStage}
+          {onUndo}
+        />
       {/each}
     </div>
   {/if}

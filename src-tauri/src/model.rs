@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Anything that can hold a permission grant on a repository. `id` is the stable identity
 /// (Bitbucket `account_id` for a user; a group's slug for a `Group` grant) — `label` is a
@@ -25,7 +25,7 @@ pub enum AccessType {
 /// `Read < Write < CreateRepo < Admin`, matching Bitbucket's real Project hierarchy
 /// (`Admin ⊃ Create ⊃ Write ⊃ Read`). `CreateRepo` is Project-scope only, but that's a
 /// `GrantScope` fact, not something this type enforces (ADR-0024).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Permission {
     Read,
     Write,
@@ -37,7 +37,7 @@ pub enum Permission {
 /// cascades to every repo under that Project). Orthogonal to `AccessType` (ADR-0012) — "who
 /// holds the grant" and "where it lives" are independent, composable questions, not fused into
 /// one enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum GrantScope {
     Repo,
     Project,
@@ -64,6 +64,19 @@ impl Permission {
         match self {
             Permission::CreateRepo => Permission::Admin,
             other => other,
+        }
+    }
+
+    /// The reverse of `parse` — Bitbucket's own lowercase/hyphenated wire values, used to build
+    /// the JSON body of a permissions-config write. `apply.rs` never sends `CreateRepo` in
+    /// practice (ADR-0021 keeps the level picker to Read/Write/Admin), but the mapping stays
+    /// total rather than partial so this function can't panic on a value `parse` accepts.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Permission::Read => "read",
+            Permission::Write => "write",
+            Permission::CreateRepo => "create-repo",
+            Permission::Admin => "admin",
         }
     }
 }
@@ -138,6 +151,13 @@ mod tests {
     fn parse_returns_none_for_a_nonsense_string() {
         assert_eq!(Permission::parse("superadmin"), None);
         assert_eq!(Permission::parse(""), None);
+    }
+
+    #[test]
+    fn as_str_round_trips_through_parse() {
+        for p in [Permission::Read, Permission::Write, Permission::CreateRepo, Permission::Admin] {
+            assert_eq!(Permission::parse(p.as_str()), Some(p));
+        }
     }
 
     #[test]

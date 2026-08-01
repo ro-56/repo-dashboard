@@ -411,6 +411,27 @@ mod tests {
                 .cloned()
                 .unwrap_or(Ok(Vec::new()))
         }
+
+        // Not exercised by this module's tests — `apply.rs` owns the write-path fake that
+        // actually asserts against these two methods.
+        async fn set_repo_direct_permission(
+            &self,
+            _workspace: &str,
+            _repo: &str,
+            _account_id: &str,
+            _permission: crate::model::Permission,
+        ) -> Result<(), ClientError> {
+            Ok(())
+        }
+
+        async fn remove_repo_direct_permission(
+            &self,
+            _workspace: &str,
+            _repo: &str,
+            _account_id: &str,
+        ) -> Result<(), ClientError> {
+            Ok(())
+        }
     }
 
     fn open_conn() -> Connection {

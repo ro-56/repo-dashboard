@@ -3,6 +3,7 @@
 //! against canned responses, with `RealBitbucketClient` the only implementation that ever
 //! makes a real network call.
 
+use crate::model::Permission;
 use crate::normalize::{RawGroupMembersResponse, RawGroupPermission, RawMember, RawUserPermission};
 
 /// Distinguishes the failure classes `collect_and_store` needs to treat differently:
@@ -60,6 +61,26 @@ pub trait BitbucketClient {
         workspace: &str,
         project_key: &str,
     ) -> impl std::future::Future<Output = Result<Vec<RawGroupPermission>, ClientError>> + Send;
+
+    /// Sets a Direct grant's level on a repo (PD-60). `PUT
+    /// /2.0/repositories/{workspace}/{repo}/permissions-config/users/{account_id}` —
+    /// requires `repository:admin` scope, checked only lazily (ADR-0023).
+    fn set_repo_direct_permission(
+        &self,
+        workspace: &str,
+        repo: &str,
+        account_id: &str,
+        permission: Permission,
+    ) -> impl std::future::Future<Output = Result<(), ClientError>> + Send;
+
+    /// Removes a Direct grant from a repo entirely (PD-60). `DELETE` on the same
+    /// `permissions-config/users/{account_id}` path as `set_repo_direct_permission`.
+    fn remove_repo_direct_permission(
+        &self,
+        workspace: &str,
+        repo: &str,
+        account_id: &str,
+    ) -> impl std::future::Future<Output = Result<(), ClientError>> + Send;
 }
 
 const RETRY_BACKOFF: std::time::Duration = std::time::Duration::from_millis(500);
@@ -106,6 +127,43 @@ impl RealBitbucketClient {
             Err(ClientError::RateLimited) => {
                 tokio::time::sleep(RETRY_BACKOFF).await;
                 self.get_once(url).await
+            }
+            result => result,
+        }
+    }
+
+    async fn write_once(
+        &self,
+        method: reqwest::Method,
+        url: &str,
+        body: Option<&serde_json::Value>,
+    ) -> Result<(), ClientError> {
+        let mut req = self.http.request(method, url).basic_auth(&self.username, Some(&self.app_password));
+        if let Some(body) = body {
+            req = req.json(body);
+        }
+        let resp = req.send().await.map_err(|e| ClientError::Other(e.to_string()))?;
+
+        match resp.status().as_u16() {
+            200..=204 => Ok(()),
+            401 => Err(ClientError::Unauthorized),
+            429 => Err(ClientError::RateLimited),
+            other => Err(ClientError::Other(format!("unexpected status {other}"))),
+        }
+    }
+
+    /// A single retry, after a short fixed backoff, when the first attempt is `RateLimited` —
+    /// mirrors `get_with_retry`'s policy for the write side.
+    async fn write_with_retry(
+        &self,
+        method: reqwest::Method,
+        url: &str,
+        body: Option<&serde_json::Value>,
+    ) -> Result<(), ClientError> {
+        match self.write_once(method.clone(), url, body).await {
+            Err(ClientError::RateLimited) => {
+                tokio::time::sleep(RETRY_BACKOFF).await;
+                self.write_once(method, url, body).await
             }
             result => result,
         }
@@ -259,5 +317,31 @@ impl BitbucketClient for RealBitbucketClient {
                 })
             })
             .collect())
+    }
+
+    async fn set_repo_direct_permission(
+        &self,
+        workspace: &str,
+        repo: &str,
+        account_id: &str,
+        permission: Permission,
+    ) -> Result<(), ClientError> {
+        let url = format!(
+            "https://api.bitbucket.org/2.0/repositories/{workspace}/{repo}/permissions-config/users/{account_id}"
+        );
+        let body = serde_json::json!({ "permission": permission.as_str() });
+        self.write_with_retry(reqwest::Method::PUT, &url, Some(&body)).await
+    }
+
+    async fn remove_repo_direct_permission(
+        &self,
+        workspace: &str,
+        repo: &str,
+        account_id: &str,
+    ) -> Result<(), ClientError> {
+        let url = format!(
+            "https://api.bitbucket.org/2.0/repositories/{workspace}/{repo}/permissions-config/users/{account_id}"
+        );
+        self.write_with_retry(reqwest::Method::DELETE, &url, None).await
     }
 }

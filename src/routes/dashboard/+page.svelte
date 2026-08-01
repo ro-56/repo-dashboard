@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { invoke } from "@tauri-apps/api/core";
   import { SvelteSet } from "svelte/reactivity";
   import { goto } from "$app/navigation";
   import type { PageData } from "./$types";
@@ -12,6 +13,7 @@
   import RunPanel from "$lib/components/RunPanel.svelte";
   import SnapshotsPanel from "$lib/components/SnapshotsPanel.svelte";
   import AppearancePanel from "$lib/components/AppearancePanel.svelte";
+  import ConfirmApplyDialog from "$lib/components/ConfirmApplyDialog.svelte";
   import { isRepoOpen, treeHasAnyChanges } from "$lib/repoCard";
   import { snapshotSeqs } from "$lib/headBar";
   import {
@@ -23,6 +25,18 @@
     type ViewMode,
   } from "$lib/filterBar";
   import { emptyStateFor } from "$lib/emptyState";
+  import {
+    clearEdits,
+    confirmRows,
+    resultRows,
+    settleApplied,
+    stageEdit,
+    toApplyPayload,
+    undoEdit,
+    type ApplyResult,
+    type PendingEdits,
+    type StagedEdit,
+  } from "$lib/pendingEdits";
 
   let { data }: { data: PageData } = $props();
 
@@ -119,6 +133,76 @@
   function swapPair() {
     navigateToPair(data.comparisonId, data.baselineId);
   }
+
+  // Permission editing (PD-59/PD-60). Enabled only while the Comparison is the latest
+  // Snapshot (ADR-0022) — editing against a historical view would mutate the present based on
+  // a look at the past.
+  let editingEnabled = $derived(data.snapshots.length > 0 && data.comparisonId === data.snapshots[0].id);
+  let pending = $state<PendingEdits>(new Map());
+
+  // Clears whenever the Comparison itself changes — covers both "user picked an older run"
+  // and "a new Run completed and became the new latest" (ADR-0022), since either way the
+  // pending edits were staged against a Comparison that's no longer the one on screen.
+  $effect(() => {
+    data.comparisonId;
+    pending = clearEdits();
+  });
+
+  function handleStage(edit: StagedEdit) {
+    pending = stageEdit(pending, edit);
+  }
+  function handleUndo(key: string) {
+    pending = undoEdit(pending, key);
+  }
+
+  let pendingCount = $derived(pending.size);
+  let applyDisabled = $derived(pendingCount === 0 || !editingEnabled);
+
+  type DialogPhase = "review" | "applying" | "results";
+  let dialogOpen = $state(false);
+  let dialogPhase = $state<DialogPhase>("review");
+  // Snapshotted at the moment Apply is clicked, so the confirm list (and later, the results
+  // view matched against it) stays stable even if `pending` changes underneath while the
+  // dialog is open.
+  let dialogSnapshot = $state<PendingEdits>(new Map());
+  let dialogResults = $state<ApplyResult[] | null>(null);
+  let dialogError = $state<string | null>(null);
+
+  let dialogRows = $derived(confirmRows(dialogSnapshot));
+  let dialogResultRows = $derived(dialogResults ? resultRows(dialogSnapshot, dialogResults) : []);
+
+  function openApplyDialog() {
+    if (applyDisabled) return;
+    dialogSnapshot = new Map(pending);
+    dialogPhase = "review";
+    dialogResults = null;
+    dialogError = null;
+    dialogOpen = true;
+  }
+
+  function cancelApplyDialog() {
+    dialogOpen = false;
+  }
+
+  async function confirmApply() {
+    dialogPhase = "applying";
+    dialogError = null;
+    try {
+      const results = await invoke<ApplyResult[]>("apply_pending_edits", {
+        edits: toApplyPayload(dialogSnapshot),
+      });
+      dialogResults = results;
+      pending = settleApplied(pending, results);
+      dialogPhase = "results";
+    } catch (err) {
+      dialogError = String(err);
+      dialogPhase = "review";
+    }
+  }
+
+  function closeApplyDialog() {
+    dialogOpen = false;
+  }
 </script>
 
 <main class="dashboard">
@@ -134,6 +218,9 @@
     onSwap={swapPair}
     {drawerOpen}
     onToggleDrawer={toggleDrawer}
+    {pendingCount}
+    {applyDisabled}
+    onApplyClick={openApplyDialog}
   />
   {#if data.snapshots.length === 0}
     <p class="empty-note">No runs recorded yet — open the settings drawer to connect Bitbucket credentials.</p>
@@ -160,6 +247,10 @@
           {viewMode}
           {isToggled}
           onToggle={toggleRepo}
+          {pending}
+          {editingEnabled}
+          onStage={handleStage}
+          onUndo={handleUndo}
         />
       {/each}
       {#if empty}
@@ -175,6 +266,17 @@
   <SnapshotsPanel snapshots={data.snapshots} baselineId={data.baselineId} comparisonId={data.comparisonId} />
   <AppearancePanel />
 </SideDrawer>
+
+<ConfirmApplyDialog
+  open={dialogOpen}
+  phase={dialogPhase}
+  rows={dialogRows}
+  resultRows={dialogResultRows}
+  errorMessage={dialogError}
+  onConfirm={confirmApply}
+  onCancel={cancelApplyDialog}
+  onClose={closeApplyDialog}
+/>
 
 <style>
   .dashboard {

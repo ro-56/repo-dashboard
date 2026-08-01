@@ -2,6 +2,7 @@
   import type { ProjectNode } from "$lib/roster";
   import { countBadges, projectBreakdown, projectMeta } from "$lib/repoCard";
   import { visibleRepos, type ViewMode } from "$lib/filterBar";
+  import type { PendingEdits, StagedEdit } from "$lib/pendingEdits";
   import CountBadges from "./CountBadges.svelte";
   import RepoCard from "./RepoCard.svelte";
 
@@ -12,6 +13,10 @@
     viewMode,
     isToggled,
     onToggle,
+    pending,
+    editingEnabled,
+    onStage,
+    onUndo,
   }: {
     project: ProjectNode;
     comparisonId: number;
@@ -19,6 +24,10 @@
     viewMode: ViewMode;
     isToggled: (repoProject: string, repo: string) => boolean;
     onToggle: (repoProject: string, repo: string) => void;
+    pending: PendingEdits;
+    editingEnabled: boolean;
+    onStage: (edit: StagedEdit) => void;
+    onUndo: (key: string) => void;
   } = $props();
 
   // Meta/counts always describe the whole project (ADR-0008) — only the rendered repo list
@@ -44,6 +53,10 @@
           {viewMode}
           toggled={isToggled(project.repoProject, repo.repo)}
           onToggle={() => onToggle(project.repoProject, repo.repo)}
+          {pending}
+          {editingEnabled}
+          {onStage}
+          {onUndo}
         />
       {/each}
     </div>

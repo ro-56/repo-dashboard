@@ -1,3 +1,4 @@
+pub mod apply;
 pub mod client;
 pub mod collect;
 pub mod credentials;
@@ -9,6 +10,7 @@ pub mod storage;
 
 use tauri::Manager;
 
+use apply::{ApplyResult, PendingEditRequest};
 use client::RealBitbucketClient;
 use collect::{collect_and_store, RunError};
 use credentials::{Credentials, CredentialsState};
@@ -104,6 +106,20 @@ async fn delete_snapshot(db: tauri::State<'_, DbState>, id: i64) -> Result<(), S
     })
 }
 
+/// Thin wrapper around `apply::apply_pending_edits` — all routing logic lives there and is
+/// covered by `cargo test`; this command only wires managed credential state to it. Never
+/// fails the whole batch on a per-item error (ADR-0022) — a missing credential is the only
+/// thing that rejects the call outright, since nothing can be applied without one.
+#[tauri::command]
+async fn apply_pending_edits(
+    credentials: tauri::State<'_, CredentialsState>,
+    edits: Vec<PendingEditRequest>,
+) -> Result<Vec<ApplyResult>, String> {
+    let creds = credentials.0.get()?.ok_or_else(|| "no credentials set".to_string())?;
+    let client = RealBitbucketClient::new(creds.username, creds.app_password);
+    Ok(apply::apply_pending_edits(&client, &creds.workspace, edits).await)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -123,7 +139,8 @@ pub fn run() {
             run_now,
             list_snapshots,
             get_roster_tree,
-            delete_snapshot
+            delete_snapshot,
+            apply_pending_edits
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

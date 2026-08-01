@@ -130,6 +130,9 @@
   /* Side drawer */
   --shadow-drawer: -8px 0 20px rgba(20, 24, 28, .08);
 
+  /* Modal scrim (confirm-apply dialog, PD-60) */
+  --scrim: rgba(20, 24, 28, .4);
+
   /* Roster-row meter */
   --segment-off: #dde1e5;
   --seg: 9px;
@@ -205,6 +208,9 @@
 
   /* Side drawer */
   --shadow-drawer: -8px 0 20px rgba(0, 0, 0, .45);
+
+  /* Modal scrim (confirm-apply dialog, PD-60) */
+  --scrim: rgba(0, 0, 0, .6);
 
   /* Roster-row meter */
   --segment-off: #2f363b;

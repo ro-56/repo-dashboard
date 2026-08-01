@@ -1,12 +1,75 @@
 <script lang="ts">
   import type { PrincipalEntry } from "$lib/roster";
-  import { deriveRow, sourceLabel, sourceTooltip } from "$lib/rosterRow";
+  import { deriveRow, editTargetForEntry, pendingRowView, rowMenu, sourceLabel, sourceTooltip } from "$lib/rosterRow";
+  import { editKey, type EditableLevel, type PendingEdits, type StagedEdit } from "$lib/pendingEdits";
 
-  let { entry }: { entry: PrincipalEntry } = $props();
+  let {
+    entry,
+    repoProject,
+    repo,
+    pending,
+    editingEnabled,
+    onStage,
+    onUndo,
+  }: {
+    entry: PrincipalEntry;
+    repoProject: string;
+    repo: string;
+    pending: PendingEdits;
+    editingEnabled: boolean;
+    onStage: (edit: StagedEdit) => void;
+    onUndo: (key: string) => void;
+  } = $props();
 
-  let row = $derived(deriveRow(entry));
+  // Direct/Repo entries only (editTargetForEntry) — Group, Project-scope, and Member rows get
+  // no menu in this ticket (PD-60).
+  let target = $derived(editTargetForEntry(entry));
+  let key = $derived(target ? editKey(entry.scope, target, repoProject, repo) : null);
+  let staged = $derived(key ? pending.get(key) : undefined);
+  let row = $derived(deriveRow(entry, pendingRowView(staged)));
   let source = $derived(sourceLabel(entry.accessType, entry.scope));
   let sourceTitle = $derived(sourceTooltip(entry.accessType, entry.scope));
+  // Menus are absent, not just disabled, while the Comparison isn't the latest Snapshot
+  // (ADR-0022) — editing against a historical view would mutate the present based on the past.
+  let menu = $derived(editingEnabled ? rowMenu(entry, staged) : null);
+
+  let menuOpen = $state(false);
+  function toggleMenu() {
+    menuOpen = !menuOpen;
+  }
+  function closeMenu() {
+    menuOpen = false;
+  }
+
+  // Re-selecting the row's true current level is treated as "undo this edit" rather than
+  // staging a no-op SetLevel — matches the reference design's setLevel behaviour.
+  function selectLevel(level: EditableLevel) {
+    if (!target || !key) return;
+    menuOpen = false;
+    if (level === entry.permission) {
+      onUndo(key);
+      return;
+    }
+    onStage({
+      request: { scope: entry.scope, target, repoProject, repo, action: { type: "SetLevel", level } },
+      principalLabel: entry.principal.label,
+      beforeLevel: entry.permission,
+    });
+  }
+
+  function selectRemove() {
+    if (!target || !key) return;
+    menuOpen = false;
+    onStage({
+      request: { scope: entry.scope, target, repoProject, repo, action: { type: "Remove" } },
+      principalLabel: entry.principal.label,
+      beforeLevel: entry.permission,
+    });
+  }
+
+  function handleUndo() {
+    if (key) onUndo(key);
+  }
 </script>
 
 <div
@@ -35,6 +98,37 @@
     {#each row.tags as tag (tag.label)}
       <span class="tag tag-{tag.kind}">{tag.label}</span>
     {/each}
+    {#if staged}
+      <button type="button" class="undo" onclick={handleUndo}>↺ undo</button>
+    {/if}
+    {#if menu}
+      <span class="menu-wrap">
+        <button
+          type="button"
+          class="menu-trigger"
+          aria-haspopup="true"
+          aria-expanded={menuOpen}
+          aria-label="Edit permission"
+          onclick={toggleMenu}
+        >
+          ⋯
+        </button>
+        {#if menuOpen}
+          <div class="menu-scrim" onclick={closeMenu} aria-hidden="true"></div>
+          <div class="menu">
+            <div class="menu-levels">
+              {#each menu.levelOptions as opt (opt.level)}
+                <button type="button" class="level-opt" class:active={opt.active} onclick={() => selectLevel(opt.level)}>
+                  {opt.level}
+                </button>
+              {/each}
+            </div>
+            <span class="menu-divider"></span>
+            <button type="button" class="menu-remove" onclick={selectRemove}>✕ Remove access</button>
+          </div>
+        {/if}
+      </span>
+    {/if}
   </span>
 </div>
 
@@ -212,6 +306,114 @@
     background: var(--tag-neutral-bg);
     border-color: var(--tag-neutral-border);
     color: var(--tag-neutral-ink);
+  }
+  .tag-pending-level {
+    background: var(--state-changed-bg);
+    border-color: var(--state-changed);
+    color: var(--state-changed);
+  }
+  .tag-pending-remove {
+    background: var(--state-revoked-bg);
+    border-color: var(--state-revoked);
+    color: var(--state-revoked);
+  }
+
+  .undo {
+    flex: none;
+    border: none;
+    padding: 0;
+    background: none;
+    font-family: var(--font-sans);
+    font-size: var(--t-tag);
+    color: var(--ink-3);
+    cursor: pointer;
+  }
+
+  .menu-wrap {
+    position: relative;
+    flex: none;
+    margin-left: auto;
+  }
+  .menu-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 20px;
+    border: none;
+    border-radius: var(--r-chip);
+    background: transparent;
+    color: var(--ink-mute);
+    font-size: var(--t-body);
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.6;
+  }
+  .menu-trigger:hover {
+    opacity: 1;
+    background: var(--surface-sunken);
+  }
+  .menu-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+    background: transparent;
+  }
+  .menu {
+    position: absolute;
+    top: 24px;
+    right: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-4);
+    min-width: 190px;
+    padding: var(--s-5);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-card);
+    background: var(--surface);
+    box-shadow: var(--shadow-drawer);
+  }
+  .menu-levels {
+    display: flex;
+    gap: var(--s-2);
+  }
+  .level-opt {
+    flex: 1;
+    padding: var(--s-3) 0;
+    border: 1px solid var(--control-edge);
+    border-radius: var(--r-chip);
+    background: transparent;
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: var(--t-body-s);
+    text-align: center;
+    cursor: pointer;
+  }
+  .level-opt.active {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--surface);
+  }
+  .menu-divider {
+    height: 1px;
+    background: var(--rule-row);
+  }
+  .menu-remove {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    border: none;
+    padding: var(--s-2);
+    border-radius: var(--r-chip);
+    background: none;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: var(--t-body-s);
+    color: var(--state-revoked);
+    text-align: left;
+    cursor: pointer;
   }
 
   /* Reflow order (ADR-0009): the from-level is the last thing to shed, since it's redundant
