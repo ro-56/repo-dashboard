@@ -137,13 +137,11 @@ export function successfulResults(results: ApplyResult[]): ApplyResult[] {
 }
 
 /** Whether "Refresh affected" should be offered for this batch: at least one edit succeeded,
- * and every successful edit is Repo-scope (this tracer bullet, PD-70, doesn't handle
- * Project-scope targets yet — a follow-on ticket removes this restriction). An all-failed
- * batch, or one with any successful Project-scope edit, falls back to the existing re-run
- * prompt instead. */
+ * regardless of scope mix (PD-71 — Repo-scope and Project-scope targets are both refreshable,
+ * so a batch mixing them, or one entirely Project-scope, no longer falls back to the re-run
+ * prompt). Only an all-failed batch is a no-op with nothing to offer. */
 export function canRefresh(results: ApplyResult[]): boolean {
-  const succeeded = successfulResults(results);
-  return succeeded.length > 0 && succeeded.every((result) => result.request.scope === "Repo");
+  return successfulResults(results).length > 0;
 }
 
 /** The confirm dialog's post-apply results view: one row per `ApplyResult`, re-attaching the

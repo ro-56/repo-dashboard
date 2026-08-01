@@ -282,15 +282,19 @@ describe("canRefresh", () => {
     expect(canRefresh([repoScopeResult(true), repoScopeResult(true)])).toBe(true);
   });
 
+  it("is true for an all-succeeded, all-Project-scope batch", () => {
+    expect(canRefresh([projectScopeResult(true), projectScopeResult(true)])).toBe(true);
+  });
+
   it("is false for an all-failed batch", () => {
     expect(canRefresh([repoScopeResult(false), repoScopeResult(false)])).toBe(false);
   });
 
-  it("is false for a mixed-scope batch with a successful Project-scope edit", () => {
-    expect(canRefresh([repoScopeResult(true), projectScopeResult(true)])).toBe(false);
+  it("is true for a mixed-scope batch with at least one successful edit (PD-71)", () => {
+    expect(canRefresh([repoScopeResult(true), projectScopeResult(true)])).toBe(true);
   });
 
   it("ignores scope on failed results — only successful edits count toward the gate", () => {
-    expect(canRefresh([repoScopeResult(true), projectScopeResult(false)])).toBe(true);
+    expect(canRefresh([repoScopeResult(false), projectScopeResult(true)])).toBe(true);
   });
 });

@@ -1,13 +1,14 @@
-//! Orchestrates Refresh (PD-70): after a batch of Pending edits is applied, creates a new
+//! Orchestrates Refresh (PD-70/PD-71): after a batch of Pending edits is applied, creates a new
 //! Snapshot by copying the source Snapshot's data — the one the batch was staged against — and
-//! replacing only the Repo-scope Direct+Group data (records, `RepoFetchStatus`, and
-//! `GroupMembershipStatus` rows) for the repos named by the batch's *successful* Repo-scope
-//! edits, refetched live via `fetch_repo_permissions` (extracted in PD-69, with fresh
-//! group-membership resolution). Everything else — every other repo, every Project-scope
-//! record, every other status row — is copied verbatim. Project-scope edits are out of scope
-//! for this tracer bullet (PD-68 covers that follow-on). The `refresh_snapshot` Tauri command
-//! is a thin wrapper around `refresh_and_store` — all meaningful logic lives here, covered by
-//! `cargo test`.
+//! replacing only the data for the repos/Projects named by the batch's *successful* edits,
+//! refetched live via `fetch_repo_permissions`/`fetch_project_permissions` (extracted in PD-69,
+//! with fresh group-membership resolution). A Repo-scope target replaces just that repo's
+//! Repo-scope Direct+Group data. A Project-scope target replaces that Project's Direct+Group
+//! data across every repo the *source Snapshot* already records under that Project's key — one
+//! fetch per Project, never per repo, and never a fresh discovery call to redetermine Project
+//! membership (ADR-0025). Everything else is copied verbatim. The `refresh_snapshot` Tauri
+//! command is a thin wrapper around `refresh_and_store` — all meaningful logic lives here,
+//! covered by `cargo test`.
 
 use std::collections::{HashMap, HashSet};
 
@@ -15,9 +16,10 @@ use rusqlite::Connection;
 
 use crate::apply::ApplyResult;
 use crate::client::{BitbucketClient, RepoInfo};
-use crate::collect::{fetch_repo_permissions, MemberCache};
+use crate::collect::{fetch_project_permissions, fetch_repo_permissions, MemberCache};
 use crate::diff::Snapshot;
 use crate::model::{AccessType, GrantScope};
+use crate::normalize::{normalize_project_group_permissions, normalize_project_permissions};
 use crate::storage::{
     load_group_membership_statuses, load_project_fetch_statuses, load_snapshot, save_snapshot,
 };
@@ -32,8 +34,7 @@ pub enum RefreshError {
 }
 
 /// Derives the deduped set of Repo-scope Refresh targets from a batch's *successful* results
-/// only — a failed edit contributes no target, and a successful edit outside Repo scope is
-/// left for the follow-on Project-scope ticket (PD-68), not attempted here.
+/// only — a failed edit contributes no target.
 fn repo_scope_targets(results: &[ApplyResult]) -> Vec<(String, String)> {
     let mut seen = HashSet::new();
     let mut targets = Vec::new();
@@ -49,12 +50,30 @@ fn repo_scope_targets(results: &[ApplyResult]) -> Vec<(String, String)> {
     targets
 }
 
-/// Creates a new Snapshot from `source_snapshot_id`, replacing only the Repo-scope Direct+Group
-/// data for the repos named by `results`' successful Repo-scope edits with freshly fetched data,
-/// and copying every other repo/Project's records and status rows verbatim. Returns the new
-/// `snapshots.id`. A 401 on any target aborts the whole Refresh before anything is written; a
-/// non-401 failure on one target repo records a `FetchFailed` status (zero records) for that
-/// repo only and every other targeted repo still refreshes.
+/// Derives the deduped set of Project-scope Refresh targets (project keys) from a batch's
+/// *successful* results only, the same way `repo_scope_targets` does for repos.
+fn project_scope_targets(results: &[ApplyResult]) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut targets = Vec::new();
+    for result in results {
+        if result.outcome.is_err() || result.request.scope != GrantScope::Project {
+            continue;
+        }
+        let key = result.request.repo_project.clone();
+        if seen.insert(key.clone()) {
+            targets.push(key);
+        }
+    }
+    targets
+}
+
+/// Creates a new Snapshot from `source_snapshot_id`, replacing the data for the repos/Projects
+/// named by `results`' successful edits with freshly fetched data, and copying every other
+/// repo/Project's records and status rows verbatim. Returns the new `snapshots.id`. A 401 on
+/// any target aborts the whole Refresh before anything is written; a non-401 failure on one
+/// target records a `FetchFailed` status (zero records) for that target only — a Project
+/// target's failure yields a single `ProjectFetchStatus` row, not one per repo it owns — and
+/// every other target still refreshes.
 pub async fn refresh_and_store<C: BitbucketClient>(
     client: &C,
     conn: &mut Connection,
@@ -63,59 +82,104 @@ pub async fn refresh_and_store<C: BitbucketClient>(
     run_at: &str,
     results: &[ApplyResult],
 ) -> Result<i64, RefreshError> {
-    let targets = repo_scope_targets(results);
+    let repo_targets = repo_scope_targets(results);
+    let project_targets = project_scope_targets(results);
 
     let source = load_snapshot(conn, source_snapshot_id)
         .map_err(|e| RefreshError::StorageFailed(e.to_string()))?;
     let source_membership_statuses = load_group_membership_statuses(conn, source_snapshot_id)
         .map_err(|e| RefreshError::StorageFailed(e.to_string()))?;
-    let project_statuses = load_project_fetch_statuses(conn, source_snapshot_id)
+    let source_project_statuses = load_project_fetch_statuses(conn, source_snapshot_id)
         .map_err(|e| RefreshError::StorageFailed(e.to_string()))?;
 
-    let is_targeted = |repo_project: &str, repo: &str| {
-        targets.iter().any(|(p, r)| p == repo_project && r == repo)
+    let is_repo_targeted = |repo_project: &str, repo: &str| {
+        repo_targets.iter().any(|(p, r)| p == repo_project && r == repo)
     };
+    let is_project_targeted =
+        |repo_project: &str| project_targets.iter().any(|p| p == repo_project);
+
+    // The source Snapshot's own repo membership under each Project — never rediscovered, so a
+    // Project target cascades to exactly the repos the source Snapshot already recorded under
+    // that Project's key (ADR-0025), sourced from `repo_statuses` since that covers every
+    // encountered repo regardless of whether it has any records.
+    let mut repos_by_project: HashMap<String, Vec<String>> = HashMap::new();
+    for status in &source.repo_statuses {
+        repos_by_project
+            .entry(status.repo_project.clone())
+            .or_default()
+            .push(status.repo.clone());
+    }
 
     // `GroupMembershipStatus` carries no `scope` field (model.rs) — a Repo-scope and a
     // Project-scope group grant on the same repo produce rows keyed identically on
-    // `(repo_project, repo, group_id)`. Filtering `group_membership_statuses` by repo alone
-    // would drop a targeted repo's Project-scope group statuses too, even though only its
-    // Repo-scope dimension is being refreshed. Scope the drop to just the group ids that were
-    // actually Repo-scope `Group` records on that repo in the source Snapshot.
-    let repo_scope_group_ids: HashSet<(String, String, String)> = source
-        .records
-        .iter()
-        .filter(|r| r.scope == GrantScope::Repo && r.access_type == AccessType::Group)
-        .map(|r| (r.repo_project.clone(), r.repo.clone(), r.principal.id.clone()))
-        .collect();
+    // `(repo_project, repo, group_id)`, indistinguishable by value alone when the same group
+    // holds grants at both scopes on the same repo. Filtering `group_membership_statuses` by a
+    // boolean value match would drop *both* identically-keyed rows in that case, even though
+    // only one scope is targeted. Instead, derive a drop *count* per key from the old
+    // Group-typed records of the targeted scope being replaced, and consume the source's
+    // matching rows one-for-one against that count — so exactly as many rows are dropped as are
+    // being replaced, and the untouched scope's identically-keyed row survives.
+    let mut repo_scope_drop_counts: HashMap<(String, String, String), usize> = HashMap::new();
+    let mut project_scope_drop_counts: HashMap<(String, String, String), usize> = HashMap::new();
+    for r in source.records.iter().filter(|r| r.access_type == AccessType::Group) {
+        let key = (r.repo_project.clone(), r.repo.clone(), r.principal.id.clone());
+        match r.scope {
+            GrantScope::Repo if is_repo_targeted(&r.repo_project, &r.repo) => {
+                *repo_scope_drop_counts.entry(key).or_insert(0) += 1;
+            }
+            GrantScope::Project if is_project_targeted(&r.repo_project) => {
+                *project_scope_drop_counts.entry(key).or_insert(0) += 1;
+            }
+            _ => {}
+        }
+    }
 
     let mut records: Vec<_> = source
         .records
         .into_iter()
-        .filter(|r| !(r.scope == GrantScope::Repo && is_targeted(&r.repo_project, &r.repo)))
+        .filter(|r| {
+            !(r.scope == GrantScope::Repo && is_repo_targeted(&r.repo_project, &r.repo))
+                && !(r.scope == GrantScope::Project && is_project_targeted(&r.repo_project))
+        })
         .collect();
     let mut repo_statuses: Vec<_> = source
         .repo_statuses
         .into_iter()
-        .filter(|s| !is_targeted(&s.repo_project, &s.repo))
+        .filter(|s| !is_repo_targeted(&s.repo_project, &s.repo))
+        .collect();
+    let mut project_statuses: Vec<_> = source_project_statuses
+        .into_iter()
+        .filter(|s| !is_project_targeted(&s.project_key))
         .collect();
     let mut group_membership_statuses: Vec<_> = source_membership_statuses
         .into_iter()
         .filter(|g| {
-            !(is_targeted(&g.repo_project, &g.repo)
-                && repo_scope_group_ids.contains(&(
-                    g.repo_project.clone(),
-                    g.repo.clone(),
-                    g.group_id.clone(),
-                )))
+            let key = (g.repo_project.clone(), g.repo.clone(), g.group_id.clone());
+            if is_repo_targeted(&g.repo_project, &g.repo) {
+                if let Some(count) = repo_scope_drop_counts.get_mut(&key) {
+                    if *count > 0 {
+                        *count -= 1;
+                        return false;
+                    }
+                }
+            }
+            if is_project_targeted(&g.repo_project) {
+                if let Some(count) = project_scope_drop_counts.get_mut(&key) {
+                    if *count > 0 {
+                        *count -= 1;
+                        return false;
+                    }
+                }
+            }
+            true
         })
         .collect();
 
     // Fresh per-Refresh-call cache (never the source Snapshot's own resolutions) so touched
     // groups' membership is always re-resolved live, mirroring `collect_and_store`'s per-Run
-    // cache.
+    // cache. Shared across repo- and Project-scope targets, same as a full Run.
     let mut member_cache: MemberCache = HashMap::new();
-    for (repo_project, repo) in &targets {
+    for (repo_project, repo) in &repo_targets {
         let repo_info = RepoInfo { repo_project: repo_project.clone(), repo: repo.clone() };
         let fetch_result = fetch_repo_permissions(client, workspace, &repo_info, &mut member_cache)
             .await
@@ -123,6 +187,38 @@ pub async fn refresh_and_store<C: BitbucketClient>(
         records.extend(fetch_result.records);
         group_membership_statuses.extend(fetch_result.membership_statuses);
         repo_statuses.push(fetch_result.status);
+    }
+
+    for project_key in &project_targets {
+        let project_result =
+            fetch_project_permissions(client, workspace, project_key, &mut member_cache)
+                .await
+                .map_err(|_| RefreshError::CredentialRejected)?;
+        project_statuses.push(project_result.status);
+
+        // One fetch per Project regardless of how many repos it owns — the result is
+        // normalized once per repo the source Snapshot already records under this Project's
+        // key (never a fresh discovery call). A failed fetch's raw responses are the
+        // `FetchFailed` variant, which every `normalize_project_*` call naturally turns into
+        // zero records/statuses for every repo under it.
+        if let Some(repos) = repos_by_project.get(project_key) {
+            for repo in repos {
+                let (mut direct_records, _) = normalize_project_permissions(
+                    project_key,
+                    repo,
+                    project_result.raw_users.clone(),
+                );
+                records.append(&mut direct_records);
+                let (mut group_records, mut membership_statuses) =
+                    normalize_project_group_permissions(
+                        project_key,
+                        repo,
+                        project_result.raw_groups.clone(),
+                    );
+                records.append(&mut group_records);
+                group_membership_statuses.append(&mut membership_statuses);
+            }
+        }
     }
 
     let snapshot = Snapshot { records, repo_statuses };
@@ -146,9 +242,12 @@ mod tests {
         direct_permissions: HashMap<String, Result<Vec<RawUserPermission>, ClientError>>,
         group_permissions: HashMap<String, Result<Vec<RawGroupPermission>, ClientError>>,
         group_members: HashMap<String, Result<Vec<RawMember>, ClientError>>,
+        project_direct_permissions: HashMap<String, Result<Vec<RawUserPermission>, ClientError>>,
         project_group_permissions: HashMap<String, Result<Vec<RawGroupPermission>, ClientError>>,
         group_members_call_counts: Mutex<HashMap<String, u32>>,
         direct_permissions_call_counts: Mutex<HashMap<String, u32>>,
+        project_direct_permissions_call_counts: Mutex<HashMap<String, u32>>,
+        project_group_permissions_call_counts: Mutex<HashMap<String, u32>>,
     }
 
     impl FakeBitbucketClient {
@@ -158,9 +257,12 @@ mod tests {
                 direct_permissions: HashMap::new(),
                 group_permissions: HashMap::new(),
                 group_members: HashMap::new(),
+                project_direct_permissions: HashMap::new(),
                 project_group_permissions: HashMap::new(),
                 group_members_call_counts: Mutex::new(HashMap::new()),
                 direct_permissions_call_counts: Mutex::new(HashMap::new()),
+                project_direct_permissions_call_counts: Mutex::new(HashMap::new()),
+                project_group_permissions_call_counts: Mutex::new(HashMap::new()),
             }
         }
 
@@ -175,6 +277,15 @@ mod tests {
             result: Result<Vec<RawUserPermission>, ClientError>,
         ) -> Self {
             self.direct_permissions.insert(repo.to_string(), result);
+            self
+        }
+
+        fn with_project_direct_permissions(
+            mut self,
+            project_key: &str,
+            result: Result<Vec<RawUserPermission>, ClientError>,
+        ) -> Self {
+            self.project_direct_permissions.insert(project_key.to_string(), result);
             self
         }
 
@@ -207,6 +318,24 @@ mod tests {
 
         fn direct_permissions_call_count(&self, repo: &str) -> u32 {
             *self.direct_permissions_call_counts.lock().unwrap().get(repo).unwrap_or(&0)
+        }
+
+        fn project_direct_permissions_call_count(&self, project_key: &str) -> u32 {
+            *self
+                .project_direct_permissions_call_counts
+                .lock()
+                .unwrap()
+                .get(project_key)
+                .unwrap_or(&0)
+        }
+
+        fn project_group_permissions_call_count(&self, project_key: &str) -> u32 {
+            *self
+                .project_group_permissions_call_counts
+                .lock()
+                .unwrap()
+                .get(project_key)
+                .unwrap_or(&0)
         }
     }
 
@@ -254,9 +383,15 @@ mod tests {
         async fn list_project_direct_permissions(
             &self,
             _workspace: &str,
-            _project_key: &str,
+            project_key: &str,
         ) -> Result<Vec<RawUserPermission>, ClientError> {
-            Ok(Vec::new())
+            *self
+                .project_direct_permissions_call_counts
+                .lock()
+                .unwrap()
+                .entry(project_key.to_string())
+                .or_insert(0) += 1;
+            self.project_direct_permissions.get(project_key).cloned().unwrap_or(Ok(Vec::new()))
         }
 
         async fn list_project_group_permissions(
@@ -264,6 +399,12 @@ mod tests {
             _workspace: &str,
             project_key: &str,
         ) -> Result<Vec<RawGroupPermission>, ClientError> {
+            *self
+                .project_group_permissions_call_counts
+                .lock()
+                .unwrap()
+                .entry(project_key.to_string())
+                .or_insert(0) += 1;
             self.project_group_permissions.get(project_key).cloned().unwrap_or(Ok(Vec::new()))
         }
 
@@ -703,9 +844,9 @@ mod tests {
 
         let refresh_client = FakeBitbucketClient::new();
 
-        // An empty results slice, and a batch whose only result is Project-scope (out of
-        // scope for this tracer bullet, PD-70), both produce zero eligible targets.
-        for results in [Vec::new(), vec![project_scope_ok_result("TEAM", "repo-a")]] {
+        // An empty results slice, and a batch whose only result is a failed edit, both produce
+        // zero eligible targets.
+        for results in [Vec::new(), vec![failed_result("TEAM", "repo-a")]] {
             let new_id = refresh_and_store(
                 &refresh_client,
                 &mut conn,
@@ -722,5 +863,282 @@ mod tests {
             assert_eq!(loaded.repo_statuses, source_snapshot.repo_statuses);
         }
         assert_eq!(refresh_client.direct_permissions_call_count("repo-a"), 0);
+    }
+
+    #[tokio::test]
+    async fn project_scope_target_refreshes_every_repo_under_it_via_one_fetch() {
+        let source_client = FakeBitbucketClient::new()
+            .with_repos(vec![repo("TEAM", "repo-a"), repo("TEAM", "repo-b"), repo("OTHER", "repo-c")])
+            .with_project_direct_permissions("TEAM", Ok(vec![user("acct-1", "Ada", "read")]));
+
+        let mut conn = open_conn();
+        let source_id = build_source_snapshot(&source_client, &mut conn).await;
+
+        let refresh_client = FakeBitbucketClient::new()
+            .with_project_direct_permissions("TEAM", Ok(vec![user("acct-1", "Ada", "admin")]))
+            .with_project_group_permissions(
+                "TEAM",
+                Ok(vec![RawGroupPermission {
+                    group_slug: "platform-eng".to_string(),
+                    group_name: "Platform Engineering".to_string(),
+                    permission: "write".to_string(),
+                    members: crate::normalize::RawGroupMembersResponse::FetchFailed,
+                }]),
+            );
+
+        let new_id = refresh_and_store(
+            &refresh_client,
+            &mut conn,
+            "ws",
+            source_id,
+            "2026-01-02T00:00:00Z",
+            &[project_scope_ok_result("TEAM", "repo-a")],
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(refresh_client.project_direct_permissions_call_count("TEAM"), 1);
+        assert_eq!(refresh_client.project_group_permissions_call_count("TEAM"), 1);
+        let loaded = load_snapshot(&conn, new_id).unwrap();
+        let repo_a_record = loaded
+            .records
+            .iter()
+            .find(|r| r.repo == "repo-a" && r.scope == GrantScope::Project)
+            .unwrap();
+        assert_eq!(repo_a_record.permission, Permission::Admin);
+        let repo_b_record = loaded
+            .records
+            .iter()
+            .find(|r| r.repo == "repo-b" && r.scope == GrantScope::Project)
+            .unwrap();
+        assert_eq!(repo_b_record.permission, Permission::Admin);
+
+        // repo-c belongs to an untargeted Project — untouched.
+        assert!(!loaded.records.iter().any(|r| r.repo == "repo-c" && r.scope == GrantScope::Project));
+    }
+
+    #[tokio::test]
+    async fn a_project_scope_fetch_failure_records_one_fetch_failed_status_and_others_still_refresh() {
+        let source_client = FakeBitbucketClient::new()
+            .with_repos(vec![repo("TEAM", "repo-a"), repo("TEAM", "repo-b"), repo("OTHER", "repo-c")])
+            .with_project_direct_permissions("TEAM", Ok(vec![user("acct-1", "Ada", "read")]))
+            .with_project_direct_permissions("OTHER", Ok(vec![user("acct-2", "Grace", "read")]));
+        let mut conn = open_conn();
+        let source_id = build_source_snapshot(&source_client, &mut conn).await;
+
+        let refresh_client = FakeBitbucketClient::new()
+            .with_project_direct_permissions("TEAM", Err(ClientError::Other("boom".to_string())))
+            .with_project_direct_permissions("OTHER", Ok(vec![user("acct-2", "Grace", "admin")]));
+
+        let new_id = refresh_and_store(
+            &refresh_client,
+            &mut conn,
+            "ws",
+            source_id,
+            "2026-01-02T00:00:00Z",
+            &[project_scope_ok_result("TEAM", "repo-a"), project_scope_ok_result("OTHER", "repo-c")],
+        )
+        .await
+        .unwrap();
+
+        let loaded = load_snapshot(&conn, new_id).unwrap();
+        let project_statuses = load_project_fetch_statuses(&conn, new_id).unwrap();
+        let team_status = project_statuses.iter().find(|s| s.project_key == "TEAM").unwrap();
+        assert_eq!(team_status.status, RepoStatus::FetchFailed);
+        assert_eq!(project_statuses.iter().filter(|s| s.project_key == "TEAM").count(), 1);
+        assert!(!loaded.records.iter().any(|r| r.repo_project == "TEAM" && r.scope == GrantScope::Project));
+        assert!(!loaded.records.iter().any(|r| r.repo == "repo-b" && r.scope == GrantScope::Project));
+
+        let other_status = project_statuses.iter().find(|s| s.project_key == "OTHER").unwrap();
+        assert_eq!(other_status.status, RepoStatus::Ok);
+        assert!(loaded
+            .records
+            .iter()
+            .any(|r| r.repo == "repo-c" && r.scope == GrantScope::Project && r.permission == Permission::Admin));
+    }
+
+    #[tokio::test]
+    async fn a_401_on_a_project_scope_target_aborts_the_whole_refresh() {
+        let source_client = FakeBitbucketClient::new().with_repos(vec![repo("TEAM", "repo-a")]);
+        let mut conn = open_conn();
+        let source_id = build_source_snapshot(&source_client, &mut conn).await;
+
+        let refresh_client = FakeBitbucketClient::new()
+            .with_project_direct_permissions("TEAM", Err(ClientError::Unauthorized));
+
+        let snapshots_before: i64 =
+            conn.query_row("SELECT COUNT(*) FROM snapshots", [], |r| r.get(0)).unwrap();
+
+        let result = refresh_and_store(
+            &refresh_client,
+            &mut conn,
+            "ws",
+            source_id,
+            "2026-01-02T00:00:00Z",
+            &[project_scope_ok_result("TEAM", "repo-a")],
+        )
+        .await;
+
+        assert_eq!(result, Err(RefreshError::CredentialRejected));
+        let snapshots_after: i64 =
+            conn.query_row("SELECT COUNT(*) FROM snapshots", [], |r| r.get(0)).unwrap();
+        assert_eq!(snapshots_before, snapshots_after);
+    }
+
+    #[tokio::test]
+    async fn a_mixed_batch_refreshes_repo_and_project_scope_targets_independently() {
+        let source_client = FakeBitbucketClient::new()
+            .with_repos(vec![repo("TEAM", "repo-a"), repo("OTHER", "repo-b")])
+            .with_direct_permissions("repo-a", Ok(vec![user("acct-1", "Ada", "read")]))
+            .with_project_direct_permissions("OTHER", Ok(vec![user("acct-2", "Grace", "read")]));
+        let mut conn = open_conn();
+        let source_id = build_source_snapshot(&source_client, &mut conn).await;
+
+        let refresh_client = FakeBitbucketClient::new()
+            .with_direct_permissions("repo-a", Ok(vec![user("acct-1", "Ada", "admin")]))
+            .with_project_direct_permissions("OTHER", Ok(vec![user("acct-2", "Grace", "admin")]));
+
+        let new_id = refresh_and_store(
+            &refresh_client,
+            &mut conn,
+            "ws",
+            source_id,
+            "2026-01-02T00:00:00Z",
+            &[ok_result("TEAM", "repo-a"), project_scope_ok_result("OTHER", "repo-b")],
+        )
+        .await
+        .unwrap();
+
+        let loaded = load_snapshot(&conn, new_id).unwrap();
+        let repo_a_direct = loaded
+            .records
+            .iter()
+            .find(|r| r.repo == "repo-a" && r.scope == GrantScope::Repo)
+            .unwrap();
+        assert_eq!(repo_a_direct.permission, Permission::Admin);
+        let repo_b_project = loaded
+            .records
+            .iter()
+            .find(|r| r.repo == "repo-b" && r.scope == GrantScope::Project)
+            .unwrap();
+        assert_eq!(repo_b_project.permission, Permission::Admin);
+    }
+
+    #[tokio::test]
+    async fn a_repo_that_is_both_a_repo_target_and_inside_a_targeted_project_refreshes_both_dimensions() {
+        let source_client = FakeBitbucketClient::new()
+            .with_repos(vec![repo("TEAM", "repo-a")])
+            .with_direct_permissions("repo-a", Ok(vec![user("acct-1", "Ada", "read")]))
+            .with_project_direct_permissions("TEAM", Ok(vec![user("acct-2", "Grace", "read")]));
+        let mut conn = open_conn();
+        let source_id = build_source_snapshot(&source_client, &mut conn).await;
+
+        let refresh_client = FakeBitbucketClient::new()
+            .with_direct_permissions("repo-a", Ok(vec![user("acct-1", "Ada", "write")]))
+            .with_project_direct_permissions("TEAM", Ok(vec![user("acct-2", "Grace", "admin")]));
+
+        let new_id = refresh_and_store(
+            &refresh_client,
+            &mut conn,
+            "ws",
+            source_id,
+            "2026-01-02T00:00:00Z",
+            &[ok_result("TEAM", "repo-a"), project_scope_ok_result("TEAM", "repo-a")],
+        )
+        .await
+        .unwrap();
+
+        let loaded = load_snapshot(&conn, new_id).unwrap();
+        let repo_scope_record = loaded
+            .records
+            .iter()
+            .find(|r| r.repo == "repo-a" && r.scope == GrantScope::Repo)
+            .unwrap();
+        assert_eq!(repo_scope_record.permission, Permission::Write);
+        let project_scope_record = loaded
+            .records
+            .iter()
+            .find(|r| r.repo == "repo-a" && r.scope == GrantScope::Project)
+            .unwrap();
+        assert_eq!(project_scope_record.permission, Permission::Admin);
+    }
+
+    #[tokio::test]
+    async fn group_membership_status_filtering_is_scoped_by_group_id_not_a_blanket_repo_match() {
+        // Regression test for PD-71: the same group holds a grant at both Repo scope and
+        // Project scope on the same repo. Only the touched scope's status should be affected —
+        // a blanket repo/project match would incorrectly drop the untouched scope's row.
+        let source_client = FakeBitbucketClient::new()
+            .with_repos(vec![repo("TEAM", "repo-a")])
+            .with_project_group_permissions(
+                "TEAM",
+                Ok(vec![RawGroupPermission {
+                    group_slug: "shared-group".to_string(),
+                    group_name: "Shared Group".to_string(),
+                    permission: "read".to_string(),
+                    members: crate::normalize::RawGroupMembersResponse::FetchFailed,
+                }]),
+            )
+            .with_group_permissions(
+                "repo-a",
+                Ok(vec![RawGroupPermission {
+                    group_slug: "shared-group".to_string(),
+                    group_name: "Shared Group".to_string(),
+                    permission: "write".to_string(),
+                    members: crate::normalize::RawGroupMembersResponse::FetchFailed,
+                }]),
+            )
+            .with_group_members(
+                "shared-group",
+                Ok(vec![RawMember { account_id: "acct-1".to_string(), display_name: "Ada".to_string() }]),
+            );
+        let mut conn = open_conn();
+        let source_id = build_source_snapshot(&source_client, &mut conn).await;
+        let source_statuses = load_group_membership_statuses(&conn, source_id).unwrap();
+        assert_eq!(source_statuses.len(), 2, "sanity check: both scopes' groups resolved on repo-a");
+
+        // Refresh only the Project-scope dimension.
+        let refresh_client = FakeBitbucketClient::new().with_project_group_permissions(
+            "TEAM",
+            Ok(vec![RawGroupPermission {
+                group_slug: "shared-group".to_string(),
+                group_name: "Shared Group".to_string(),
+                permission: "admin".to_string(),
+                members: crate::normalize::RawGroupMembersResponse::FetchFailed,
+            }]),
+        );
+        // No group_members fixture on refresh_client — proves live resolution happened rather
+        // than reusing the source's cached members.
+
+        let new_id = refresh_and_store(
+            &refresh_client,
+            &mut conn,
+            "ws",
+            source_id,
+            "2026-01-02T00:00:00Z",
+            &[project_scope_ok_result("TEAM", "repo-a")],
+        )
+        .await
+        .unwrap();
+
+        let new_statuses = load_group_membership_statuses(&conn, new_id).unwrap();
+        assert_eq!(new_statuses.len(), 2);
+        assert!(new_statuses.iter().any(|s| s.group_id == "shared-group"));
+
+        let loaded = load_snapshot(&conn, new_id).unwrap();
+        let repo_scope_record = loaded
+            .records
+            .iter()
+            .find(|r| r.scope == GrantScope::Repo && r.access_type == AccessType::Group)
+            .unwrap();
+        // The Repo-scope group grant is untouched, carried over from the source.
+        assert_eq!(repo_scope_record.permission, Permission::Write);
+        let project_scope_record = loaded
+            .records
+            .iter()
+            .find(|r| r.scope == GrantScope::Project && r.access_type == AccessType::Group)
+            .unwrap();
+        // The Project-scope group grant was refreshed live.
+        assert_eq!(project_scope_record.permission, Permission::Admin);
     }
 }
