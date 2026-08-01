@@ -49,7 +49,7 @@ The top-level list-repositories call for a Run failing outright (e.g. the creden
 _Avoid_: Fetch failure (that term is reserved for a single repo's permissions call failing after discovery succeeded), Run failure (too generic — a Run with several Fetch failures is not a failed Run, it's a partial Snapshot)
 
 **Run**:
-The user-facing action of triggering a new data collection pass ("Run now"). Produces exactly one Snapshot.
+The user-facing action of triggering a new data collection pass ("Run now"), always via full workspace discovery (`list_repositories`) followed by a fetch of every discovered repo and Project. Produces exactly one Snapshot. Distinct from a **Refresh**, which also produces a new Snapshot but never discovers — it copies a source Snapshot forward and only re-fetches a narrow, explicitly-addressed set of repos/projects.
 _Avoid_: Snapshot (the noun for the stored result, not the action of producing it)
 
 **Snapshot**:
@@ -76,7 +76,7 @@ The project → repo → Principal structure returned for a given Run pair, with
 _Avoid_: Diff result (too narrow — the tree also carries un-diffed roster data when the Run pair is a single Snapshot compared to itself)
 
 **Pending edit**:
-A staged Level-change or Remove grant against a Direct or Group grant, held only in local UI state until Apply — never partial, never sent automatically. Only possible while the Comparison is the latest Snapshot; discarded outright (not carried forward) if a new Run produces a Snapshot that supersedes the one it was staged against (ADR-0022, `docs/adr/0022-permission-edits-staged-batch-apply.md`).
+A staged Level-change or Remove grant against a Direct or Group grant, held only in local UI state until Apply — never partial, never sent automatically. Only possible while the Comparison is the latest Snapshot; discarded outright (not carried forward) if a new Run or Refresh produces a Snapshot that supersedes the one it was staged against (ADR-0022, `docs/adr/0022-permission-edits-staged-batch-apply.md`) — a Refresh supersedes the source Snapshot exactly as a Run does, so the same clearing rule applies to whichever staged edits are left over (e.g. ones that failed to apply).
 _Avoid_: Draft, unsaved change
 
 **Apply**:
@@ -86,3 +86,11 @@ _Avoid_: Save, Commit, Sync
 **Remove grant**:
 The live action of deleting a Direct or Group grant via Bitbucket's permissions-config API, staged as a Pending edit before Apply. Deliberately distinct from Revoke — Revoke is a diff outcome observed between two already-collected Snapshots; Remove grant is a user-initiated mutation of Bitbucket's current state, made through this dashboard.
 _Avoid_: Revoke (reserved for the diff outcome), Delete
+
+**Refresh**:
+The user-initiated complement to Apply, offered only in the Apply results view for the batch that was just applied: it creates one new Snapshot by copying every repo/project untouched by that batch verbatim from the source Snapshot (the one the batch's edits were staged against), and re-fetching live data only for the **Refresh targets** addressed by the batch's *successful* edits. Failed edits stay staged for retry (per Apply) and contribute no target. Never calls `list_repositories` — a Run is still the only way to pick up a repo newly created, deleted, or moved between Projects. Dismissing the Apply results view retires the opportunity; a full Run is the only path forward afterward. Clears every remaining staged Pending edit, same as a Run, and auto-selects the new Snapshot as Comparison.
+_Avoid_: Partial Run (blurs the rule that Run always means full discovery), Sync (already reserved-against for Apply — and Sync would run the wrong direction: Refresh pulls Bitbucket → local, Apply pushes local → Bitbucket)
+
+**Refresh target**:
+The one repo (for a Repo-scope edit) or Project (for a Project-scope edit) whose grants a Refresh re-fetches live, identified directly from a successful edit's `repo`/`repo_project`. A Project-scope target cascades to every repo the source Snapshot already records under that Project — not a freshly discovered repo list — since Project-scope grants are duplicated onto every owned repo's records at collection time (see Grant scope). A `FetchFailed` on a target means zero records for it, identical to a Run's convention, since a Snapshot carries no marker distinguishing whether a Run or a Refresh produced it.
+_Avoid_: Affected repo (imprecise about Project-scope cascading), Dirty repo
