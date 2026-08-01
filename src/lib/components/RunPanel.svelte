@@ -1,9 +1,20 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { goto } from "$app/navigation";
+
+  type RunProgress = { index: number; total: number; repo: string };
 
   let running = $state(false);
   let error = $state("");
+  let progress = $state<RunProgress | null>(null);
+  let unlisten: UnlistenFn | undefined;
+
+  // Catches the case where this component unmounts (e.g. navigation away) mid-Run, since the
+  // runNow() finally block never gets to run in that case.
+  $effect(() => {
+    return () => unlisten?.();
+  });
 
   // ADR-0010: a run always jumps Baseline/Comparison to the new latest-vs-previous pair, even
   // over a manually pinned selection — dropping the baseline/comparison query params and
@@ -11,22 +22,36 @@
   async function runNow() {
     running = true;
     error = "";
+    progress = null;
     try {
+      unlisten = await listen<RunProgress>("run-progress", (event) => {
+        progress = event.payload;
+      });
       await invoke("run_now");
       await goto("/dashboard", { invalidateAll: true, keepFocus: true, noScroll: true });
     } catch (err) {
       error = String(err);
     } finally {
+      unlisten?.();
+      unlisten = undefined;
       running = false;
+      progress = null;
     }
   }
 </script>
 
 <section class="run-panel">
   <h3 class="panel-title">run</h3>
-  <button type="button" onclick={runNow} disabled={running}>
-    {running ? "Running…" : "Get all data"}
-  </button>
+  {#if running && progress}
+    <p class="progress-text" aria-live="polite">Fetching: {progress.repo} ({progress.index}/{progress.total})</p>
+    <div class="progress-track" role="progressbar" aria-valuenow={progress.index} aria-valuemin={0} aria-valuemax={progress.total}>
+      <div class="progress-fill" style:width="{(progress.index / progress.total) * 100}%"></div>
+    </div>
+  {:else}
+    <button type="button" onclick={runNow} disabled={running}>
+      {running ? "Running…" : "Get all data"}
+    </button>
+  {/if}
   {#if error}
     <p class="error">{error}</p>
   {/if}
@@ -75,5 +100,27 @@
     font-family: var(--font-sans);
     font-size: var(--t-body-s);
     color: var(--state-revoked);
+  }
+
+  .progress-text {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: var(--t-body-s);
+    color: var(--ink-mute);
+  }
+
+  .progress-track {
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--track);
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--ink);
+    transition: width 150ms ease-out;
   }
 </style>
