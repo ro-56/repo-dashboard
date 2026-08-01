@@ -15,7 +15,7 @@
     drawerOpen,
     onToggleDrawer,
     pendingCount,
-    applyDisabled,
+    canApply,
     onApplyClick,
   }: {
     snapshots: SnapshotSummary[];
@@ -30,7 +30,7 @@
     drawerOpen: boolean;
     onToggleDrawer: () => void;
     pendingCount: number;
-    applyDisabled: boolean;
+    canApply: boolean;
     onApplyClick: () => void;
   } = $props();
 
@@ -94,9 +94,11 @@
       {/each}
     </div>
   {/if}
-  <button type="button" class="apply-btn" disabled={applyDisabled} onclick={onApplyClick}>
-    Apply {pendingCount} changes
-  </button>
+  {#if canApply}
+    <button type="button" class="apply-btn" onclick={onApplyClick}>
+      Apply {pendingCount} changes
+    </button>
+  {/if}
   <button
     type="button"
     class="drawer-toggle"
@@ -277,13 +279,6 @@
     color: var(--surface);
     cursor: pointer;
   }
-  .apply-btn:disabled {
-    cursor: default;
-    border-color: var(--control-edge);
-    background: var(--surface-sunken);
-    color: var(--ink-mute);
-  }
-
   .drawer-toggle {
     display: inline-flex;
     align-items: center;

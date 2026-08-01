@@ -15,7 +15,7 @@
   import AppearancePanel from "$lib/components/AppearancePanel.svelte";
   import ConfirmApplyDialog from "$lib/components/ConfirmApplyDialog.svelte";
   import { isRepoOpen, treeHasAnyChanges } from "$lib/repoCard";
-  import { snapshotSeqs } from "$lib/headBar";
+  import { canApply, snapshotSeqs } from "$lib/headBar";
   import {
     allVisibleOpen,
     countNote,
@@ -156,7 +156,7 @@
   }
 
   let pendingCount = $derived(pending.size);
-  let applyDisabled = $derived(pendingCount === 0 || !editingEnabled);
+  let applyIsEnabled = $derived(canApply(pendingCount, editingEnabled));
 
   type DialogPhase = "review" | "applying" | "results";
   let dialogOpen = $state(false);
@@ -172,7 +172,7 @@
   let dialogResultRows = $derived(dialogResults ? resultRows(dialogSnapshot, dialogResults) : []);
 
   function openApplyDialog() {
-    if (applyDisabled) return;
+    if (!applyIsEnabled) return;
     dialogSnapshot = new Map(pending);
     dialogPhase = "review";
     dialogResults = null;
@@ -219,7 +219,7 @@
     {drawerOpen}
     onToggleDrawer={toggleDrawer}
     {pendingCount}
-    {applyDisabled}
+    canApply={applyIsEnabled}
     onApplyClick={openApplyDialog}
   />
   {#if data.snapshots.length === 0}

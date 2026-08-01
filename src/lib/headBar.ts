@@ -32,6 +32,12 @@ export function deltaChips(pair: PairStats): DeltaChip[] {
   return chips;
 }
 
+/** Global Apply button is absent from the DOM entirely unless there's staged work and editing
+ * is currently enabled (ADR-0022 — editing is only live while Comparison is the latest Snapshot). */
+export function canApply(pendingCount: number, editingEnabled: boolean): boolean {
+  return pendingCount > 0 && editingEnabled;
+}
+
 function formatDate(runAt: string): string {
   return runAt.slice(0, 10);
 }
