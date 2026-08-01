@@ -413,7 +413,7 @@ mod tests {
         }
 
         // Not exercised by this module's tests — `apply.rs` owns the write-path fake that
-        // actually asserts against these two methods.
+        // actually asserts against these four methods.
         async fn set_repo_direct_permission(
             &self,
             _workspace: &str,
@@ -428,6 +428,25 @@ mod tests {
             &self,
             _workspace: &str,
             _repo: &str,
+            _account_id: &str,
+        ) -> Result<(), ClientError> {
+            Ok(())
+        }
+
+        async fn set_project_direct_permission(
+            &self,
+            _workspace: &str,
+            _project_key: &str,
+            _account_id: &str,
+            _permission: crate::model::Permission,
+        ) -> Result<(), ClientError> {
+            Ok(())
+        }
+
+        async fn remove_project_direct_permission(
+            &self,
+            _workspace: &str,
+            _project_key: &str,
             _account_id: &str,
         ) -> Result<(), ClientError> {
             Ok(())

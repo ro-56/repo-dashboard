@@ -108,10 +108,10 @@ export interface RosterRowView {
 const EDITABLE_LEVELS: EditableLevel[] = ["Read", "Write", "Admin"];
 
 /** The edit target a row's menu would stage against, or `null` when this entry can't be edited
- * at all — Group grants, Project-scope grants, and Member rows all get no menu in this ticket
- * (PD-60; PD-61/PD-62 extend this same shape to Group and Project scope). */
+ * at all — Group grants and Member rows still get no menu (PD-62 extends this to Group). Direct
+ * entries are editable at both Repo (PD-60) and Project (PD-61) scope. */
 export function editTargetForEntry(entry: PrincipalEntry): EditTarget | null {
-  if (entry.accessType.type !== "Direct" || entry.scope !== "Repo") return null;
+  if (entry.accessType.type !== "Direct") return null;
   return { type: "Direct", id: entry.principal.id };
 }
 
@@ -123,6 +123,12 @@ export interface LevelMenuOption {
 export interface RowMenu {
   levelOptions: LevelMenuOption[];
   effectiveLevel: EditableLevel;
+  /** The cascade note for a Project-scope grant — `null` at Repo scope. PD-61 calls for reusing
+   * whatever cascade note is "already shown elsewhere in the dashboard" rather than introducing
+   * new note-computation logic ("no new note needed") — the only such note that exists today is
+   * `sourceTooltip`'s "Project-level grant" string (ADR-0020's `.source`-cell tooltip), so that's
+   * what's reused here rather than a newly-computed repo-count string. */
+  scopeNote: string | null;
 }
 
 /** Builds the row menu's Read/Write/Admin options, highlighting whichever level is already
@@ -136,6 +142,7 @@ export function rowMenu(entry: PrincipalEntry, staged: StagedEdit | undefined): 
   return {
     levelOptions: EDITABLE_LEVELS.map((level) => ({ level, active: level === effectiveLevel })),
     effectiveLevel,
+    scopeNote: entry.scope === "Project" ? sourceTooltip(entry.accessType, entry.scope) : null,
   };
 }
 

@@ -81,6 +81,26 @@ pub trait BitbucketClient {
         repo: &str,
         account_id: &str,
     ) -> impl std::future::Future<Output = Result<(), ClientError>> + Send;
+
+    /// Sets a Direct grant's level on a Project (PD-61), cascading to every repo it owns. `PUT
+    /// /2.0/workspaces/{workspace}/projects/{project_key}/permissions-config/users/{account_id}`
+    /// — requires `project:admin` scope, checked only lazily (ADR-0023).
+    fn set_project_direct_permission(
+        &self,
+        workspace: &str,
+        project_key: &str,
+        account_id: &str,
+        permission: Permission,
+    ) -> impl std::future::Future<Output = Result<(), ClientError>> + Send;
+
+    /// Removes a Direct grant from a Project entirely (PD-61). `DELETE` on the same
+    /// `permissions-config/users/{account_id}` path as `set_project_direct_permission`.
+    fn remove_project_direct_permission(
+        &self,
+        workspace: &str,
+        project_key: &str,
+        account_id: &str,
+    ) -> impl std::future::Future<Output = Result<(), ClientError>> + Send;
 }
 
 const RETRY_BACKOFF: std::time::Duration = std::time::Duration::from_millis(500);
@@ -341,6 +361,32 @@ impl BitbucketClient for RealBitbucketClient {
     ) -> Result<(), ClientError> {
         let url = format!(
             "https://api.bitbucket.org/2.0/repositories/{workspace}/{repo}/permissions-config/users/{account_id}"
+        );
+        self.write_with_retry(reqwest::Method::DELETE, &url, None).await
+    }
+
+    async fn set_project_direct_permission(
+        &self,
+        workspace: &str,
+        project_key: &str,
+        account_id: &str,
+        permission: Permission,
+    ) -> Result<(), ClientError> {
+        let url = format!(
+            "https://api.bitbucket.org/2.0/workspaces/{workspace}/projects/{project_key}/permissions-config/users/{account_id}"
+        );
+        let body = serde_json::json!({ "permission": permission.as_str() });
+        self.write_with_retry(reqwest::Method::PUT, &url, Some(&body)).await
+    }
+
+    async fn remove_project_direct_permission(
+        &self,
+        workspace: &str,
+        project_key: &str,
+        account_id: &str,
+    ) -> Result<(), ClientError> {
+        let url = format!(
+            "https://api.bitbucket.org/2.0/workspaces/{workspace}/projects/{project_key}/permissions-config/users/{account_id}"
         );
         self.write_with_retry(reqwest::Method::DELETE, &url, None).await
     }

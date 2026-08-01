@@ -146,6 +146,9 @@
                 </button>
               {/each}
             </div>
+            {#if menu.scopeNote}
+              <span class="menu-note">{menu.scopeNote}</span>
+            {/if}
             <span class="menu-divider"></span>
             <button type="button" class="menu-remove" onclick={selectRemove}>✕ Remove access</button>
           </div>
@@ -397,6 +400,12 @@
   .menu-levels {
     display: flex;
     gap: var(--s-2);
+  }
+  .menu-note {
+    font-family: var(--font-sans);
+    font-size: var(--t-tag);
+    line-height: 1.4;
+    color: var(--ink-3);
   }
   .level-opt {
     flex: 1;

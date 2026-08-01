@@ -1,9 +1,9 @@
-//! Applies a batch of staged permission edits (PD-59/PD-60) to live Bitbucket. Each
+//! Applies a batch of staged permission edits (PD-59/PD-60/PD-61) to live Bitbucket. Each
 //! `PendingEditRequest` is routed to the matching `BitbucketClient` write method and applied
-//! independently (ADR-0022) — one item failing never blocks the rest of the batch. Only the
-//! Direct/Repo combination is wired to a real client call in this ticket; Group and Project
-//! targets exist on `EditTarget`/`GrantScope` so Tickets 2/3 can reuse this same shape without
-//! remodeling it, but routing them here is out of scope until the UI can produce them.
+//! independently (ADR-0022) — one item failing never blocks the rest of the batch. Direct/Repo
+//! (PD-60) and Direct/Project (PD-61) are wired to real client calls; `Group` targets exist on
+//! `EditTarget` so Ticket 3 (PD-62) can reuse this same shape without remodeling it, but routing
+//! them here is out of scope until the UI can produce them.
 
 use serde::{Deserialize, Serialize};
 
@@ -74,10 +74,11 @@ pub struct ApplyResult {
     pub outcome: Result<(), ApplyError>,
 }
 
-/// Routes one edit to the matching `BitbucketClient` write method. Only `Repo` + `Direct` is
-/// wired for real in this ticket (PD-60) — every other scope/target combination isn't
-/// reachable from the UI yet (menus only render for Direct/Repo entries), so it surfaces as an
-/// `Other` error rather than panicking, keeping this match total.
+/// Routes one edit to the matching `BitbucketClient` write method. `Repo` + `Direct` (PD-60) and
+/// `Project` + `Direct` (PD-61) are wired for real — `Project` scope targets `edit.repo_project`
+/// as the project key, cascading to every repo it owns, rather than `edit.repo`. `Group` targets
+/// aren't reachable from the UI yet (menus only render for Direct entries), so they surface as
+/// an `Other` error rather than panicking, keeping this match total.
 async fn apply_one<C: BitbucketClient>(
     client: &C,
     workspace: &str,
@@ -91,6 +92,16 @@ async fn apply_one<C: BitbucketClient>(
                 .map_err(ApplyError::from),
             EditAction::Remove => client
                 .remove_repo_direct_permission(workspace, &edit.repo, account_id)
+                .await
+                .map_err(ApplyError::from),
+        },
+        (GrantScope::Project, EditTarget::Direct(account_id)) => match &edit.action {
+            EditAction::SetLevel(permission) => client
+                .set_project_direct_permission(workspace, &edit.repo_project, account_id, *permission)
+                .await
+                .map_err(ApplyError::from),
+            EditAction::Remove => client
+                .remove_project_direct_permission(workspace, &edit.repo_project, account_id)
                 .await
                 .map_err(ApplyError::from),
         },
@@ -138,6 +149,21 @@ mod tests {
         account_id: String,
     }
 
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    struct ProjectSetCall {
+        workspace: String,
+        project_key: String,
+        account_id: String,
+        permission: Permission,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    struct ProjectRemoveCall {
+        workspace: String,
+        project_key: String,
+        account_id: String,
+    }
+
     /// Follows `collect.rs`'s `FakeBitbucketClient` pattern: canned per-key results plus call
     /// tracking, so tests assert externally observable behaviour (which method was called, with
     /// what arguments, and what `ApplyResult` came back) rather than internal control flow. The
@@ -147,8 +173,12 @@ mod tests {
     struct FakeClient {
         set_results: HashMap<String, Result<(), ClientError>>,
         remove_results: HashMap<String, Result<(), ClientError>>,
+        project_set_results: HashMap<String, Result<(), ClientError>>,
+        project_remove_results: HashMap<String, Result<(), ClientError>>,
         set_calls: Mutex<Vec<SetCall>>,
         remove_calls: Mutex<Vec<RemoveCall>>,
+        project_set_calls: Mutex<Vec<ProjectSetCall>>,
+        project_remove_calls: Mutex<Vec<ProjectRemoveCall>>,
     }
 
     impl FakeClient {
@@ -163,6 +193,16 @@ mod tests {
 
         fn with_remove_result(mut self, account_id: &str, result: Result<(), ClientError>) -> Self {
             self.remove_results.insert(account_id.to_string(), result);
+            self
+        }
+
+        fn with_project_set_result(mut self, account_id: &str, result: Result<(), ClientError>) -> Self {
+            self.project_set_results.insert(account_id.to_string(), result);
+            self
+        }
+
+        fn with_project_remove_result(mut self, account_id: &str, result: Result<(), ClientError>) -> Self {
+            self.project_remove_results.insert(account_id.to_string(), result);
             self
         }
     }
@@ -236,6 +276,36 @@ mod tests {
             });
             self.remove_results.get(account_id).cloned().unwrap_or(Ok(()))
         }
+
+        async fn set_project_direct_permission(
+            &self,
+            workspace: &str,
+            project_key: &str,
+            account_id: &str,
+            permission: Permission,
+        ) -> Result<(), ClientError> {
+            self.project_set_calls.lock().unwrap().push(ProjectSetCall {
+                workspace: workspace.to_string(),
+                project_key: project_key.to_string(),
+                account_id: account_id.to_string(),
+                permission,
+            });
+            self.project_set_results.get(account_id).cloned().unwrap_or(Ok(()))
+        }
+
+        async fn remove_project_direct_permission(
+            &self,
+            workspace: &str,
+            project_key: &str,
+            account_id: &str,
+        ) -> Result<(), ClientError> {
+            self.project_remove_calls.lock().unwrap().push(ProjectRemoveCall {
+                workspace: workspace.to_string(),
+                project_key: project_key.to_string(),
+                account_id: account_id.to_string(),
+            });
+            self.project_remove_results.get(account_id).cloned().unwrap_or(Ok(()))
+        }
     }
 
     fn set_level_edit(repo: &str, account_id: &str, permission: Permission) -> PendingEditRequest {
@@ -254,6 +324,26 @@ mod tests {
             target: EditTarget::Direct(account_id.to_string()),
             repo_project: "TEAM".to_string(),
             repo: repo.to_string(),
+            action: EditAction::Remove,
+        }
+    }
+
+    fn set_level_project_edit(project_key: &str, account_id: &str, permission: Permission) -> PendingEditRequest {
+        PendingEditRequest {
+            scope: GrantScope::Project,
+            target: EditTarget::Direct(account_id.to_string()),
+            repo_project: project_key.to_string(),
+            repo: "repo-a".to_string(),
+            action: EditAction::SetLevel(permission),
+        }
+    }
+
+    fn remove_project_edit(project_key: &str, account_id: &str) -> PendingEditRequest {
+        PendingEditRequest {
+            scope: GrantScope::Project,
+            target: EditTarget::Direct(account_id.to_string()),
+            repo_project: project_key.to_string(),
+            repo: "repo-a".to_string(),
             action: EditAction::Remove,
         }
     }
@@ -366,20 +456,82 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_project_scoped_direct_edit_is_not_yet_routed_and_reports_a_typed_error() {
+    async fn a_project_scoped_set_level_edit_routes_to_set_project_direct_permission_with_the_right_arguments() {
         let client = FakeClient::new();
-        let edits = vec![PendingEditRequest {
-            scope: GrantScope::Project,
-            target: EditTarget::Direct("acct-1".to_string()),
-            repo_project: "TEAM".to_string(),
-            repo: "repo-a".to_string(),
-            action: EditAction::Remove,
-        }];
+        let edits = vec![set_level_project_edit("TEAM", "acct-1", Permission::Admin)];
 
         let results = apply_pending_edits(&client, "ws", edits).await;
 
-        assert!(matches!(results[0].outcome, Err(ApplyError::Other(_))));
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].outcome, Ok(()));
+        let calls = client.project_set_calls.lock().unwrap();
+        assert_eq!(
+            calls[0],
+            ProjectSetCall {
+                workspace: "ws".to_string(),
+                project_key: "TEAM".to_string(),
+                account_id: "acct-1".to_string(),
+                permission: Permission::Admin,
+            }
+        );
+        assert!(client.set_calls.lock().unwrap().is_empty());
+        assert!(client.project_remove_calls.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_project_scoped_remove_edit_routes_to_remove_project_direct_permission_with_the_right_arguments() {
+        let client = FakeClient::new();
+        let edits = vec![remove_project_edit("TEAM", "acct-1")];
+
+        let results = apply_pending_edits(&client, "ws", edits).await;
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].outcome, Ok(()));
+        let calls = client.project_remove_calls.lock().unwrap();
+        assert_eq!(
+            calls[0],
+            ProjectRemoveCall {
+                workspace: "ws".to_string(),
+                project_key: "TEAM".to_string(),
+                account_id: "acct-1".to_string(),
+            }
+        );
         assert!(client.remove_calls.lock().unwrap().is_empty());
+        assert!(client.project_set_calls.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn project_scoped_edits_fail_independently_of_repo_scoped_ones_in_the_same_batch() {
+        let client = FakeClient::new()
+            .with_project_set_result("acct-fail", Err(ClientError::Other("boom".to_string())));
+        let edits = vec![
+            set_level_project_edit("TEAM", "acct-fail", Permission::Write),
+            set_level_edit("repo-a", "acct-ok", Permission::Read),
+        ];
+
+        let results = apply_pending_edits(&client, "ws", edits).await;
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].outcome, Err(ApplyError::Other("boom".to_string())));
+        assert_eq!(results[1].outcome, Ok(()));
+        assert_eq!(client.project_set_calls.lock().unwrap().len(), 1);
+        assert_eq!(client.set_calls.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn unauthorized_and_rate_limited_client_errors_surface_distinctly_at_project_scope_too() {
+        let client = FakeClient::new()
+            .with_project_set_result("acct-1", Err(ClientError::Unauthorized))
+            .with_project_remove_result("acct-2", Err(ClientError::RateLimited));
+        let edits = vec![
+            set_level_project_edit("TEAM", "acct-1", Permission::Admin),
+            remove_project_edit("TEAM", "acct-2"),
+        ];
+
+        let results = apply_pending_edits(&client, "ws", edits).await;
+
+        assert_eq!(results[0].outcome, Err(ApplyError::Unauthorized));
+        assert_eq!(results[1].outcome, Err(ApplyError::RateLimited));
     }
 
     #[tokio::test]

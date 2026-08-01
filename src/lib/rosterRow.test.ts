@@ -282,12 +282,20 @@ describe("editTargetForEntry", () => {
     expect(editTargetForEntry(e)).toEqual({ type: "Direct", id: "u1" });
   });
 
-  it("is null for Group entries, Member entries, and Project-scope entries", () => {
+  it("targets Direct entries at Project scope too", () => {
+    const e = entry({ accessType: { type: "Direct" }, scope: "Project" });
+    expect(editTargetForEntry(e)).toEqual({ type: "Direct", id: "u1" });
+  });
+
+  it("is null for Group entries and Member entries, at either scope", () => {
     expect(editTargetForEntry(entry({ accessType: { type: "Group" }, scope: "Repo" }))).toBeNull();
+    expect(editTargetForEntry(entry({ accessType: { type: "Group" }, scope: "Project" }))).toBeNull();
     expect(
       editTargetForEntry(entry({ accessType: { type: "Member", group_id: "secops" }, scope: "Repo" })),
     ).toBeNull();
-    expect(editTargetForEntry(entry({ accessType: { type: "Direct" }, scope: "Project" }))).toBeNull();
+    expect(
+      editTargetForEntry(entry({ accessType: { type: "Member", group_id: "secops" }, scope: "Project" })),
+    ).toBeNull();
   });
 });
 
@@ -327,5 +335,25 @@ describe("rowMenu", () => {
   it("treats create-repo as admin-tier for the effective level, same as elsewhere", () => {
     const menu = rowMenu(entry({ accessType: { type: "Direct" }, scope: "Repo", permission: "CreateRepo" }), undefined);
     expect(menu?.effectiveLevel).toBe("Admin");
+  });
+
+  it("has no scope note for a Repo-scope entry", () => {
+    const menu = rowMenu(entry({ accessType: { type: "Direct" }, scope: "Repo" }), undefined);
+    expect(menu?.scopeNote).toBeNull();
+  });
+
+  it("shows the existing 'Project-level grant' cascade note for a Project-scope entry", () => {
+    const menu = rowMenu(entry({ accessType: { type: "Direct" }, scope: "Project" }), undefined);
+    expect(menu?.scopeNote).toBe("Project-level grant");
+  });
+
+  it("still offers Read/Write/Admin options for a Project-scope entry", () => {
+    const menu = rowMenu(entry({ accessType: { type: "Direct" }, scope: "Project", permission: "Write" }), undefined);
+    expect(menu?.effectiveLevel).toBe("Write");
+    expect(menu?.levelOptions).toEqual([
+      { level: "Read", active: false },
+      { level: "Write", active: true },
+      { level: "Admin", active: false },
+    ]);
   });
 });
