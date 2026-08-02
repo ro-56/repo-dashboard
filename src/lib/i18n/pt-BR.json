@@ -22,7 +22,7 @@
       "added": "adicionadas",
       "revoked": "revogadas",
       "changed": "alteradas",
-      "escalations": "escaladas",
+      "escalations": "escalonadas",
       "none": "sem alteração"
     }
   },
@@ -125,13 +125,13 @@
       "granted": "Concedido",
       "revoked": "Revogado",
       "changed": "Alterado",
-      "escalated": "Escalado",
+      "escalated": "Escalonado",
       "pendingChange": "Alteração pendente",
       "pendingRemoval": "Remoção pendente"
     },
     "tag": {
-      "escalation": "escalada",
-      "escalationToAdmin": "escalada → admin",
+      "escalation": "escalonamento",
+      "escalationToAdmin": "escalonamento → admin",
       "escalationTooltip": "Permissão aumentada desde a base",
       "unresolved": "membros não resolvidos",
       "unresolvedTooltip": "Não foi possível obter os membros do grupo",
@@ -159,7 +159,7 @@
       "modifiedLabel": "~{n}",
       "modifiedTitle": "{n, plural, one {# mudança de nível desde a base} other {# mudanças de nível desde a base}}",
       "escLabel": "↑{n} esc",
-      "escTitle": "{n, plural, one {# dessas mudanças é uma escalada (permissão aumentada)} other {# dessas mudanças são escaladas (permissão aumentada)}}",
+      "escTitle": "{n, plural, one {# dessas mudanças é um escalonamento (permissão aumentada)} other {# dessas mudanças são escalonamentos (permissão aumentada)}}",
       "none": "sem alteração"
     },
     "tag": {
