@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>repo-dashboard — User Guide</title>
+<title>Repo Dashboard — User Guide</title>
 <style>
   :root {
     --ink: #1b1f24;
@@ -177,7 +177,7 @@
 <div class="wrap">
 
 <header class="hero">
-  <h1>repo-dashboard</h1>
+  <h1>Repo Dashboard</h1>
   <p class="tagline">A desktop tool for auditing who has access to your team's Bitbucket Cloud repositories — and catching when that access changes.</p>
 </header>
 
@@ -208,7 +208,7 @@
   <p>
     Bitbucket Cloud repository access — who can read, write to, or administer a repo, whether granted
     directly or through a group, at the repo level or cascading down from its Project — can change at
-    any time, by anyone with admin rights, with no built-in history. repo-dashboard closes that gap:
+    any time, by anyone with admin rights, with no built-in history. Repo Dashboard closes that gap:
   </p>
   <ul>
     <li>It scans every repository and Project in your Bitbucket workspace and records exactly who has what access.</li>
@@ -223,7 +223,7 @@
 <section id="setup">
   <h2>Getting started</h2>
   <h3>Installing</h3>
-  <p>repo-dashboard is a desktop application built with Tauri. Building it yourself requires:</p>
+  <p>Repo Dashboard is a desktop application built with Tauri. Building it yourself requires:</p>
   <ul>
     <li><a href="https://pnpm.io/">pnpm</a></li>
     <li><a href="https://www.rust-lang.org/tools/install">Rust</a> (stable)</li>
@@ -241,7 +241,7 @@ pnpm tauri dev        # runs the full app with hot reload</div>
   <ol class="steps">
     <li><strong>Username</strong> — your Bitbucket Cloud username.</li>
     <li><strong>App password</strong> — a Bitbucket app password with read access to repositories, projects, and workspace membership. (Only needed for read access at this point — see the callout below for what's needed to edit access later.)</li>
-    <li><strong>Workspace</strong> — the Bitbucket workspace slug to audit (repo-dashboard audits exactly one workspace).</li>
+    <li><strong>Workspace</strong> — the Bitbucket workspace slug to audit (Repo Dashboard audits exactly one workspace).</li>
   </ol>
   <p>Click <strong>Save credentials</strong>. The credential is stored encrypted in your operating system's keychain (macOS Keychain, Windows Credential Manager, or the Linux secret service) — it is never written to a plain file, and the app never redisplays the password once saved.</p>
   <div class="callout">
@@ -506,7 +506,7 @@ save everything as one new, timestamped snapshot</div>
 
 </main>
 
-<footer>repo-dashboard user guide — generated from the current codebase.</footer>
+<footer>Repo Dashboard user guide — generated from the current codebase.</footer>
 </div>
 </body>
 </html>

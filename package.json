@@ -1,7 +1,7 @@
 {
   "name": "repo-dashboard",
-  "version": "0.1.0",
-  "description": "",
+  "version": "1.0.0",
+  "description": "Local-first desktop app for auditing Bitbucket Cloud repository permissions.",
   "type": "module",
   "scripts": {
     "dev": "vite dev",
@@ -14,6 +14,11 @@
     "tauri": "tauri"
   },
   "license": "MIT",
+  "author": "Rodrigo Mendonça",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ro-56/repo-dashboard.git"
+  },
   "dependencies": {
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.7.2",
