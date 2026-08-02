@@ -15,6 +15,7 @@ import {
 } from "./rosterRow";
 import type { AccessType, PrincipalEntry } from "./roster";
 import type { StagedEdit } from "./pendingEdits";
+import { t } from "./i18n/testHelpers";
 
 function entry(overrides: Partial<PrincipalEntry> = {}): PrincipalEntry {
   return {
@@ -36,11 +37,11 @@ describe("sourceLabel", () => {
   ];
 
   it.each(cases)("renders %o Repo-scoped as %s with no suffix", (accessType, label) => {
-    expect(sourceLabel(accessType, "Repo")).toBe(label);
+    expect(sourceLabel(t, accessType, "Repo")).toBe(label);
   });
 
   it.each(cases)("prepends '↳ ' to %o when Project-scoped", (accessType, label) => {
-    expect(sourceLabel(accessType, "Project")).toBe(`↳ ${label}`);
+    expect(sourceLabel(t, accessType, "Project")).toBe(`↳ ${label}`);
   });
 });
 
@@ -52,11 +53,11 @@ describe("sourceTooltip", () => {
   ];
 
   it.each(cases)("explains %o at Repo scope", (accessType, base) => {
-    expect(sourceTooltip(accessType, "Repo")).toBe(base);
+    expect(sourceTooltip(t, accessType, "Repo")).toBe(base);
   });
 
   it.each(cases)("appends the Project-level suffix to the same base for %o at Project scope", (accessType, base) => {
-    expect(sourceTooltip(accessType, "Project")).toBe(`${base} — Project-level grant`);
+    expect(sourceTooltip(t, accessType, "Project")).toBe(`${base} — Project-level grant`);
   });
 });
 
@@ -115,7 +116,7 @@ describe("compareEntries / sortedPrincipals", () => {
 
 describe("deriveRow", () => {
   it("renders a None row as unchanged with no transition", () => {
-    const view = deriveRow(entry({ diffStatus: { status: "None" }, permission: "Write" }));
+    const view = deriveRow(t, entry({ diffStatus: { status: "None" }, permission: "Write" }));
     expect(view.state).toBe("same");
     expect(view.showTransition).toBe(false);
     expect(view.struck).toBe(false);
@@ -125,7 +126,7 @@ describe("deriveRow", () => {
   });
 
   it("renders a Grant row as added, from em-dash to the level", () => {
-    const view = deriveRow(entry({ diffStatus: { status: "Grant" }, permission: "Admin" }));
+    const view = deriveRow(t, entry({ diffStatus: { status: "Grant" }, permission: "Admin" }));
     expect(view.state).toBe("added");
     expect(view.from).toBe("—");
     expect(view.to).toBe("admin");
@@ -134,7 +135,7 @@ describe("deriveRow", () => {
   });
 
   it("renders a Revoke row as removed and struck through", () => {
-    const view = deriveRow(entry({ diffStatus: { status: "Revoke" }, permission: "Write" }));
+    const view = deriveRow(t, entry({ diffStatus: { status: "Revoke" }, permission: "Write" }));
     expect(view.state).toBe("removed");
     expect(view.struck).toBe(true);
     expect(view.to).toBe("—");
@@ -142,13 +143,13 @@ describe("deriveRow", () => {
   });
 
   it("renders ↑ for an escalation LevelChange and ~ for a plain one, with matching tooltips", () => {
-    const escalation = deriveRow(
+    const escalation = deriveRow(t,
       entry({ diffStatus: { status: "LevelChange", from: "Read", to: "Write", kind: "Escalation" } }),
     );
     expect(escalation.sigil).toBe("↑");
     expect(escalation.sigilTitle).toBe("Escalated");
 
-    const demotion = deriveRow(
+    const demotion = deriveRow(t,
       entry({ diffStatus: { status: "LevelChange", from: "Admin", to: "Read", kind: "Demotion" } }),
     );
     expect(demotion.sigil).toBe("~");
@@ -158,13 +159,13 @@ describe("deriveRow", () => {
   it("gives the meter its own tooltip based on the class tier, not the display word", () => {
     // A create-repo grant displays its own word but renders admin-tier on the meter (ADR-0024) —
     // the meter's tooltip should follow the tier it visually renders, not the word next to it.
-    const view = deriveRow(entry({ diffStatus: { status: "None" }, permission: "CreateRepo" }));
+    const view = deriveRow(t, entry({ diffStatus: { status: "None" }, permission: "CreateRepo" }));
     expect(view.levelWord).toBe("create-repo");
     expect(view.meterTitle).toBe("Admin");
   });
 
   it("tags an Escalation LevelChange, and calls out admin specifically", () => {
-    const toAdmin = deriveRow(
+    const toAdmin = deriveRow(t,
       entry({ diffStatus: { status: "LevelChange", from: "Write", to: "Admin", kind: "Escalation" } }),
     );
     expect(toAdmin.isEscalation).toBe(true);
@@ -172,7 +173,7 @@ describe("deriveRow", () => {
       { label: "escalation → admin", kind: "esc", title: "Permission increased since baseline" },
     ]);
 
-    const toWrite = deriveRow(
+    const toWrite = deriveRow(t,
       entry({ diffStatus: { status: "LevelChange", from: "Read", to: "Write", kind: "Escalation" } }),
     );
     expect(toWrite.tags).toEqual([
@@ -181,7 +182,7 @@ describe("deriveRow", () => {
   });
 
   it("does not tag a Demotion LevelChange", () => {
-    const view = deriveRow(
+    const view = deriveRow(t,
       entry({ diffStatus: { status: "LevelChange", from: "Admin", to: "Read", kind: "Demotion" } }),
     );
     expect(view.isEscalation).toBe(false);
@@ -189,20 +190,20 @@ describe("deriveRow", () => {
   });
 
   it("renders a create-repo grant with admin-tier styling but its own label", () => {
-    const view = deriveRow(entry({ diffStatus: { status: "None" }, permission: "CreateRepo" }));
+    const view = deriveRow(t, entry({ diffStatus: { status: "None" }, permission: "CreateRepo" }));
     expect(view.levelClass).toBe("lvl-admin");
     expect(view.levelWord).toBe("create-repo");
   });
 
   it("renders a new create-repo grant as added, to its own label", () => {
-    const view = deriveRow(entry({ diffStatus: { status: "Grant" }, permission: "CreateRepo" }));
+    const view = deriveRow(t, entry({ diffStatus: { status: "Grant" }, permission: "CreateRepo" }));
     expect(view.state).toBe("added");
     expect(view.levelClass).toBe("lvl-admin");
     expect(view.to).toBe("create-repo");
   });
 
   it("tags an escalation into create-repo the same as an escalation into admin", () => {
-    const view = deriveRow(
+    const view = deriveRow(t,
       entry({
         diffStatus: { status: "LevelChange", from: "Write", to: "CreateRepo", kind: "Escalation" },
       }),
@@ -215,7 +216,7 @@ describe("deriveRow", () => {
   });
 
   it("adds a 'members unresolved' tag only for an unresolved Group's own row", () => {
-    const view = deriveRow(
+    const view = deriveRow(t,
       entry({ accessType: { type: "Group" }, membersResolved: false, diffStatus: { status: "None" } }),
     );
     expect(view.tags).toEqual([
@@ -224,7 +225,7 @@ describe("deriveRow", () => {
   });
 
   it("previews a pending level change: effective level, transition, and pending tag", () => {
-    const view = deriveRow(entry({ permission: "Write", diffStatus: { status: "None" } }), {
+    const view = deriveRow(t, entry({ permission: "Write", diffStatus: { status: "None" } }), {
       kind: "level",
       beforeLevel: "Write",
       afterLevel: "Admin",
@@ -245,7 +246,7 @@ describe("deriveRow", () => {
   });
 
   it("previews a pending removal: struck through, transitions to 'removed'", () => {
-    const view = deriveRow(entry({ permission: "Read", diffStatus: { status: "None" } }), {
+    const view = deriveRow(t, entry({ permission: "Read", diffStatus: { status: "None" } }), {
       kind: "remove",
       beforeLevel: "Read",
     });
@@ -263,7 +264,7 @@ describe("deriveRow", () => {
   });
 
   it("keeps an existing escalation tag alongside the pending tag, pending tag first", () => {
-    const view = deriveRow(
+    const view = deriveRow(t,
       entry({ diffStatus: { status: "LevelChange", from: "Read", to: "Write", kind: "Escalation" } }),
       { kind: "level", beforeLevel: "Write", afterLevel: "Admin" },
     );
@@ -275,7 +276,7 @@ describe("deriveRow", () => {
 
   it("a row with no pending edit renders identically to omitting the argument entirely", () => {
     const e = entry({ diffStatus: { status: "Grant" }, permission: "Read" });
-    expect(deriveRow(e, undefined)).toEqual(deriveRow(e));
+    expect(deriveRow(t, e, undefined)).toEqual(deriveRow(t, e));
   });
 });
 
@@ -400,32 +401,32 @@ describe("cascadeMemberCount", () => {
 
 describe("cascadeNote", () => {
   it("is null when the count is null or undefined", () => {
-    expect(cascadeNote(null)).toBeNull();
-    expect(cascadeNote(undefined)).toBeNull();
+    expect(cascadeNote(t, null)).toBeNull();
+    expect(cascadeNote(t, undefined)).toBeNull();
   });
 
   it("singularizes 'member' for a count of exactly 1", () => {
-    expect(cascadeNote(1)).toBe("removing this also drops access for 1 member");
+    expect(cascadeNote(t, 1)).toBe("removing this also drops access for 1 member");
   });
 
   it("pluralizes for 0 and for any count greater than 1", () => {
-    expect(cascadeNote(0)).toBe("removing this also drops access for 0 members");
-    expect(cascadeNote(4)).toBe("removing this also drops access for 4 members");
+    expect(cascadeNote(t, 0)).toBe("removing this also drops access for 0 members");
+    expect(cascadeNote(t, 4)).toBe("removing this also drops access for 4 members");
   });
 });
 
 describe("rowMenu", () => {
   it("is null for entries editTargetForEntry rejects", () => {
-    expect(rowMenu(entry({ accessType: { type: "Member", group_id: "secops" } }), undefined)).toBeNull();
+    expect(rowMenu(t, entry({ accessType: { type: "Member", group_id: "secops" } }), undefined)).toBeNull();
   });
 
   it("offers Read/Write/Admin, highlighting the entry's current level when nothing is staged", () => {
-    const menu = rowMenu(entry({ accessType: { type: "Direct" }, scope: "Repo", permission: "Write" }), undefined);
+    const menu = rowMenu(t, entry({ accessType: { type: "Direct" }, scope: "Repo", permission: "Write" }), undefined);
     expect(menu?.effectiveLevel).toBe("Write");
     expect(menu?.levelOptions).toEqual([
-      { level: "Read", active: false },
-      { level: "Write", active: true },
-      { level: "Admin", active: false },
+      { level: "Read", label: "Read", active: false },
+      { level: "Write", label: "Write", active: true },
+      { level: "Admin", label: "Admin", active: false },
     ]);
   });
 
@@ -442,44 +443,44 @@ describe("rowMenu", () => {
       principalLabel: e.principal.label,
       beforeLevel: "Read",
     };
-    const menu = rowMenu(e, edit);
+    const menu = rowMenu(t, e, edit);
     expect(menu?.effectiveLevel).toBe("Admin");
     expect(menu?.levelOptions.find((o) => o.level === "Admin")?.active).toBe(true);
   });
 
   it("treats create-repo as admin-tier for the effective level, same as elsewhere", () => {
-    const menu = rowMenu(entry({ accessType: { type: "Direct" }, scope: "Repo", permission: "CreateRepo" }), undefined);
+    const menu = rowMenu(t, entry({ accessType: { type: "Direct" }, scope: "Repo", permission: "CreateRepo" }), undefined);
     expect(menu?.effectiveLevel).toBe("Admin");
   });
 
   it("has no scope note for a Repo-scope entry", () => {
-    const menu = rowMenu(entry({ accessType: { type: "Direct" }, scope: "Repo" }), undefined);
+    const menu = rowMenu(t, entry({ accessType: { type: "Direct" }, scope: "Repo" }), undefined);
     expect(menu?.scopeNote).toBeNull();
   });
 
   it("shows the existing 'Project-level grant' cascade note for a Project-scope entry", () => {
-    const menu = rowMenu(entry({ accessType: { type: "Direct" }, scope: "Project" }), undefined);
+    const menu = rowMenu(t, entry({ accessType: { type: "Direct" }, scope: "Project" }), undefined);
     expect(menu?.scopeNote).toBe("Project-level grant");
   });
 
   it("still offers Read/Write/Admin options for a Project-scope entry", () => {
-    const menu = rowMenu(entry({ accessType: { type: "Direct" }, scope: "Project", permission: "Write" }), undefined);
+    const menu = rowMenu(t, entry({ accessType: { type: "Direct" }, scope: "Project", permission: "Write" }), undefined);
     expect(menu?.effectiveLevel).toBe("Write");
     expect(menu?.levelOptions).toEqual([
-      { level: "Read", active: false },
-      { level: "Write", active: true },
-      { level: "Admin", active: false },
+      { level: "Read", label: "Read", active: false },
+      { level: "Write", label: "Write", active: true },
+      { level: "Admin", label: "Admin", active: false },
     ]);
   });
 
   it("offers Read/Write/Admin for a Group entry, same as Direct", () => {
-    const menu = rowMenu(entry({ accessType: { type: "Group" }, scope: "Repo", permission: "Admin" }), undefined);
+    const menu = rowMenu(t, entry({ accessType: { type: "Group" }, scope: "Repo", permission: "Admin" }), undefined);
     expect(menu?.effectiveLevel).toBe("Admin");
     expect(menu?.levelOptions.find((o) => o.level === "Admin")?.active).toBe(true);
   });
 
   it("carries the Project-scope cascade note for a Group entry too", () => {
-    const menu = rowMenu(entry({ accessType: { type: "Group" }, scope: "Project" }), undefined);
+    const menu = rowMenu(t, entry({ accessType: { type: "Group" }, scope: "Project" }), undefined);
     expect(menu?.scopeNote).toBe("Project-level grant");
   });
 
@@ -495,7 +496,7 @@ describe("rowMenu", () => {
       accessType: { type: "Member", group_id: "platform-eng" },
       scope: "Repo",
     });
-    const menu = rowMenu(group, undefined, [member]);
+    const menu = rowMenu(t, group, undefined, [member]);
     expect(menu?.cascadeCount).toBe(1);
   });
 
@@ -506,12 +507,12 @@ describe("rowMenu", () => {
       scope: "Repo",
       membersResolved: false,
     });
-    const menu = rowMenu(group, undefined, []);
+    const menu = rowMenu(t, group, undefined, []);
     expect(menu?.cascadeCount).toBeNull();
   });
 
   it("is null cascadeCount for a Direct entry regardless of candidates", () => {
-    const menu = rowMenu(entry({ accessType: { type: "Direct" }, scope: "Repo" }), undefined);
+    const menu = rowMenu(t, entry({ accessType: { type: "Direct" }, scope: "Repo" }), undefined);
     expect(menu?.cascadeCount).toBeNull();
   });
 });

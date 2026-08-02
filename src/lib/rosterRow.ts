@@ -4,6 +4,7 @@
 
 import type { EditableLevel, EditTarget, StagedEdit } from "./pendingEdits";
 import type { AccessType, GrantScope, Permission, PrincipalEntry } from "./roster";
+import type { Translate } from "./i18n/translate";
 
 export type RowState = "same" | "added" | "removed" | "modified";
 export type LevelClass = "lvl-admin" | "lvl-write" | "lvl-read";
@@ -15,6 +16,13 @@ type CoreLevel = "Read" | "Write" | "Admin";
  * or style tier, never for display (see levelWord, the display-side counterpart). */
 function adminLight(permission: Permission): CoreLevel {
   return permission === "CreateRepo" ? "Admin" : permission;
+}
+
+/** The `permission.*` catalog key backing a Read/Write/Admin/CreateRepo word — shared by
+ * `levelWord` (display) and `rowMenu` (menu option labels) so both name the same permission the
+ * same way. */
+function permissionKey(permission: Permission): string {
+  return permission === "CreateRepo" ? "permission.createRepo" : `permission.${permission.toLowerCase()}`;
 }
 
 const RANK: Record<CoreLevel, number> = { Read: 1, Write: 2, Admin: 3 };
@@ -46,9 +54,9 @@ export function cascadeMemberCount(entry: PrincipalEntry, candidates: PrincipalE
 /** Formats `cascadeMemberCount`'s result for display — shared by the row menu and the confirm
  * dialog so both ever say exactly the same thing about the same staged removal. `null` in,
  * `null` out: nothing renders when the count is unavailable. */
-export function cascadeNote(count: number | null | undefined): string | null {
+export function cascadeNote(t: Translate, count: number | null | undefined): string | null {
   if (count === null || count === undefined) return null;
-  return `removing this also drops access for ${count} ${count === 1 ? "member" : "members"}`;
+  return t("roster.menu.cascadeNote", { values: { count } });
 }
 
 /** A row carrying a diff marker (Grant/Revoke/LevelChange) — shared by the Changes only tab's
@@ -59,15 +67,15 @@ export function hasDiff(entry: PrincipalEntry): boolean {
 
 /** `direct`, `group`, or `grp:<name>`, plus a `↳ ` prefix for Project-level grants
  * (ADR-0020) — never spills into the notes column. */
-export function sourceLabel(accessType: AccessType, scope: GrantScope): string {
+export function sourceLabel(t: Translate, accessType: AccessType, scope: GrantScope): string {
   const base = (() => {
     switch (accessType.type) {
       case "Direct":
-        return "direct";
+        return t("roster.source.direct");
       case "Group":
-        return "group";
+        return t("roster.source.group");
       case "Member":
-        return `grp:${accessType.group_id}`;
+        return t("roster.source.member", { values: { group: accessType.group_id } });
     }
   })();
   return scope === "Project" ? `↳ ${base}` : base;
@@ -78,18 +86,18 @@ export function sourceLabel(accessType: AccessType, scope: GrantScope): string {
  * (ADR-0020). Deliberately not reused by `rowMenu`'s on-screen `scopeNote` (below), which keeps
  * its own bare "Project-level grant" — that note is visible menu copy, not a hover tooltip, and
  * shouldn't grow just because this one does. */
-export function sourceTooltip(accessType: AccessType, scope: GrantScope): string {
+export function sourceTooltip(t: Translate, accessType: AccessType, scope: GrantScope): string {
   const base = (() => {
     switch (accessType.type) {
       case "Direct":
-        return "User grant";
+        return t("roster.source.directTooltip");
       case "Group":
-        return "Group grant";
+        return t("roster.source.groupTooltip");
       case "Member":
-        return `Via membership in ${accessType.group_id}`;
+        return t("roster.source.memberTooltip", { values: { group: accessType.group_id } });
     }
   })();
-  return scope === "Project" ? `${base} — Project-level grant` : base;
+  return scope === "Project" ? t("roster.source.projectSuffix", { values: { base } }) : base;
 }
 
 /** Roster ordering: admin → write → read, then principal label, then source (direct before group). */
@@ -111,12 +119,17 @@ export interface RosterRowTag {
   title: string;
 }
 
-const TAG_TITLE: Record<RosterRowTag["kind"], string> = {
-  esc: "Permission increased since baseline",
-  unresolved: "Group's members couldn't be fetched",
-  "pending-level": "Staged edit, not yet applied",
-  "pending-remove": "Staged edit, not yet applied",
-};
+function tagTitle(t: Translate, kind: RosterRowTag["kind"]): string {
+  switch (kind) {
+    case "esc":
+      return t("roster.tag.escalationTooltip");
+    case "unresolved":
+      return t("roster.tag.unresolvedTooltip");
+    case "pending-level":
+    case "pending-remove":
+      return t("roster.tag.pendingTooltip");
+  }
+}
 
 /** A staged edit's effect on how a row displays, decoupled from `StagedEdit`'s wire shape so
  * `deriveRow` only ever reasons about display-relevant fields. */
@@ -151,18 +164,29 @@ export interface RosterRowView {
   tags: RosterRowTag[];
 }
 
-const SIGIL_TITLE: Record<RowState, string> = {
-  same: "No change",
-  added: "Granted",
-  removed: "Revoked",
-  modified: "Changed",
-};
+function sigilTitle(t: Translate, state: RowState): string {
+  switch (state) {
+    case "same":
+      return t("roster.sigil.same");
+    case "added":
+      return t("roster.sigil.granted");
+    case "removed":
+      return t("roster.sigil.revoked");
+    case "modified":
+      return t("roster.sigil.changed");
+  }
+}
 
-const LEVEL_CLASS_TITLE: Record<LevelClass, string> = {
-  "lvl-admin": "Admin",
-  "lvl-write": "Write",
-  "lvl-read": "Read",
-};
+function levelClassTitle(t: Translate, cls: LevelClass): string {
+  switch (cls) {
+    case "lvl-admin":
+      return t("permission.admin");
+    case "lvl-write":
+      return t("permission.write");
+    case "lvl-read":
+      return t("permission.read");
+  }
+}
 
 const EDITABLE_LEVELS: EditableLevel[] = ["Read", "Write", "Admin"];
 
@@ -183,6 +207,7 @@ export function editTargetForEntry(entry: PrincipalEntry): EditTarget | null {
 
 export interface LevelMenuOption {
   level: EditableLevel;
+  label: string;
   active: boolean;
 }
 
@@ -206,23 +231,32 @@ export interface RowMenu {
  * `effLevel`, so reopening the menu after staging a change shows the choice just made. Returns
  * `null` for anything `editTargetForEntry` won't produce a target for. `candidates` feeds
  * `cascadeMemberCount` for Group entries — irrelevant, and safe to omit, for Direct ones. */
-export function rowMenu(entry: PrincipalEntry, staged: StagedEdit | undefined, candidates: PrincipalEntry[] = []): RowMenu | null {
+export function rowMenu(
+  t: Translate,
+  entry: PrincipalEntry,
+  staged: StagedEdit | undefined,
+  candidates: PrincipalEntry[] = [],
+): RowMenu | null {
   if (!editTargetForEntry(entry)) return null;
   const effectiveLevel: EditableLevel =
     staged?.request.action.type === "SetLevel" ? staged.request.action.level : (adminLight(entry.permission) as EditableLevel);
   return {
-    levelOptions: EDITABLE_LEVELS.map((level) => ({ level, active: level === effectiveLevel })),
+    levelOptions: EDITABLE_LEVELS.map((level) => ({
+      level,
+      label: t(permissionKey(level)),
+      active: level === effectiveLevel,
+    })),
     effectiveLevel,
-    scopeNote: entry.scope === "Project" ? "Project-level grant" : null,
+    scopeNote: entry.scope === "Project" ? t("roster.menu.projectScopeNote") : null,
     cascadeCount: cascadeMemberCount(entry, candidates),
   };
 }
 
-export function levelWord(permission: Permission): string {
-  return permission === "CreateRepo" ? "create-repo" : permission.toLowerCase();
+export function levelWord(t: Translate, permission: Permission): string {
+  return t(permissionKey(permission)).toLowerCase();
 }
 
-export function deriveRow(entry: PrincipalEntry, pending?: PendingRowView): RosterRowView {
+export function deriveRow(t: Translate, entry: PrincipalEntry, pending?: PendingRowView): RosterRowView {
   const status = entry.diffStatus;
   // A pending level-change previews its target level immediately (matching the reference
   // design's `effLevel`) — the meter/level-word reflect what Apply would set, not what's
@@ -230,9 +264,9 @@ export function deriveRow(entry: PrincipalEntry, pending?: PendingRowView): Rost
   const effPermission = pending?.kind === "level" && pending.afterLevel !== undefined ? pending.afterLevel : entry.permission;
   const levelClass = LEVEL_CLASS[adminLight(effPermission)];
   const base = {
-    levelWord: levelWord(effPermission),
+    levelWord: levelWord(t, effPermission),
     levelClass,
-    meterTitle: LEVEL_CLASS_TITLE[levelClass],
+    meterTitle: levelClassTitle(t, levelClass),
   };
 
   const view: RosterRowView = (() => {
@@ -242,7 +276,7 @@ export function deriveRow(entry: PrincipalEntry, pending?: PendingRowView): Rost
           ...base,
           state: "same",
           sigil: "·",
-          sigilTitle: SIGIL_TITLE.same,
+          sigilTitle: sigilTitle(t, "same"),
           struck: false,
           isEscalation: false,
           showTransition: false,
@@ -255,7 +289,7 @@ export function deriveRow(entry: PrincipalEntry, pending?: PendingRowView): Rost
           ...base,
           state: "added",
           sigil: "+",
-          sigilTitle: SIGIL_TITLE.added,
+          sigilTitle: sigilTitle(t, "added"),
           struck: false,
           isEscalation: false,
           showTransition: true,
@@ -268,7 +302,7 @@ export function deriveRow(entry: PrincipalEntry, pending?: PendingRowView): Rost
           ...base,
           state: "removed",
           sigil: "−",
-          sigilTitle: SIGIL_TITLE.removed,
+          sigilTitle: sigilTitle(t, "removed"),
           struck: true,
           isEscalation: false,
           showTransition: true,
@@ -281,9 +315,9 @@ export function deriveRow(entry: PrincipalEntry, pending?: PendingRowView): Rost
         const tags: RosterRowTag[] = isEscalation
           ? [
               {
-                label: adminLight(status.to) === "Admin" ? "escalation → admin" : "escalation",
+                label: adminLight(status.to) === "Admin" ? t("roster.tag.escalationToAdmin") : t("roster.tag.escalation"),
                 kind: "esc",
-                title: TAG_TITLE.esc,
+                title: tagTitle(t, "esc"),
               },
             ]
           : [];
@@ -291,12 +325,12 @@ export function deriveRow(entry: PrincipalEntry, pending?: PendingRowView): Rost
           ...base,
           state: "modified",
           sigil: isEscalation ? "↑" : "~",
-          sigilTitle: isEscalation ? "Escalated" : SIGIL_TITLE.modified,
+          sigilTitle: isEscalation ? t("roster.sigil.escalated") : sigilTitle(t, "modified"),
           struck: false,
           isEscalation,
           showTransition: true,
-          from: levelWord(status.from),
-          to: levelWord(status.to),
+          from: levelWord(t, status.from),
+          to: levelWord(t, status.to),
           tags,
         };
       }
@@ -306,7 +340,7 @@ export function deriveRow(entry: PrincipalEntry, pending?: PendingRowView): Rost
   // Unresolvable membership (CONTEXT.md): only a Group's own row carries this — never the
   // Member rows beneath it, since an unresolved group derives none.
   if (isUnresolvedGroup(entry)) {
-    view.tags = [...view.tags, { label: "members unresolved", kind: "unresolved", title: TAG_TITLE.unresolved }];
+    view.tags = [...view.tags, { label: t("roster.tag.unresolved"), kind: "unresolved", title: tagTitle(t, "unresolved") }];
   }
 
   // A staged edit overrides whatever the diff engine says (ADR-0022: pending state previews
@@ -316,28 +350,28 @@ export function deriveRow(entry: PrincipalEntry, pending?: PendingRowView): Rost
     if (pending.kind === "level") {
       view.state = "modified";
       view.sigil = "~";
-      // "Changed"/"Revoked" (SIGIL_TITLE) name diff outcomes between two Snapshots — a Pending
+      // "Changed"/"Revoked" (sigilTitle) name diff outcomes between two Snapshots — a Pending
       // edit is neither (CONTEXT.md: Remove grant is deliberately distinct from Revoke), so it
       // gets its own wording rather than borrowing one that implies this already happened.
-      view.sigilTitle = "Pending change";
+      view.sigilTitle = t("roster.sigil.pendingChange");
       view.struck = false;
       view.showTransition = true;
-      view.from = levelWord(pending.beforeLevel);
+      view.from = levelWord(t, pending.beforeLevel);
       view.to = base.levelWord;
       view.tags = [
-        { label: "pending · unsaved", kind: "pending-level", title: TAG_TITLE["pending-level"] },
+        { label: t("roster.tag.pendingLevel"), kind: "pending-level", title: tagTitle(t, "pending-level") },
         ...view.tags,
       ];
     } else {
       view.state = "modified";
       view.sigil = "−";
-      view.sigilTitle = "Pending removal";
+      view.sigilTitle = t("roster.sigil.pendingRemoval");
       view.struck = true;
       view.showTransition = true;
-      view.from = levelWord(pending.beforeLevel);
-      view.to = "removed";
+      view.from = levelWord(t, pending.beforeLevel);
+      view.to = t("roster.pendingRemovedTo");
       view.tags = [
-        { label: "pending removal", kind: "pending-remove", title: TAG_TITLE["pending-remove"] },
+        { label: t("roster.tag.pendingRemove"), kind: "pending-remove", title: tagTitle(t, "pending-remove") },
         ...view.tags,
       ];
     }

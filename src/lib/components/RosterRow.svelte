@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from "svelte-i18n";
   import type { PrincipalEntry } from "$lib/roster";
   import { cascadeNote, deriveRow, editTargetForEntry, pendingRowView, rowMenu, sourceLabel, sourceTooltip } from "$lib/rosterRow";
   import { editKey, type EditableLevel, type PendingEdits, type StagedEdit } from "$lib/pendingEdits";
@@ -33,13 +34,13 @@
   let target = $derived(editTargetForEntry(entry));
   let key = $derived(target ? editKey(entry.scope, target, repoProject, repo) : null);
   let staged = $derived(key ? pending.get(key) : undefined);
-  let row = $derived(deriveRow(entry, pendingRowView(staged)));
-  let source = $derived(sourceLabel(entry.accessType, entry.scope));
-  let sourceTitle = $derived(sourceTooltip(entry.accessType, entry.scope));
+  let row = $derived(deriveRow($_, entry, pendingRowView(staged)));
+  let source = $derived(sourceLabel($_, entry.accessType, entry.scope));
+  let sourceTitle = $derived(sourceTooltip($_, entry.accessType, entry.scope));
   let cascadeCandidates = $derived(entry.scope === "Project" ? projectPrincipals : repoPrincipals);
   // Menus are absent, not just disabled, while the Comparison isn't the latest Snapshot
   // (ADR-0022) — editing against a historical view would mutate the present based on the past.
-  let menu = $derived(editingEnabled ? rowMenu(entry, staged, cascadeCandidates) : null);
+  let menu = $derived(editingEnabled ? rowMenu($_, entry, staged, cascadeCandidates) : null);
 
   let menuOpen = $state(false);
   let menuTrigger = $state<HTMLButtonElement | undefined>(undefined);
@@ -132,7 +133,7 @@
       <span class="tag tag-{tag.kind}" title={tag.title}>{tag.label}</span>
     {/each}
     {#if staged}
-      <button type="button" class="undo" onclick={handleUndo}>↺ undo</button>
+      <button type="button" class="undo" onclick={handleUndo}>↺ {$_("roster.menu.undo")}</button>
     {/if}
     {#if menu}
       <span class="menu-wrap">
@@ -142,7 +143,7 @@
           class="menu-trigger"
           aria-haspopup="true"
           aria-expanded={menuOpen}
-          aria-label="Edit permission"
+          aria-label={$_("roster.menu.editAria")}
           onclick={toggleMenu}
         >
           ⋯
@@ -153,7 +154,7 @@
             <div class="menu-levels">
               {#each menu.levelOptions as opt (opt.level)}
                 <button type="button" class="level-opt" class:active={opt.active} onclick={() => selectLevel(opt.level)}>
-                  {opt.level}
+                  {opt.label}
                 </button>
               {/each}
             </div>
@@ -162,9 +163,9 @@
             {/if}
             <span class="menu-divider"></span>
             {#if menu.cascadeCount !== null}
-              <span class="menu-cascade">{cascadeNote(menu.cascadeCount)}</span>
+              <span class="menu-cascade">{cascadeNote($_, menu.cascadeCount)}</span>
             {/if}
-            <button type="button" class="menu-remove" onclick={selectRemove}>✕ Remove access</button>
+            <button type="button" class="menu-remove" onclick={selectRemove}>✕ {$_("roster.menu.removeAccess")}</button>
           </div>
         {/if}
       </span>

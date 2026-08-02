@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from "svelte-i18n";
   import type { ConfirmRow, ResultRow } from "$lib/pendingEdits";
   import { cascadeNote } from "$lib/rosterRow";
 
@@ -71,7 +72,7 @@
                 <span class="transition">{row.fromLevel} → {row.toLevel}</span>
               </div>
               {#if row.cascadeCount != null}
-                <div class="cascade-note">{cascadeNote(row.cascadeCount)}</div>
+                <div class="cascade-note">{cascadeNote($_, row.cascadeCount)}</div>
               {/if}
             </li>
           {/each}

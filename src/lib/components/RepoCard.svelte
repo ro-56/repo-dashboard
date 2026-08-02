@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from "svelte-i18n";
   import type { PrincipalEntry, RepoNode } from "$lib/roster";
   import { hasDiff, sortedPrincipals } from "$lib/rosterRow";
   import {
@@ -49,10 +50,10 @@
   // XOR-ing against the default keeps that default live as the underlying tree data changes.
   let open = $derived(isRepoOpen(repo, anyChanges, toggled));
   // Header counts always describe the whole repo (ADR-0008) — only the rendered rows narrow.
-  let counts = $derived(countBadges(repoBreakdown(repo)));
+  let counts = $derived(countBadges($_, repoBreakdown(repo)));
   let split = $derived(distributionSplit(repo));
-  let tags = $derived(repoTags(repo, comparisonId));
-  let barTitle = $derived(barCellTooltip(repo));
+  let tags = $derived(repoTags($_, repo, comparisonId));
+  let barTitle = $derived(barCellTooltip($_, repo));
   let gone = $derived(absentSide(repo) === "B");
   let sorted = $derived(sortedPrincipals(repo.principals));
   let roster = $derived(viewMode === "changes" ? sorted.filter(hasDiff) : sorted);
@@ -89,7 +90,7 @@
         <span class="bar-flat"></span>
       {/if}
     </span>
-    <span class="grants">{grantsText(repo)}</span>
+    <span class="grants">{grantsText($_, repo)}</span>
     <CountBadges badges={counts} />
     <span class="tags">
       {#each tags as tag (tag.kind)}

@@ -1,5 +1,89 @@
 {
   "appearance": {
     "title": "appearance"
+  },
+  "permission": {
+    "read": "Read",
+    "write": "Write",
+    "admin": "Admin",
+    "createRepo": "Create-repo"
+  },
+  "roster": {
+    "pendingRemovedTo": "removed",
+    "columns": {
+      "diff": "±",
+      "diffTooltip": "Diff outcome",
+      "level": "lvl",
+      "levelTooltip": "Permission level",
+      "access": "access",
+      "source": "source",
+      "sourceTooltip": "How this principal holds the grant",
+      "user": "user",
+      "userTooltip": "The user or group",
+      "sinceBaseline": "since baseline",
+      "sinceBaselineTooltip": "What changed vs. the baseline",
+      "notes": "notes"
+    },
+    "source": {
+      "direct": "direct",
+      "group": "group",
+      "member": "grp:{group}",
+      "directTooltip": "User grant",
+      "groupTooltip": "Group grant",
+      "memberTooltip": "Via membership in {group}",
+      "projectSuffix": "{base} — Project-level grant"
+    },
+    "sigil": {
+      "same": "No change",
+      "granted": "Granted",
+      "revoked": "Revoked",
+      "changed": "Changed",
+      "escalated": "Escalated",
+      "pendingChange": "Pending change",
+      "pendingRemoval": "Pending removal"
+    },
+    "tag": {
+      "escalation": "escalation",
+      "escalationToAdmin": "escalation → admin",
+      "escalationTooltip": "Permission increased since baseline",
+      "unresolved": "members unresolved",
+      "unresolvedTooltip": "Group's members couldn't be fetched",
+      "pendingLevel": "pending · unsaved",
+      "pendingRemove": "pending removal",
+      "pendingTooltip": "Staged edit, not yet applied"
+    },
+    "menu": {
+      "projectScopeNote": "Project-level grant",
+      "cascadeNote": "removing this also drops access for {count, plural, one {# member} other {# members}}",
+      "removeAccess": "Remove access",
+      "editAria": "Edit permission",
+      "undo": "undo"
+    }
+  },
+  "repoCard": {
+    "grants": "{total, plural, one {# grant} other {# grants}} · {admin} admin",
+    "projectMeta": "{repos, plural, one {# repository} other {# repositories}} · {grants, plural, one {# grant} other {# grants}}",
+    "barTooltip": "{admin} admin · {write} write · {read} read",
+    "badge": {
+      "addedLabel": "+{n}",
+      "addedTitle": "{n, plural, one {# grant added since baseline} other {# grants added since baseline}}",
+      "removedLabel": "−{n}",
+      "removedTitle": "{n, plural, one {# grant revoked since baseline} other {# grants revoked since baseline}}",
+      "modifiedLabel": "~{n}",
+      "modifiedTitle": "{n, plural, one {# level change since baseline} other {# level changes since baseline}}",
+      "escLabel": "↑{n} esc",
+      "escTitle": "{n, plural, one {# of those changes is an escalation (permission increased)} other {# of those changes are escalations (permission increased)}}",
+      "none": "no change"
+    },
+    "tag": {
+      "goneLabel": "absent from run {id}",
+      "goneTooltip": "Repo not found",
+      "newLabel": "new in run {id}",
+      "newTooltip": "Repo not present in the baseline",
+      "failedLabel": "fetch failed",
+      "failedTooltip": "Repo's permissions couldn't be fetched",
+      "projectFailedLabel": "project fetch failed",
+      "projectFailedTooltip": "Project's permissions couldn't be fetched"
+    }
   }
 }

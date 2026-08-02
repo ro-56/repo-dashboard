@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from "svelte-i18n";
   import type { ProjectNode } from "$lib/roster";
   import { countBadges, projectBreakdown, projectMeta } from "$lib/repoCard";
   import { visibleRepos, type ViewMode } from "$lib/filterBar";
@@ -32,8 +33,8 @@
 
   // Meta/counts always describe the whole project (ADR-0008) — only the rendered repo list
   // narrows under Changes only.
-  let counts = $derived(countBadges(projectBreakdown(project)));
-  let meta = $derived(projectMeta(project));
+  let counts = $derived(countBadges($_, projectBreakdown(project)));
+  let meta = $derived(projectMeta($_, project));
   let repos = $derived(visibleRepos(project, viewMode));
   // Every repo's principals across the whole Project, unfiltered by `viewMode` (PD-62) — the
   // cascade-count candidate pool for a Project-scope Group grant needs every Member it derives,

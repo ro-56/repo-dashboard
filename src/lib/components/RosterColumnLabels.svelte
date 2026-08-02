@@ -1,13 +1,17 @@
 <!-- Column-label strip for the roster grid (ADR-0006). Rendered once above the canvas, not
      per card — its grid tracks mirror RosterRow.svelte's exactly so labels stay aligned. -->
+<script lang="ts">
+  import { _ } from "svelte-i18n";
+</script>
+
 <div class="column-labels">
-  <span title="Diff outcome">±</span>
-  <span title="Permission level">lvl</span>
-  <span title="Permission level">access</span>
-  <span title="How this principal holds the grant">source</span>
-  <span title="The user or group">user</span>
-  <span title="What changed vs. the baseline">since baseline</span>
-  <span>notes</span>
+  <span title={$_("roster.columns.diffTooltip")}>{$_("roster.columns.diff")}</span>
+  <span title={$_("roster.columns.levelTooltip")}>{$_("roster.columns.level")}</span>
+  <span title={$_("roster.columns.levelTooltip")}>{$_("roster.columns.access")}</span>
+  <span title={$_("roster.columns.sourceTooltip")}>{$_("roster.columns.source")}</span>
+  <span title={$_("roster.columns.userTooltip")}>{$_("roster.columns.user")}</span>
+  <span title={$_("roster.columns.sinceBaselineTooltip")}>{$_("roster.columns.sinceBaseline")}</span>
+  <span>{$_("roster.columns.notes")}</span>
 </div>
 
 <style>

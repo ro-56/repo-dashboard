@@ -2,6 +2,7 @@
 // only — markup and colour live in RepoCard.svelte / ProjectSection.svelte's scoped styles.
 
 import type { PrincipalEntry, ProjectNode, RepoNode, RosterTree } from "./roster";
+import type { Translate } from "./i18n/translate";
 
 export interface CountBadge {
   kind: "added" | "removed" | "modified" | "esc" | "none";
@@ -54,25 +55,33 @@ function isHot(breakdown: Breakdown): boolean {
 
 /** Card and project counts: `+n`, `−n`, `~n` plus `↑n esc` when escalations exist, or `no
  * change` when nothing did — never a blank space or a zero (ADR-0008: labelled by grants). */
-export function countBadges(breakdown: Breakdown): CountBadge[] {
+export function countBadges(t: Translate, breakdown: Breakdown): CountBadge[] {
   const badges: CountBadge[] = [];
   if (breakdown.added)
-    badges.push({ kind: "added", label: `+${breakdown.added}`, title: `${breakdown.added} grants added since baseline` });
+    badges.push({
+      kind: "added",
+      label: t("repoCard.badge.addedLabel", { values: { n: breakdown.added } }),
+      title: t("repoCard.badge.addedTitle", { values: { n: breakdown.added } }),
+    });
   if (breakdown.removed)
-    badges.push({ kind: "removed", label: `−${breakdown.removed}`, title: `${breakdown.removed} grants revoked since baseline` });
+    badges.push({
+      kind: "removed",
+      label: t("repoCard.badge.removedLabel", { values: { n: breakdown.removed } }),
+      title: t("repoCard.badge.removedTitle", { values: { n: breakdown.removed } }),
+    });
   if (breakdown.modified)
     badges.push({
       kind: "modified",
-      label: `~${breakdown.modified}`,
-      title: `${breakdown.modified} level changes since baseline`,
+      label: t("repoCard.badge.modifiedLabel", { values: { n: breakdown.modified } }),
+      title: t("repoCard.badge.modifiedTitle", { values: { n: breakdown.modified } }),
     });
   if (breakdown.esc)
     badges.push({
       kind: "esc",
-      label: `↑${breakdown.esc} esc`,
-      title: `${breakdown.esc} of those changes are escalations (permission increased)`,
+      label: t("repoCard.badge.escLabel", { values: { n: breakdown.esc } }),
+      title: t("repoCard.badge.escTitle", { values: { n: breakdown.esc } }),
     });
-  if (badges.length === 0) badges.push({ kind: "none", label: "no change" });
+  if (badges.length === 0) badges.push({ kind: "none", label: t("repoCard.badge.none") });
   return badges;
 }
 
@@ -111,9 +120,9 @@ export function isRepoOpen(repo: RepoNode, treeHasChanges: boolean, toggled: boo
 /** Card header text reads in grants, never headcount — "7 grants · 2 admin" (ADR-0008).
  * Counts currently-held access, matching RepoNode's own read/write/admin count semantics
  * (a Revoke does not count — that principal no longer holds the permission as of run B). */
-export function grantsText(repo: RepoNode): string {
+export function grantsText(t: Translate, repo: RepoNode): string {
   const total = repo.readCount + repo.writeCount + repo.adminCount;
-  return `${total} grant${total === 1 ? "" : "s"} · ${repo.adminCount} admin`;
+  return t("repoCard.grants", { values: { total, admin: repo.adminCount } });
 }
 
 export interface DistributionSplit {
@@ -151,18 +160,11 @@ export interface RepoTag {
   title: string;
 }
 
-const REPO_TAG_TITLE: Record<RepoTag["kind"], string> = {
-  gone: "Repo not found",
-  new: "Repo not present in the baseline",
-  failed: "Repo's permissions couldn't be fetched",
-  "project-failed": "Project's permissions couldn't be fetched",
-};
-
 /** The `.bar-cell` distribution bar's `title` tooltip: the actual admin/write/read counts behind
  * the three proportional segments — most useful below the 1300px reflow breakpoint (ADR-0009),
  * where the adjacent `.grants` text cell that also carries these numbers is hidden. */
-export function barCellTooltip(repo: RepoNode): string {
-  return `${repo.adminCount} admin · ${repo.writeCount} write · ${repo.readCount} read`;
+export function barCellTooltip(t: Translate, repo: RepoNode): string {
+  return t("repoCard.barTooltip", { values: { admin: repo.adminCount, write: repo.writeCount, read: repo.readCount } });
 }
 
 /** A repo absent from the Comparison side carries `absent from run N`; a repo absent only from
@@ -174,11 +176,21 @@ export function barCellTooltip(repo: RepoNode): string {
  * from one side's discovery is the more significant structural fact than a fetch error on the
  * side where it *was* discovered. `fetch failed` reuses the neutral tag palette (ADR-0005): it
  * is not a diff outcome, so it may not claim the red/green hues those are reserved for. */
-export function repoTag(repo: RepoNode, comparisonId: number): RepoTag | null {
+export function repoTag(t: Translate, repo: RepoNode, comparisonId: number): RepoTag | null {
   const side = absentSide(repo);
-  if (side === "B") return { kind: "gone", label: `absent from run ${comparisonId}`, title: REPO_TAG_TITLE.gone };
-  if (side === "A") return { kind: "new", label: `new in run ${comparisonId}`, title: REPO_TAG_TITLE.new };
-  if (repo.fetchFailed) return { kind: "failed", label: "fetch failed", title: REPO_TAG_TITLE.failed };
+  if (side === "B")
+    return {
+      kind: "gone",
+      label: t("repoCard.tag.goneLabel", { values: { id: comparisonId } }),
+      title: t("repoCard.tag.goneTooltip"),
+    };
+  if (side === "A")
+    return {
+      kind: "new",
+      label: t("repoCard.tag.newLabel", { values: { id: comparisonId } }),
+      title: t("repoCard.tag.newTooltip"),
+    };
+  if (repo.fetchFailed) return { kind: "failed", label: t("repoCard.tag.failedLabel"), title: t("repoCard.tag.failedTooltip") };
   return null;
 }
 
@@ -187,26 +199,27 @@ export function repoTag(repo: RepoNode, comparisonId: number): RepoTag | null {
  * The two failures are orthogonal (a repo's own fetch and its Project's fetch fail or succeed
  * independently), so `project fetch failed` is additive rather than subject to `repoTag`'s
  * priority order — both tags can render together (PD-40). */
-export function repoTags(repo: RepoNode, comparisonId: number): RepoTag[] {
+export function repoTags(t: Translate, repo: RepoNode, comparisonId: number): RepoTag[] {
   const tags: RepoTag[] = [];
-  const primary = repoTag(repo, comparisonId);
+  const primary = repoTag(t, repo, comparisonId);
   if (primary) tags.push(primary);
   if (repo.projectFetchFailed)
-    tags.push({ kind: "project-failed", label: "project fetch failed", title: REPO_TAG_TITLE["project-failed"] });
+    tags.push({
+      kind: "project-failed",
+      label: t("repoCard.tag.projectFailedLabel"),
+      title: t("repoCard.tag.projectFailedTooltip"),
+    });
   return tags;
 }
 
 /** Project meta ("3 repositories · 14 grants") — grants, not headcount, per ADR-0008: that ADR
  * names per-project rollups explicitly and rejects counting distinct principals as an informal
  * second permission model, so this deviates from PD-16's literal example text ("12 people"). */
-export function projectMeta(project: ProjectNode): string {
+export function projectMeta(t: Translate, project: ProjectNode): string {
   const repoCount = project.repos.length;
   const grantsTotal = project.repos.reduce(
     (sum, repo) => sum + repo.readCount + repo.writeCount + repo.adminCount,
     0,
   );
-  return (
-    `${repoCount} ${repoCount === 1 ? "repository" : "repositories"} · ` +
-    `${grantsTotal} ${grantsTotal === 1 ? "grant" : "grants"}`
-  );
+  return t("repoCard.projectMeta", { values: { repos: repoCount, grants: grantsTotal } });
 }

@@ -4,6 +4,7 @@
 
 import { levelWord } from "./rosterRow";
 import type { AccessType, RosterTree } from "./roster";
+import { englishTranslate } from "./i18n/englishTranslate";
 
 const CSV_HEADER = ["repo_project", "repo", "username", "display_name", "access_type", "scope", "permission", "run_at"];
 
@@ -44,7 +45,7 @@ export function rosterToCsv(tree: RosterTree, runAt: string): string {
           entry.principal.label,
           accessTypeCsv(entry.accessType),
           entry.scope === "Repo" ? "repo" : "project",
-          levelWord(entry.permission),
+          levelWord(englishTranslate, entry.permission),
           runAt,
         ]);
       }

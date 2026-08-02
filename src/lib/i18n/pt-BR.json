@@ -1,5 +1,89 @@
 {
   "appearance": {
     "title": "aparência"
+  },
+  "permission": {
+    "read": "Leitura",
+    "write": "Escrita",
+    "admin": "Administrador",
+    "createRepo": "Criar repositório"
+  },
+  "roster": {
+    "pendingRemovedTo": "removido",
+    "columns": {
+      "diff": "±",
+      "diffTooltip": "Resultado da diferença",
+      "level": "nív",
+      "levelTooltip": "Nível de permissão",
+      "access": "acesso",
+      "source": "origem",
+      "sourceTooltip": "Como este principal detém a concessão",
+      "user": "usuário",
+      "userTooltip": "O usuário ou grupo",
+      "sinceBaseline": "desde a base",
+      "sinceBaselineTooltip": "O que mudou em relação à base",
+      "notes": "notas"
+    },
+    "source": {
+      "direct": "direto",
+      "group": "grupo",
+      "member": "grp:{group}",
+      "directTooltip": "Concessão de usuário",
+      "groupTooltip": "Concessão de grupo",
+      "memberTooltip": "Via associação a {group}",
+      "projectSuffix": "{base} — concessão em nível de Projeto"
+    },
+    "sigil": {
+      "same": "Sem alteração",
+      "granted": "Concedido",
+      "revoked": "Revogado",
+      "changed": "Alterado",
+      "escalated": "Escalado",
+      "pendingChange": "Alteração pendente",
+      "pendingRemoval": "Remoção pendente"
+    },
+    "tag": {
+      "escalation": "escalada",
+      "escalationToAdmin": "escalada → admin",
+      "escalationTooltip": "Permissão aumentada desde a base",
+      "unresolved": "membros não resolvidos",
+      "unresolvedTooltip": "Não foi possível obter os membros do grupo",
+      "pendingLevel": "pendente · não salvo",
+      "pendingRemove": "remoção pendente",
+      "pendingTooltip": "Alteração preparada, ainda não aplicada"
+    },
+    "menu": {
+      "projectScopeNote": "Concessão em nível de Projeto",
+      "cascadeNote": "remover isto também retira o acesso de {count, plural, one {# membro} other {# membros}}",
+      "removeAccess": "Remover acesso",
+      "editAria": "Editar permissão",
+      "undo": "desfazer"
+    }
+  },
+  "repoCard": {
+    "grants": "{total, plural, one {# concessão} other {# concessões}} · {admin} admin",
+    "projectMeta": "{repos, plural, one {# repositório} other {# repositórios}} · {grants, plural, one {# concessão} other {# concessões}}",
+    "barTooltip": "{admin} admin · {write} escrita · {read} leitura",
+    "badge": {
+      "addedLabel": "+{n}",
+      "addedTitle": "{n, plural, one {# concessão adicionada desde a base} other {# concessões adicionadas desde a base}}",
+      "removedLabel": "−{n}",
+      "removedTitle": "{n, plural, one {# concessão revogada desde a base} other {# concessões revogadas desde a base}}",
+      "modifiedLabel": "~{n}",
+      "modifiedTitle": "{n, plural, one {# mudança de nível desde a base} other {# mudanças de nível desde a base}}",
+      "escLabel": "↑{n} esc",
+      "escTitle": "{n, plural, one {# dessas mudanças é uma escalada (permissão aumentada)} other {# dessas mudanças são escaladas (permissão aumentada)}}",
+      "none": "sem alteração"
+    },
+    "tag": {
+      "goneLabel": "ausente na execução {id}",
+      "goneTooltip": "Repositório não encontrado",
+      "newLabel": "novo na execução {id}",
+      "newTooltip": "Repositório não presente na base",
+      "failedLabel": "falha na busca",
+      "failedTooltip": "Não foi possível obter as permissões do repositório",
+      "projectFailedLabel": "falha na busca do projeto",
+      "projectFailedTooltip": "Não foi possível obter as permissões do projeto"
+    }
   }
 }
