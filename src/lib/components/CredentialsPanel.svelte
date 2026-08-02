@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { _ } from "svelte-i18n";
   import type { CredentialsSummary } from "$lib/credentials";
 
   let loading = $state(true);
@@ -64,30 +65,44 @@
 </script>
 
 <section class="credentials-panel">
-  <h3 class="panel-title">credentials</h3>
+  <h3 class="panel-title">{$_("credentialsPanel.title")}</h3>
 
   {#if loading}
-    <p class="status">loading…</p>
+    <p class="status">{$_("credentialsPanel.loading")}</p>
   {:else if mode === "idle" && summary}
     <p class="connected">
-      connected as <code>{summary.username}</code> on <code>{summary.workspace}</code>
+      {$_("credentialsPanel.connectedAs", { values: { username: summary.username, workspace: summary.workspace } })}
     </p>
-    <button type="button" class="secondary" onclick={startEdit}>Change credentials</button>
+    <button type="button" class="secondary" onclick={startEdit}>{$_("credentialsPanel.changeCredentials")}</button>
   {:else}
     <form onsubmit={handleSubmit}>
-      <input aria-label="Username" placeholder="Username" bind:value={username} required />
       <input
-        aria-label="App password"
-        placeholder="App password"
+        aria-label={$_("credentialsPanel.usernameLabel")}
+        placeholder={$_("credentialsPanel.usernameLabel")}
+        bind:value={username}
+        required
+      />
+      <input
+        aria-label={$_("credentialsPanel.appPasswordLabel")}
+        placeholder={$_("credentialsPanel.appPasswordLabel")}
         type="password"
         bind:value={appPassword}
         required
       />
-      <input aria-label="Workspace" placeholder="Workspace" bind:value={workspace} required />
+      <input
+        aria-label={$_("credentialsPanel.workspaceLabel")}
+        placeholder={$_("credentialsPanel.workspaceLabel")}
+        bind:value={workspace}
+        required
+      />
       <div class="actions">
-        <button type="submit" disabled={submitting}>{submitting ? "Saving…" : "Save credentials"}</button>
+        <button type="submit" disabled={submitting}>
+          {submitting ? $_("credentialsPanel.saving") : $_("credentialsPanel.save")}
+        </button>
         {#if summary?.hasCredentials}
-          <button type="button" class="secondary" onclick={cancelEdit} disabled={submitting}>Cancel</button>
+          <button type="button" class="secondary" onclick={cancelEdit} disabled={submitting}>
+            {$_("credentialsPanel.cancel")}
+          </button>
         {/if}
       </div>
     </form>
@@ -125,11 +140,6 @@
     font-size: var(--t-body);
     line-height: 1.5;
     color: var(--ink-2);
-  }
-  .connected code {
-    font-family: var(--font-mono);
-    font-size: var(--t-body-s);
-    color: var(--ink);
   }
 
   form {

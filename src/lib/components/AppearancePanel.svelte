@@ -21,10 +21,10 @@
   <h3 class="panel-title">{$_("appearance.title")}</h3>
   <div class="segmented">
     <button type="button" class="tab" class:active={current === "light"} onclick={() => choose("light")}>
-      Light
+      {$_("appearance.light")}
     </button>
     <button type="button" class="tab" class:active={current === "dark"} onclick={() => choose("dark")}>
-      Dark
+      {$_("appearance.dark")}
     </button>
   </div>
   <div class="segmented">

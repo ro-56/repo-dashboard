@@ -3,6 +3,7 @@
   import { save } from "@tauri-apps/plugin-dialog";
   import { writeTextFile } from "@tauri-apps/plugin-fs";
   import { SvelteSet } from "svelte/reactivity";
+  import { _ } from "svelte-i18n";
   import { goto } from "$app/navigation";
   import type { PageData } from "./$types";
   import type { RosterTreeResult } from "$lib/roster";
@@ -84,11 +85,18 @@
 
   let counts = $derived(viewCounts(data.tree, viewMode));
   let allOpen = $derived(allVisibleOpen(data.tree, viewMode, anyChanges, isToggled));
-  let expandLabel = $derived(allOpen ? "Collapse all" : "Expand all");
+  let expandLabel = $derived(allOpen ? $_("filterBar.collapseAll") : $_("filterBar.expandAll"));
   let isEmpty = $derived(visibleRepoCount(data.tree, viewMode) === 0);
   let empty = $derived(
     isEmpty
-      ? emptyStateFor(viewMode, data.pair!, data.comparison!, seqs.get(data.baselineId)!, seqs.get(data.comparisonId)!)
+      ? emptyStateFor(
+          $_,
+          viewMode,
+          data.pair!,
+          data.comparison!,
+          seqs.get(data.baselineId)!,
+          seqs.get(data.comparisonId)!,
+        )
       : null,
   );
 
@@ -288,12 +296,12 @@
   />
   {#if data.snapshots.length === 0}
     <div class="canvas">
-      <p class="empty-note">No runs recorded yet — open the settings drawer to connect Bitbucket credentials.</p>
+      <p class="empty-note">{$_("emptyState.noRunsYet")}</p>
     </div>
   {:else}
     <FilterBar
       {viewMode}
-      countNoteText={countNote(counts)}
+      countNoteText={countNote($_, counts)}
       {expandLabel}
       bulkDisabled={isEmpty}
       onSetViewMode={setViewMode}

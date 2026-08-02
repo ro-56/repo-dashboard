@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from "svelte-i18n";
   import type { ComparisonSummary, PairStats, SnapshotSummary } from "$lib/roster";
   import { deltaChips, selectorOptions, snapshotSeqs, spanNote } from "$lib/headBar";
 
@@ -35,15 +36,15 @@
   } = $props();
 
   let seqs = $derived(snapshotSeqs(snapshots));
-  let options = $derived(selectorOptions(snapshots, seqs));
+  let options = $derived(selectorOptions($_, snapshots, seqs));
   let baseline = $derived(snapshots.find((s) => s.id === baselineId));
   let comparisonSnapshot = $derived(snapshots.find((s) => s.id === comparisonId));
   let note = $derived(
     baseline && comparisonSnapshot && comparison && pair
-      ? spanNote(baseline, comparisonSnapshot, comparison, pair, same)
+      ? spanNote($_, baseline, comparisonSnapshot, comparison, pair, same)
       : "",
   );
-  let chips = $derived(pair ? deltaChips(pair) : []);
+  let chips = $derived(pair ? deltaChips($_, pair) : []);
 
   function handleBaselineChange(event: Event) {
     onSelectBaseline(Number((event.target as HTMLSelectElement).value));
@@ -56,21 +57,21 @@
 <header class="head-bar">
   <div class="wordmark">
     <span class="brand">perm-diff</span>
-    <span class="eyebrow">repository access audit</span>
+    <span class="eyebrow">{$_("headBar.eyebrow")}</span>
   </div>
   {#if baseline && comparisonSnapshot}
     <div class="selectors">
       <div class="selector-panel">
-        <span class="selector-label">baseline</span>
+        <span class="selector-label">{$_("headBar.baselineLabel")}</span>
         <select class="selector" value={baselineId} onchange={handleBaselineChange}>
           {#each options as option (option.id)}
             <option value={option.id}>{option.label}</option>
           {/each}
         </select>
       </div>
-      <button type="button" class="swap" onclick={onSwap} aria-label="Swap baseline and comparison">⇄</button>
+      <button type="button" class="swap" onclick={onSwap} aria-label={$_("headBar.swapAria")}>⇄</button>
       <div class="selector-panel">
-        <span class="selector-label">comparison</span>
+        <span class="selector-label">{$_("headBar.comparisonLabel")}</span>
         <select class="selector" value={comparisonId} onchange={handleComparisonChange}>
           {#each options as option (option.id)}
             <option value={option.id}>{option.label}</option>
@@ -96,14 +97,14 @@
   {/if}
   {#if canApply}
     <button type="button" class="apply-btn" onclick={onApplyClick}>
-      Apply {pendingCount} changes
+      {$_("headBar.applyButton", { values: { count: pendingCount } })}
     </button>
   {/if}
   <button
     type="button"
     class="drawer-toggle"
     aria-expanded={drawerOpen}
-    aria-label={drawerOpen ? "Close settings drawer" : "Open settings drawer"}
+    aria-label={drawerOpen ? $_("headBar.drawerCloseAria") : $_("headBar.drawerOpenAria")}
     onclick={onToggleDrawer}
   >
     ⚙

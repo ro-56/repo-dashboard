@@ -1,6 +1,93 @@
 {
   "appearance": {
-    "title": "appearance"
+    "title": "appearance",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "headBar": {
+    "eyebrow": "repository access audit",
+    "baselineLabel": "baseline",
+    "comparisonLabel": "comparison",
+    "swapAria": "Swap baseline and comparison",
+    "drawerOpenAria": "Open settings drawer",
+    "drawerCloseAria": "Close settings drawer",
+    "applyButton": "{count, plural, one {Apply # change} other {Apply # changes}}",
+    "runOption": "run {seq} · {date}",
+    "spanNote": {
+      "singleRun": "single run · {grants}",
+      "daysApart": "{days, plural, one {# day} other {# days}} apart · {grants}",
+      "grants": "{from} → {to} grants"
+    },
+    "chip": {
+      "added": "added",
+      "revoked": "revoked",
+      "changed": "changed",
+      "escalations": "escalations",
+      "none": "no change"
+    }
+  },
+  "filterBar": {
+    "tabAll": "All access",
+    "tabChanges": "Changes only",
+    "countNote": "{live} live · {changed} changed · {rows} rows",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "reset": "Reset",
+    "export": "Export"
+  },
+  "emptyState": {
+    "noRunsYet": "No runs recorded yet — open the settings drawer to connect Bitbucket credentials.",
+    "noChangesTitle": "No permission changes between run {baseline} and run {comparison}",
+    "noChangesBody": "Both runs grant exactly the same {grants, plural, one {# grant} other {# grants}} across {repos, plural, one {# repository} other {# repositories}}. Switch to All access to read run {comparison}'s roster instead.",
+    "showAllAccess": "Show all access",
+    "noMatchesTitle": "Nothing matches these filters",
+    "noMatchesBody": "Widen the current view to see the rest of the roster.",
+    "resetFilters": "Reset filters"
+  },
+  "sideDrawer": {
+    "title": "settings",
+    "closeAria": "Close settings drawer"
+  },
+  "runPanel": {
+    "title": "run",
+    "fetching": "Fetching: {repo} ({index}/{total})",
+    "getAllData": "Get all data",
+    "running": "Running…"
+  },
+  "snapshotsPanel": {
+    "title": "snapshots",
+    "noneRecorded": "no runs recorded yet",
+    "deleteConfirm": "Delete {label}?",
+    "deleteButton": "Delete",
+    "deleting": "Deleting…",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "deleteAria": "Delete {label}"
+  },
+  "credentialsPanel": {
+    "title": "credentials",
+    "loading": "loading…",
+    "connectedAs": "connected as {username} on {workspace}",
+    "changeCredentials": "Change credentials",
+    "usernameLabel": "Username",
+    "appPasswordLabel": "App password",
+    "workspaceLabel": "Workspace",
+    "save": "Save credentials",
+    "saving": "Saving…",
+    "cancel": "Cancel"
+  },
+  "confirmApplyDialog": {
+    "ariaLabel": "Apply pending edits",
+    "resultsTitle": "Apply results",
+    "applied": "applied",
+    "rerunNote": "Re-run to see this reflected — a Snapshot never updates itself.",
+    "close": "Close",
+    "refreshAffected": "Refresh affected",
+    "refreshing": "Refreshing…",
+    "applyTitle": "{count, plural, one {Apply # change} other {Apply # changes}}",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "applying": "Applying…"
   },
   "permission": {
     "read": "Read",

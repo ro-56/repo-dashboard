@@ -3,6 +3,7 @@
 
 import type { ComparisonSummary, PairStats } from "./roster";
 import type { ViewMode } from "./filterBar";
+import type { Translate } from "./i18n/translate";
 
 export interface EmptyStateView {
   title: string;
@@ -18,6 +19,7 @@ export interface EmptyStateView {
  * so the project/repo/level/state/search filters (out of scope here) can reuse it later without
  * a relayout, per the ticket's stated scope. */
 export function emptyStateFor(
+  t: Translate,
   mode: ViewMode,
   pair: PairStats,
   comparison: ComparisonSummary,
@@ -27,22 +29,20 @@ export function emptyStateFor(
   const zeroChanges = pair.added === 0 && pair.revoked === 0 && pair.changed === 0;
 
   if (mode === "changes" && zeroChanges) {
-    const grantsWord = comparison.totalGrants === 1 ? "grant" : "grants";
-    const repoWord = comparison.distinctRepos === 1 ? "repository" : "repositories";
     return {
-      title: `No permission changes between run ${baselineSeq} and run ${comparisonSeq}`,
-      body:
-        `Both runs grant exactly the same ${comparison.totalGrants} ${grantsWord} across ` +
-        `${comparison.distinctRepos} ${repoWord}. Switch to All access to read run ${comparisonSeq}'s roster instead.`,
-      actionLabel: "Show all access",
+      title: t("emptyState.noChangesTitle", { values: { baseline: baselineSeq, comparison: comparisonSeq } }),
+      body: t("emptyState.noChangesBody", {
+        values: { grants: comparison.totalGrants, repos: comparison.distinctRepos, comparison: comparisonSeq },
+      }),
+      actionLabel: t("emptyState.showAllAccess"),
       action: "show-all",
     };
   }
 
   return {
-    title: "Nothing matches these filters",
-    body: "Widen the current view to see the rest of the roster.",
-    actionLabel: "Reset filters",
+    title: t("emptyState.noMatchesTitle"),
+    body: t("emptyState.noMatchesBody"),
+    actionLabel: t("emptyState.resetFilters"),
     action: "reset",
   };
 }

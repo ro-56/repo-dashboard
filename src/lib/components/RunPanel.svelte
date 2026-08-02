@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { goto } from "$app/navigation";
+  import { _ } from "svelte-i18n";
 
   type RunProgress = { index: number; total: number; repo: string };
 
@@ -41,15 +42,17 @@
 </script>
 
 <section class="run-panel">
-  <h3 class="panel-title">run</h3>
+  <h3 class="panel-title">{$_("runPanel.title")}</h3>
   {#if running && progress}
-    <p class="progress-text" aria-live="polite">Fetching: {progress.repo} ({progress.index}/{progress.total})</p>
+    <p class="progress-text" aria-live="polite">
+      {$_("runPanel.fetching", { values: { repo: progress.repo, index: progress.index, total: progress.total } })}
+    </p>
     <div class="progress-track" role="progressbar" aria-valuenow={progress.index} aria-valuemin={0} aria-valuemax={progress.total}>
       <div class="progress-fill" style:width="{(progress.index / progress.total) * 100}%"></div>
     </div>
   {:else}
     <button type="button" onclick={runNow} disabled={running}>
-      {running ? "Running…" : "Get all data"}
+      {running ? $_("runPanel.running") : $_("runPanel.getAllData")}
     </button>
   {/if}
   {#if error}

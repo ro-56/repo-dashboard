@@ -1,6 +1,6 @@
 // A `Translate` that always resolves against the English catalog, independent of the app's
 // active Display language — for the handful of call sites that must stay English regardless
-// (CSV Export, ADR-0030; the not-yet-localized ConfirmApplyDialog).
+// (CSV Export, ADR-0030).
 import { getMessageFormatter } from "svelte-i18n";
 import en from "./en.json";
 import type { Translate } from "./translate";

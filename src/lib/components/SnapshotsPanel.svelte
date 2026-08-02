@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { goto, invalidateAll } from "$app/navigation";
+  import { _ } from "svelte-i18n";
   import type { SnapshotSummary } from "$lib/roster";
   import { selectorOptions, snapshotSeqs } from "$lib/headBar";
 
@@ -15,7 +16,7 @@
   } = $props();
 
   let seqs = $derived(snapshotSeqs(snapshots));
-  let options = $derived(selectorOptions(snapshots, seqs));
+  let options = $derived(selectorOptions($_, snapshots, seqs));
 
   // Only one row can be mid-confirmation at a time — requesting delete on another row
   // just moves the confirmation, it doesn't stack.
@@ -56,16 +57,16 @@
 </script>
 
 <section class="snapshots-panel">
-  <h3 class="panel-title">snapshots</h3>
+  <h3 class="panel-title">{$_("snapshotsPanel.title")}</h3>
 
   {#if options.length === 0}
-    <p class="status">no runs recorded yet</p>
+    <p class="status">{$_("snapshotsPanel.noneRecorded")}</p>
   {:else}
     <ul class="list">
       {#each options as option (option.id)}
         <li class="row">
           {#if pendingId === option.id}
-            <span class="confirm-label">Delete {option.label}?</span>
+            <span class="confirm-label">{$_("snapshotsPanel.deleteConfirm", { values: { label: option.label } })}</span>
             <span class="actions">
               <button
                 type="button"
@@ -73,7 +74,7 @@
                 onclick={() => confirmDelete(option.id)}
                 disabled={deletingId === option.id}
               >
-                {deletingId === option.id ? "Deleting…" : "Confirm"}
+                {deletingId === option.id ? $_("snapshotsPanel.deleting") : $_("snapshotsPanel.confirm")}
               </button>
               <button
                 type="button"
@@ -81,7 +82,7 @@
                 onclick={cancelDelete}
                 disabled={deletingId === option.id}
               >
-                Cancel
+                {$_("snapshotsPanel.cancel")}
               </button>
             </span>
           {:else}
@@ -90,9 +91,9 @@
               type="button"
               class="secondary"
               onclick={() => requestDelete(option.id)}
-              aria-label={`Delete ${option.label}`}
+              aria-label={$_("snapshotsPanel.deleteAria", { values: { label: option.label } })}
             >
-              Delete
+              {$_("snapshotsPanel.deleteButton")}
             </button>
           {/if}
         </li>

@@ -2,6 +2,7 @@
 // functions only — markup lives in HeadBar.svelte.
 
 import type { ComparisonSummary, PairStats, SnapshotSummary } from "./roster";
+import type { Translate } from "./i18n/translate";
 
 export interface SnapshotOption {
   id: number;
@@ -20,15 +21,26 @@ export interface DeltaChip {
 /** Delta-only chips (ADR-0015), replacing SummaryBar's two-cluster stat row. A chip appears only
  * for a non-zero count; when the Run pair has no diff at all — including the same-Snapshot case,
  * which always diffs to zero — a single `no change` chip stands in for the row. */
-export function deltaChips(pair: PairStats): DeltaChip[] {
+export function deltaChips(t: Translate, pair: PairStats): DeltaChip[] {
   const chips: DeltaChip[] = [];
-  if (pair.added) chips.push({ key: "added", value: `+${pair.added}`, label: "added", tone: "added" });
-  if (pair.revoked) chips.push({ key: "revoked", value: `−${pair.revoked}`, label: "revoked", tone: "revoked" });
-  if (pair.changed) chips.push({ key: "changed", value: `~${pair.changed}`, label: "changed", tone: "changed" });
-  if (pair.escalations) {
-    chips.push({ key: "escalations", value: `↑${pair.escalations}`, label: "escalations", tone: "escalation" });
+  if (pair.added) {
+    chips.push({ key: "added", value: `+${pair.added}`, label: t("headBar.chip.added"), tone: "added" });
   }
-  if (chips.length === 0) chips.push({ key: "none", value: "", label: "no change", tone: "none" });
+  if (pair.revoked) {
+    chips.push({ key: "revoked", value: `−${pair.revoked}`, label: t("headBar.chip.revoked"), tone: "revoked" });
+  }
+  if (pair.changed) {
+    chips.push({ key: "changed", value: `~${pair.changed}`, label: t("headBar.chip.changed"), tone: "changed" });
+  }
+  if (pair.escalations) {
+    chips.push({
+      key: "escalations",
+      value: `↑${pair.escalations}`,
+      label: t("headBar.chip.escalations"),
+      tone: "escalation",
+    });
+  }
+  if (chips.length === 0) chips.push({ key: "none", value: "", label: t("headBar.chip.none"), tone: "none" });
   return chips;
 }
 
@@ -52,10 +64,14 @@ export function snapshotSeqs(snapshots: SnapshotSummary[]): Map<number, number> 
   return seqs;
 }
 
-export function selectorOptions(snapshots: SnapshotSummary[], seqs: Map<number, number>): SnapshotOption[] {
+export function selectorOptions(
+  t: Translate,
+  snapshots: SnapshotSummary[],
+  seqs: Map<number, number>,
+): SnapshotOption[] {
   return snapshots.map((snapshot) => ({
     id: snapshot.id,
-    label: `run ${seqs.get(snapshot.id)} · ${formatDate(snapshot.runAt)}`,
+    label: t("headBar.runOption", { values: { seq: seqs.get(snapshot.id)!, date: formatDate(snapshot.runAt) } }),
   }));
 }
 
@@ -65,6 +81,7 @@ export function selectorOptions(snapshots: SnapshotSummary[], seqs: Map<number, 
  * Comparison side. `same` is passed in rather than re-derived from the two ids, so the page has
  * one place that decides the Run pair is a same-Snapshot roster view. */
 export function spanNote(
+  t: Translate,
   baseline: SnapshotSummary,
   comparison: SnapshotSummary,
   comparisonSummary: ComparisonSummary,
@@ -72,12 +89,14 @@ export function spanNote(
   same: boolean,
 ): string {
   const baselineGrants = comparisonSummary.totalGrants - pair.net;
-  const grants = `${baselineGrants} → ${comparisonSummary.totalGrants} grants`;
+  const grants = t("headBar.spanNote.grants", {
+    values: { from: baselineGrants, to: comparisonSummary.totalGrants },
+  });
 
-  if (same) return `single run · ${grants}`;
+  if (same) return t("headBar.spanNote.singleRun", { values: { grants } });
 
   const days = Math.round(
     Math.abs(new Date(comparison.runAt).getTime() - new Date(baseline.runAt).getTime()) / 86_400_000,
   );
-  return `${days} days apart · ${grants}`;
+  return t("headBar.spanNote.daysApart", { values: { days, grants } });
 }

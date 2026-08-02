@@ -32,9 +32,9 @@
 
 {#if open}
   <div class="overlay">
-    <div class="dialog" role="dialog" aria-modal="true" aria-label="Apply pending edits">
+    <div class="dialog" role="dialog" aria-modal="true" aria-label={$_("confirmApplyDialog.ariaLabel")}>
       {#if phase === "results"}
-        <h2 class="title">Apply results</h2>
+        <h2 class="title">{$_("confirmApplyDialog.resultsTitle")}</h2>
         <ul class="rows">
           {#each resultRows as row (row.key)}
             <li class="row">
@@ -42,27 +42,29 @@
               <span class="principal">{row.principalLabel}</span>
               <span class="transition">{row.fromLevel} → {row.toLevel}</span>
               {#if row.ok}
-                <span class="status status-ok">✓ applied</span>
+                <span class="status status-ok">✓ {$_("confirmApplyDialog.applied")}</span>
               {:else}
                 <span class="status status-fail">✕ {row.errorMessage}</span>
               {/if}
             </li>
           {/each}
         </ul>
-        <p class="rerun-note">Re-run to see this reflected — a Snapshot never updates itself.</p>
+        <p class="rerun-note">{$_("confirmApplyDialog.rerunNote")}</p>
         {#if errorMessage}
           <p class="error">{errorMessage}</p>
         {/if}
         <div class="actions">
-          <button type="button" class="btn btn-ghost" disabled={refreshing} onclick={onClose}>Close</button>
+          <button type="button" class="btn btn-ghost" disabled={refreshing} onclick={onClose}>
+            {$_("confirmApplyDialog.close")}
+          </button>
           {#if canRefresh}
             <button type="button" class="btn btn-primary" disabled={refreshing} onclick={onRefresh}>
-              {refreshing ? "Refreshing…" : "Refresh affected"}
+              {refreshing ? $_("confirmApplyDialog.refreshing") : $_("confirmApplyDialog.refreshAffected")}
             </button>
           {/if}
         </div>
       {:else}
-        <h2 class="title">Apply {rows.length} {rows.length === 1 ? "change" : "changes"}</h2>
+        <h2 class="title">{$_("confirmApplyDialog.applyTitle", { values: { count: rows.length } })}</h2>
         <ul class="rows">
           {#each rows as row (row.key)}
             <li class="row-item">
@@ -82,10 +84,10 @@
         {/if}
         <div class="actions">
           <button type="button" class="btn btn-ghost" disabled={phase === "applying"} onclick={onCancel}>
-            Cancel
+            {$_("confirmApplyDialog.cancel")}
           </button>
           <button type="button" class="btn btn-primary" disabled={phase === "applying"} onclick={onConfirm}>
-            {phase === "applying" ? "Applying…" : "Confirm"}
+            {phase === "applying" ? $_("confirmApplyDialog.applying") : $_("confirmApplyDialog.confirm")}
           </button>
         </div>
       {/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from "svelte-i18n";
   import type { ViewMode } from "$lib/filterBar";
 
   let {
@@ -25,7 +26,7 @@
 <div class="filter-bar">
   <div class="tabs">
     <button type="button" class="tab" class:active={viewMode === "all"} onclick={() => onSetViewMode("all")}>
-      All access
+      {$_("filterBar.tabAll")}
     </button>
     <button
       type="button"
@@ -33,15 +34,15 @@
       class:active={viewMode === "changes"}
       onclick={() => onSetViewMode("changes")}
     >
-      Changes only
+      {$_("filterBar.tabChanges")}
     </button>
   </div>
   <div class="right-controls">
     <span class="count-note">{countNoteText}</span>
     <button type="button" class="control" disabled={bulkDisabled} onclick={onBulkToggle}>{expandLabel}</button>
-    <button type="button" class="control" onclick={onReset}>Reset</button>
+    <button type="button" class="control" onclick={onReset}>{$_("filterBar.reset")}</button>
     <button type="button" class="export-btn" onclick={onExportClick}>
-      <span class="export-icon">⇩</span>Export
+      <span class="export-icon">⇩</span>{$_("filterBar.export")}
     </button>
   </div>
 </div>

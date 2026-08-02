@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import { _ } from "svelte-i18n";
 
   // Persistent slide-out panel (ADR-0010) — not a modal, so there is no backdrop and no
   // click-outside dismissal. Content stays mounted while closed (rather than an {#if}) so
@@ -9,8 +10,8 @@
 
 <aside class="drawer" class:open aria-hidden={!open} inert={!open}>
   <div class="drawer-head">
-    <span class="drawer-title">settings</span>
-    <button type="button" class="close" onclick={onClose} aria-label="Close settings drawer">×</button>
+    <span class="drawer-title">{$_("sideDrawer.title")}</span>
+    <button type="button" class="close" onclick={onClose} aria-label={$_("sideDrawer.closeAria")}>×</button>
   </div>
   <div class="drawer-body">
     {@render children()}

@@ -1,6 +1,93 @@
 {
   "appearance": {
-    "title": "aparência"
+    "title": "aparência",
+    "light": "Claro",
+    "dark": "Escuro"
+  },
+  "headBar": {
+    "eyebrow": "auditoria de acesso a repositórios",
+    "baselineLabel": "base",
+    "comparisonLabel": "comparação",
+    "swapAria": "Trocar base e comparação",
+    "drawerOpenAria": "Abrir painel de configurações",
+    "drawerCloseAria": "Fechar painel de configurações",
+    "applyButton": "{count, plural, one {Aplicar # alteração} other {Aplicar # alterações}}",
+    "runOption": "execução {seq} · {date}",
+    "spanNote": {
+      "singleRun": "execução única · {grants}",
+      "daysApart": "{days, plural, one {# dia} other {# dias}} de distância · {grants}",
+      "grants": "{from} → {to} concessões"
+    },
+    "chip": {
+      "added": "adicionadas",
+      "revoked": "revogadas",
+      "changed": "alteradas",
+      "escalations": "escaladas",
+      "none": "sem alteração"
+    }
+  },
+  "filterBar": {
+    "tabAll": "Todo o acesso",
+    "tabChanges": "Somente alterações",
+    "countNote": "{live} ativos · {changed} alterados · {rows} linhas",
+    "expandAll": "Expandir tudo",
+    "collapseAll": "Recolher tudo",
+    "reset": "Redefinir",
+    "export": "Exportar"
+  },
+  "emptyState": {
+    "noRunsYet": "Nenhuma execução registrada ainda — abra o painel de configurações para conectar as credenciais do Bitbucket.",
+    "noChangesTitle": "Nenhuma alteração de permissão entre a execução {baseline} e a execução {comparison}",
+    "noChangesBody": "Ambas as execuções concedem exatamente {grants, plural, one {# concessão} other {# concessões}} em {repos, plural, one {# repositório} other {# repositórios}}. Alterne para Todo o acesso para ler o roster da execução {comparison}.",
+    "showAllAccess": "Mostrar todo o acesso",
+    "noMatchesTitle": "Nada corresponde a estes filtros",
+    "noMatchesBody": "Amplie a visão atual para ver o restante do roster.",
+    "resetFilters": "Redefinir filtros"
+  },
+  "sideDrawer": {
+    "title": "configurações",
+    "closeAria": "Fechar painel de configurações"
+  },
+  "runPanel": {
+    "title": "execução",
+    "fetching": "Buscando: {repo} ({index}/{total})",
+    "getAllData": "Obter todos os dados",
+    "running": "Executando…"
+  },
+  "snapshotsPanel": {
+    "title": "snapshots",
+    "noneRecorded": "nenhuma execução registrada ainda",
+    "deleteConfirm": "Excluir {label}?",
+    "deleteButton": "Excluir",
+    "deleting": "Excluindo…",
+    "confirm": "Confirmar",
+    "cancel": "Cancelar",
+    "deleteAria": "Excluir {label}"
+  },
+  "credentialsPanel": {
+    "title": "credenciais",
+    "loading": "carregando…",
+    "connectedAs": "conectado como {username} em {workspace}",
+    "changeCredentials": "Alterar credenciais",
+    "usernameLabel": "Usuário",
+    "appPasswordLabel": "Senha de aplicativo",
+    "workspaceLabel": "Workspace",
+    "save": "Salvar credenciais",
+    "saving": "Salvando…",
+    "cancel": "Cancelar"
+  },
+  "confirmApplyDialog": {
+    "ariaLabel": "Aplicar edições pendentes",
+    "resultsTitle": "Resultados da aplicação",
+    "applied": "aplicado",
+    "rerunNote": "Execute novamente para ver isso refletido — um Snapshot nunca se atualiza sozinho.",
+    "close": "Fechar",
+    "refreshAffected": "Atualizar afetados",
+    "refreshing": "Atualizando…",
+    "applyTitle": "{count, plural, one {Aplicar # alteração} other {Aplicar # alterações}}",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "applying": "Aplicando…"
   },
   "permission": {
     "read": "Leitura",

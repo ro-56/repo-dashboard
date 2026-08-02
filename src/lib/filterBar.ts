@@ -5,6 +5,7 @@
 import type { PrincipalEntry, ProjectNode, RepoNode, RosterTree } from "./roster";
 import { isRepoOpen, repoHasChanges } from "./repoCard";
 import { hasDiff } from "./rosterRow";
+import type { Translate } from "./i18n/translate";
 
 export type ViewMode = "all" | "changes";
 
@@ -29,8 +30,8 @@ export function viewCounts(tree: RosterTree, mode: ViewMode): ViewCounts {
   };
 }
 
-export function countNote(counts: ViewCounts): string {
-  return `${counts.live} live · ${counts.changed} changed · ${counts.rows} rows`;
+export function countNote(t: Translate, counts: ViewCounts): string {
+  return t("filterBar.countNote", { values: { live: counts.live, changed: counts.changed, rows: counts.rows } });
 }
 
 /** Repo cards visible under the current tab — a repo with zero changes disappears entirely
