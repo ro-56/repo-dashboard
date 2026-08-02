@@ -1,8 +1,10 @@
 <script lang="ts">
   import "$lib/styles/tokens.css";
+  import { initLanguage } from "$lib/language";
   import { initTheme } from "$lib/theme";
 
   initTheme();
+  initLanguage();
 
   let { children } = $props();
 </script>

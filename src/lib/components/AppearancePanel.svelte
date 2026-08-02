@@ -1,22 +1,43 @@
 <script lang="ts">
+  import { _ } from "svelte-i18n";
+  import { getLanguage, setLanguage, type Language } from "$lib/language";
   import { getTheme, setTheme, type Theme } from "$lib/theme";
 
   let current = $state<Theme>(getTheme());
+  let currentLanguage = $state<Language>(getLanguage());
 
   function choose(theme: Theme) {
     setTheme(theme);
     current = theme;
   }
+
+  function chooseLanguage(language: Language) {
+    setLanguage(language);
+    currentLanguage = language;
+  }
 </script>
 
 <section class="appearance-panel">
-  <h3 class="panel-title">appearance</h3>
+  <h3 class="panel-title">{$_("appearance.title")}</h3>
   <div class="segmented">
     <button type="button" class="tab" class:active={current === "light"} onclick={() => choose("light")}>
       Light
     </button>
     <button type="button" class="tab" class:active={current === "dark"} onclick={() => choose("dark")}>
       Dark
+    </button>
+  </div>
+  <div class="segmented">
+    <button type="button" class="tab" class:active={currentLanguage === "en"} onclick={() => chooseLanguage("en")}>
+      English
+    </button>
+    <button
+      type="button"
+      class="tab"
+      class:active={currentLanguage === "pt-BR"}
+      onclick={() => chooseLanguage("pt-BR")}
+    >
+      Português (BR)
     </button>
   </div>
 </section>
