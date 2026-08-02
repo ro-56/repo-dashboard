@@ -1,0 +1,3 @@
+# svelte-i18n adopted for UI translation, despite the lean-dependency stance
+
+Localization is being added because other people — not just the developer — run their own single-user install of this dashboard, and some prefer a non-English UI. ADR-0017 already declined a heavier tool (Playwright) to keep the dependency surface small, and today the app has zero i18n dependencies. We chose to adopt `svelte-i18n` as a real runtime dependency rather than hand-rolled TS string dictionaries: reactive Svelte-store-based translation, interpolation, and pluralization across a growing catalog (starting with English and Brazilian Portuguese) outweighed staying dependency-free here, unlike the Playwright case where the tool wasn't load-bearing for the app's actual behavior.

@@ -1,0 +1,3 @@
+# Backend (Rust) error strings excluded from localization, for now
+
+Some user-facing error messages are formatted directly in Rust (`RunError`, `DeleteSnapshotError`, `RefreshError` in `lib.rs`) via `format!`, not routed through the frontend's `svelte-i18n` catalog. We decided these stay English-only regardless of the selected Display language; localization applies only to strings authored in the Svelte layer. This keeps exactly one place (the frontend) owning translation, avoiding either a second translation mechanism in Rust or restructuring backend errors into codes that the frontend maps to localized strings. Revisit if backend errors need translating later — the fix would be to have Tauri commands return structured error variants instead of pre-formatted messages.
