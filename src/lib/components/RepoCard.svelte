@@ -129,7 +129,7 @@
   .repo-head {
     box-sizing: border-box;
     display: grid;
-    grid-template-columns: 11px 250px 74px 148px 1fr auto;
+    grid-template-columns: 11px 250px 74px 160px 1fr auto;
     gap: var(--s-7);
     align-items: center;
     width: 100%;

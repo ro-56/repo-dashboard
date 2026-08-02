@@ -92,7 +92,7 @@
   "permission": {
     "read": "Leitura",
     "write": "Escrita",
-    "admin": "Administrador",
+    "admin": "Admin",
     "createRepo": "Criar repositório"
   },
   "roster": {
