@@ -3,6 +3,7 @@
   import { hasDiff, sortedPrincipals } from "$lib/rosterRow";
   import {
     absentSide,
+    barCellTooltip,
     countBadges,
     distributionSplit,
     grantsText,
@@ -51,6 +52,7 @@
   let counts = $derived(countBadges(repoBreakdown(repo)));
   let split = $derived(distributionSplit(repo));
   let tags = $derived(repoTags(repo, comparisonId));
+  let barTitle = $derived(barCellTooltip(repo));
   let gone = $derived(absentSide(repo) === "B");
   let sorted = $derived(sortedPrincipals(repo.principals));
   let roster = $derived(viewMode === "changes" ? sorted.filter(hasDiff) : sorted);
@@ -76,7 +78,7 @@
     <span class="path" class:gone>
       {repo.repoProject}/<span class="name" class:gone>{repo.repo}</span>
     </span>
-    <span class="bar-cell">
+    <span class="bar-cell" title={barTitle}>
       {#if split}
         <span class="dist">
           <span class="dist__admin" style:width={`${split.admin}%`}></span>
@@ -91,7 +93,7 @@
     <CountBadges badges={counts} />
     <span class="tags">
       {#each tags as tag (tag.kind)}
-        <span class="tag tag-{tag.kind}">{tag.label}</span>
+        <span class="tag tag-{tag.kind}" title={tag.title}>{tag.label}</span>
       {/each}
     </span>
   </button>

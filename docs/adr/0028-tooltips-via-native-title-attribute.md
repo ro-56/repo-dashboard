@@ -1,0 +1,9 @@
+# Roster tooltips use the native `title` attribute, not a custom component
+
+Status: accepted
+
+The roster grid carries several symbols with no on-screen explanation — the row sigil (`·+−↑~`), the segmented level meter, the repo card's admin/write/read distribution bar, and various tag/badge chips. `sourceTooltip()` (`src/lib/rosterRow.ts`, ADR-0020) already established one precedent, backing the `.source` cell's `title` attribute with a short explanatory string. This ADR extends that same mechanism to the rest of the roster's symbols, rather than introducing a custom-built tooltip component.
+
+The app already has a case for richer floating UI — `RosterRow.svelte`'s edit menu positions a `.menu` panel with `getBoundingClientRect()` + `position: fixed` to escape `.repo-card`'s clipping ancestor — so a custom tooltip component was a real, available alternative, not a hypothetical one. It was rejected in favor of native `title`: these tooltips are deliberately terse, one-line nudges ("what does this glyph mean"), not rich explanatory content, so a custom component's main advantages (multi-line layout, colored legend swatches, consistent cross-platform styling) don't pay for the added surface area (positioning logic, focus/keyboard handling, its own component and styles to maintain). If a future tooltip needs to say more than a sentence, that's a signal to revisit this decision rather than stretch `title`.
+
+Every tooltip string added under this decision is a pure function's return value — `sigilTitle`/`meterTitle` on `RosterRowView`, `title` fields on `RosterRowTag`/`RepoTag`/`CountBadge`, `barCellTooltip()` — computed in `rosterRow.ts`/`repoCard.ts` and bound directly to a `title=` attribute in the corresponding `.svelte` file, matching the codebase's existing split of pure logic from markup.

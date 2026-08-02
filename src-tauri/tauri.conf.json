@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "repo-dashboard",
+        "title": "Repo Permissions Dashboard",
         "width": 1440,
         "height": 900,
         "minWidth": 900

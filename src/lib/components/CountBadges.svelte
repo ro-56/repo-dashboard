@@ -6,7 +6,7 @@
 
 <span class="badges">
   {#each badges as badge (badge.kind + badge.label)}
-    <span class="chip chip-{badge.kind}">{badge.label}</span>
+    <span class="chip chip-{badge.kind}" title={badge.title}>{badge.label}</span>
   {/each}
 </span>
 

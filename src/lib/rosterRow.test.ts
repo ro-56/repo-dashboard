@@ -46,17 +46,17 @@ describe("sourceLabel", () => {
 
 describe("sourceTooltip", () => {
   const cases: [AccessType, string][] = [
-    [{ type: "Direct" }, "direct"],
-    [{ type: "Group" }, "group"],
-    [{ type: "Member", group_id: "secops" }, "grp:secops"],
+    [{ type: "Direct" }, "User grant"],
+    [{ type: "Group" }, "Group grant"],
+    [{ type: "Member", group_id: "secops" }, "Via membership in secops"],
   ];
 
-  it.each(cases)("echoes the visible label for %o Repo-scoped entries", (accessType, label) => {
-    expect(sourceTooltip(accessType, "Repo")).toBe(label);
+  it.each(cases)("explains %o at Repo scope", (accessType, base) => {
+    expect(sourceTooltip(accessType, "Repo")).toBe(base);
   });
 
-  it.each(cases)("reads as an explanatory string for %o Project-scoped entries", (accessType) => {
-    expect(sourceTooltip(accessType, "Project")).toBe("Project-level grant");
+  it.each(cases)("appends the Project-level suffix to the same base for %o at Project scope", (accessType, base) => {
+    expect(sourceTooltip(accessType, "Project")).toBe(`${base} — Project-level grant`);
   });
 });
 
@@ -120,6 +120,8 @@ describe("deriveRow", () => {
     expect(view.showTransition).toBe(false);
     expect(view.struck).toBe(false);
     expect(view.tags).toEqual([]);
+    expect(view.sigilTitle).toBe("No change");
+    expect(view.meterTitle).toBe("Write");
   });
 
   it("renders a Grant row as added, from em-dash to the level", () => {
@@ -127,6 +129,8 @@ describe("deriveRow", () => {
     expect(view.state).toBe("added");
     expect(view.from).toBe("—");
     expect(view.to).toBe("admin");
+    expect(view.sigilTitle).toBe("Granted");
+    expect(view.meterTitle).toBe("Admin");
   });
 
   it("renders a Revoke row as removed and struck through", () => {
@@ -134,18 +138,29 @@ describe("deriveRow", () => {
     expect(view.state).toBe("removed");
     expect(view.struck).toBe(true);
     expect(view.to).toBe("—");
+    expect(view.sigilTitle).toBe("Revoked");
   });
 
-  it("renders ↑ for an escalation LevelChange and ~ for a plain one", () => {
+  it("renders ↑ for an escalation LevelChange and ~ for a plain one, with matching tooltips", () => {
     const escalation = deriveRow(
       entry({ diffStatus: { status: "LevelChange", from: "Read", to: "Write", kind: "Escalation" } }),
     );
     expect(escalation.sigil).toBe("↑");
+    expect(escalation.sigilTitle).toBe("Escalated");
 
     const demotion = deriveRow(
       entry({ diffStatus: { status: "LevelChange", from: "Admin", to: "Read", kind: "Demotion" } }),
     );
     expect(demotion.sigil).toBe("~");
+    expect(demotion.sigilTitle).toBe("Changed");
+  });
+
+  it("gives the meter its own tooltip based on the class tier, not the display word", () => {
+    // A create-repo grant displays its own word but renders admin-tier on the meter (ADR-0024) —
+    // the meter's tooltip should follow the tier it visually renders, not the word next to it.
+    const view = deriveRow(entry({ diffStatus: { status: "None" }, permission: "CreateRepo" }));
+    expect(view.levelWord).toBe("create-repo");
+    expect(view.meterTitle).toBe("Admin");
   });
 
   it("tags an Escalation LevelChange, and calls out admin specifically", () => {
@@ -153,12 +168,16 @@ describe("deriveRow", () => {
       entry({ diffStatus: { status: "LevelChange", from: "Write", to: "Admin", kind: "Escalation" } }),
     );
     expect(toAdmin.isEscalation).toBe(true);
-    expect(toAdmin.tags).toEqual([{ label: "escalation → admin", kind: "esc" }]);
+    expect(toAdmin.tags).toEqual([
+      { label: "escalation → admin", kind: "esc", title: "Permission increased since baseline" },
+    ]);
 
     const toWrite = deriveRow(
       entry({ diffStatus: { status: "LevelChange", from: "Read", to: "Write", kind: "Escalation" } }),
     );
-    expect(toWrite.tags).toEqual([{ label: "escalation", kind: "esc" }]);
+    expect(toWrite.tags).toEqual([
+      { label: "escalation", kind: "esc", title: "Permission increased since baseline" },
+    ]);
   });
 
   it("does not tag a Demotion LevelChange", () => {
@@ -190,14 +209,18 @@ describe("deriveRow", () => {
     );
     expect(view.isEscalation).toBe(true);
     expect(view.to).toBe("create-repo");
-    expect(view.tags).toEqual([{ label: "escalation → admin", kind: "esc" }]);
+    expect(view.tags).toEqual([
+      { label: "escalation → admin", kind: "esc", title: "Permission increased since baseline" },
+    ]);
   });
 
   it("adds a 'members unresolved' tag only for an unresolved Group's own row", () => {
     const view = deriveRow(
       entry({ accessType: { type: "Group" }, membersResolved: false, diffStatus: { status: "None" } }),
     );
-    expect(view.tags).toEqual([{ label: "members unresolved", kind: "unresolved" }]);
+    expect(view.tags).toEqual([
+      { label: "members unresolved", kind: "unresolved", title: "Group's members couldn't be fetched" },
+    ]);
   });
 
   it("previews a pending level change: effective level, transition, and pending tag", () => {
@@ -213,7 +236,12 @@ describe("deriveRow", () => {
     expect(view.struck).toBe(false);
     expect(view.from).toBe("write");
     expect(view.to).toBe("admin");
-    expect(view.tags).toEqual([{ label: "pending · unsaved", kind: "pending-level" }]);
+    expect(view.tags).toEqual([
+      { label: "pending · unsaved", kind: "pending-level", title: "Staged edit, not yet applied" },
+    ]);
+    // Distinct from the diff-outcome sigil wording (CONTEXT.md: a Pending edit isn't a Revoke
+    // until Apply actually runs), even though it reuses the same "~" glyph as a plain LevelChange.
+    expect(view.sigilTitle).toBe("Pending change");
   });
 
   it("previews a pending removal: struck through, transitions to 'removed'", () => {
@@ -226,7 +254,12 @@ describe("deriveRow", () => {
     expect(view.struck).toBe(true);
     expect(view.from).toBe("read");
     expect(view.to).toBe("removed");
-    expect(view.tags).toEqual([{ label: "pending removal", kind: "pending-remove" }]);
+    expect(view.tags).toEqual([
+      { label: "pending removal", kind: "pending-remove", title: "Staged edit, not yet applied" },
+    ]);
+    // Not "Revoked" — a staged removal hasn't happened yet (CONTEXT.md distinguishes Remove
+    // grant, a pending mutation, from Revoke, a diff outcome between two Snapshots).
+    expect(view.sigilTitle).toBe("Pending removal");
   });
 
   it("keeps an existing escalation tag alongside the pending tag, pending tag first", () => {
@@ -235,8 +268,8 @@ describe("deriveRow", () => {
       { kind: "level", beforeLevel: "Write", afterLevel: "Admin" },
     );
     expect(view.tags).toEqual([
-      { label: "pending · unsaved", kind: "pending-level" },
-      { label: "escalation", kind: "esc" },
+      { label: "pending · unsaved", kind: "pending-level", title: "Staged edit, not yet applied" },
+      { label: "escalation", kind: "esc", title: "Permission increased since baseline" },
     ]);
   });
 

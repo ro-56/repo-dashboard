@@ -73,11 +73,23 @@ export function sourceLabel(accessType: AccessType, scope: GrantScope): string {
   return scope === "Project" ? `↳ ${base}` : base;
 }
 
-/** The `.source` cell's `title` tooltip: an explanatory string for Project-level grants
- * (ADR-0020), since the visible `↳` prefix no longer needs truncation insurance; unchanged
- * echo of the visible label for Repo-scoped grants. */
+/** The `.source` cell's `title` tooltip: a one-line nudge explaining what holding the grant this
+ * way means, plus a "— Project-level grant" suffix when the grant cascades from the Project
+ * (ADR-0020). Deliberately not reused by `rowMenu`'s on-screen `scopeNote` (below), which keeps
+ * its own bare "Project-level grant" — that note is visible menu copy, not a hover tooltip, and
+ * shouldn't grow just because this one does. */
 export function sourceTooltip(accessType: AccessType, scope: GrantScope): string {
-  return scope === "Project" ? "Project-level grant" : sourceLabel(accessType, scope);
+  const base = (() => {
+    switch (accessType.type) {
+      case "Direct":
+        return "User grant";
+      case "Group":
+        return "Group grant";
+      case "Member":
+        return `Via membership in ${accessType.group_id}`;
+    }
+  })();
+  return scope === "Project" ? `${base} — Project-level grant` : base;
 }
 
 /** Roster ordering: admin → write → read, then principal label, then source (direct before group). */
@@ -96,7 +108,15 @@ export function sortedPrincipals(entries: PrincipalEntry[]): PrincipalEntry[] {
 export interface RosterRowTag {
   label: string;
   kind: "esc" | "unresolved" | "pending-level" | "pending-remove";
+  title: string;
 }
+
+const TAG_TITLE: Record<RosterRowTag["kind"], string> = {
+  esc: "Permission increased since baseline",
+  unresolved: "Group's members couldn't be fetched",
+  "pending-level": "Staged edit, not yet applied",
+  "pending-remove": "Staged edit, not yet applied",
+};
 
 /** A staged edit's effect on how a row displays, decoupled from `StagedEdit`'s wire shape so
  * `deriveRow` only ever reasons about display-relevant fields. */
@@ -119,8 +139,10 @@ export function pendingRowView(staged: StagedEdit | undefined): PendingRowView |
 export interface RosterRowView {
   state: RowState;
   sigil: string;
+  sigilTitle: string;
   levelWord: string;
   levelClass: LevelClass;
+  meterTitle: string;
   struck: boolean;
   isEscalation: boolean;
   showTransition: boolean;
@@ -128,6 +150,19 @@ export interface RosterRowView {
   to: string;
   tags: RosterRowTag[];
 }
+
+const SIGIL_TITLE: Record<RowState, string> = {
+  same: "No change",
+  added: "Granted",
+  removed: "Revoked",
+  modified: "Changed",
+};
+
+const LEVEL_CLASS_TITLE: Record<LevelClass, string> = {
+  "lvl-admin": "Admin",
+  "lvl-write": "Write",
+  "lvl-read": "Read",
+};
 
 const EDITABLE_LEVELS: EditableLevel[] = ["Read", "Write", "Admin"];
 
@@ -178,7 +213,7 @@ export function rowMenu(entry: PrincipalEntry, staged: StagedEdit | undefined, c
   return {
     levelOptions: EDITABLE_LEVELS.map((level) => ({ level, active: level === effectiveLevel })),
     effectiveLevel,
-    scopeNote: entry.scope === "Project" ? sourceTooltip(entry.accessType, entry.scope) : null,
+    scopeNote: entry.scope === "Project" ? "Project-level grant" : null,
     cascadeCount: cascadeMemberCount(entry, candidates),
   };
 }
@@ -197,6 +232,7 @@ export function deriveRow(entry: PrincipalEntry, pending?: PendingRowView): Rost
   const base = {
     levelWord: levelWord(effPermission),
     levelClass,
+    meterTitle: LEVEL_CLASS_TITLE[levelClass],
   };
 
   const view: RosterRowView = (() => {
@@ -206,6 +242,7 @@ export function deriveRow(entry: PrincipalEntry, pending?: PendingRowView): Rost
           ...base,
           state: "same",
           sigil: "·",
+          sigilTitle: SIGIL_TITLE.same,
           struck: false,
           isEscalation: false,
           showTransition: false,
@@ -218,6 +255,7 @@ export function deriveRow(entry: PrincipalEntry, pending?: PendingRowView): Rost
           ...base,
           state: "added",
           sigil: "+",
+          sigilTitle: SIGIL_TITLE.added,
           struck: false,
           isEscalation: false,
           showTransition: true,
@@ -230,6 +268,7 @@ export function deriveRow(entry: PrincipalEntry, pending?: PendingRowView): Rost
           ...base,
           state: "removed",
           sigil: "−",
+          sigilTitle: SIGIL_TITLE.removed,
           struck: true,
           isEscalation: false,
           showTransition: true,
@@ -240,12 +279,19 @@ export function deriveRow(entry: PrincipalEntry, pending?: PendingRowView): Rost
       case "LevelChange": {
         const isEscalation = status.kind === "Escalation";
         const tags: RosterRowTag[] = isEscalation
-          ? [{ label: adminLight(status.to) === "Admin" ? "escalation → admin" : "escalation", kind: "esc" }]
+          ? [
+              {
+                label: adminLight(status.to) === "Admin" ? "escalation → admin" : "escalation",
+                kind: "esc",
+                title: TAG_TITLE.esc,
+              },
+            ]
           : [];
         return {
           ...base,
           state: "modified",
           sigil: isEscalation ? "↑" : "~",
+          sigilTitle: isEscalation ? "Escalated" : SIGIL_TITLE.modified,
           struck: false,
           isEscalation,
           showTransition: true,
@@ -260,7 +306,7 @@ export function deriveRow(entry: PrincipalEntry, pending?: PendingRowView): Rost
   // Unresolvable membership (CONTEXT.md): only a Group's own row carries this — never the
   // Member rows beneath it, since an unresolved group derives none.
   if (isUnresolvedGroup(entry)) {
-    view.tags = [...view.tags, { label: "members unresolved", kind: "unresolved" }];
+    view.tags = [...view.tags, { label: "members unresolved", kind: "unresolved", title: TAG_TITLE.unresolved }];
   }
 
   // A staged edit overrides whatever the diff engine says (ADR-0022: pending state previews
@@ -270,19 +316,30 @@ export function deriveRow(entry: PrincipalEntry, pending?: PendingRowView): Rost
     if (pending.kind === "level") {
       view.state = "modified";
       view.sigil = "~";
+      // "Changed"/"Revoked" (SIGIL_TITLE) name diff outcomes between two Snapshots — a Pending
+      // edit is neither (CONTEXT.md: Remove grant is deliberately distinct from Revoke), so it
+      // gets its own wording rather than borrowing one that implies this already happened.
+      view.sigilTitle = "Pending change";
       view.struck = false;
       view.showTransition = true;
       view.from = levelWord(pending.beforeLevel);
       view.to = base.levelWord;
-      view.tags = [{ label: "pending · unsaved", kind: "pending-level" }, ...view.tags];
+      view.tags = [
+        { label: "pending · unsaved", kind: "pending-level", title: TAG_TITLE["pending-level"] },
+        ...view.tags,
+      ];
     } else {
       view.state = "modified";
       view.sigil = "−";
+      view.sigilTitle = "Pending removal";
       view.struck = true;
       view.showTransition = true;
       view.from = levelWord(pending.beforeLevel);
       view.to = "removed";
-      view.tags = [{ label: "pending removal", kind: "pending-remove" }, ...view.tags];
+      view.tags = [
+        { label: "pending removal", kind: "pending-remove", title: TAG_TITLE["pending-remove"] },
+        ...view.tags,
+      ];
     }
   }
 

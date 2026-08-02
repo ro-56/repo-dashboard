@@ -6,6 +6,7 @@ import type { PrincipalEntry, ProjectNode, RepoNode, RosterTree } from "./roster
 export interface CountBadge {
   kind: "added" | "removed" | "modified" | "esc" | "none";
   label: string;
+  title?: string;
 }
 
 interface Breakdown {
@@ -55,10 +56,22 @@ function isHot(breakdown: Breakdown): boolean {
  * change` when nothing did — never a blank space or a zero (ADR-0008: labelled by grants). */
 export function countBadges(breakdown: Breakdown): CountBadge[] {
   const badges: CountBadge[] = [];
-  if (breakdown.added) badges.push({ kind: "added", label: `+${breakdown.added}` });
-  if (breakdown.removed) badges.push({ kind: "removed", label: `−${breakdown.removed}` });
-  if (breakdown.modified) badges.push({ kind: "modified", label: `~${breakdown.modified}` });
-  if (breakdown.esc) badges.push({ kind: "esc", label: `↑${breakdown.esc} esc` });
+  if (breakdown.added)
+    badges.push({ kind: "added", label: `+${breakdown.added}`, title: `${breakdown.added} grants added since baseline` });
+  if (breakdown.removed)
+    badges.push({ kind: "removed", label: `−${breakdown.removed}`, title: `${breakdown.removed} grants revoked since baseline` });
+  if (breakdown.modified)
+    badges.push({
+      kind: "modified",
+      label: `~${breakdown.modified}`,
+      title: `${breakdown.modified} level changes since baseline`,
+    });
+  if (breakdown.esc)
+    badges.push({
+      kind: "esc",
+      label: `↑${breakdown.esc} esc`,
+      title: `${breakdown.esc} of those changes are escalations (permission increased)`,
+    });
   if (badges.length === 0) badges.push({ kind: "none", label: "no change" });
   return badges;
 }
@@ -135,6 +148,21 @@ export function absentSide(repo: RepoNode): AbsentSide {
 export interface RepoTag {
   kind: "gone" | "new" | "failed" | "project-failed";
   label: string;
+  title: string;
+}
+
+const REPO_TAG_TITLE: Record<RepoTag["kind"], string> = {
+  gone: "Repo not found",
+  new: "Repo not present in the baseline",
+  failed: "Repo's permissions couldn't be fetched",
+  "project-failed": "Project's permissions couldn't be fetched",
+};
+
+/** The `.bar-cell` distribution bar's `title` tooltip: the actual admin/write/read counts behind
+ * the three proportional segments — most useful below the 1300px reflow breakpoint (ADR-0009),
+ * where the adjacent `.grants` text cell that also carries these numbers is hidden. */
+export function barCellTooltip(repo: RepoNode): string {
+  return `${repo.adminCount} admin · ${repo.writeCount} write · ${repo.readCount} read`;
 }
 
 /** A repo absent from the Comparison side carries `absent from run N`; a repo absent only from
@@ -148,9 +176,9 @@ export interface RepoTag {
  * is not a diff outcome, so it may not claim the red/green hues those are reserved for. */
 export function repoTag(repo: RepoNode, comparisonId: number): RepoTag | null {
   const side = absentSide(repo);
-  if (side === "B") return { kind: "gone", label: `absent from run ${comparisonId}` };
-  if (side === "A") return { kind: "new", label: `new in run ${comparisonId}` };
-  if (repo.fetchFailed) return { kind: "failed", label: "fetch failed" };
+  if (side === "B") return { kind: "gone", label: `absent from run ${comparisonId}`, title: REPO_TAG_TITLE.gone };
+  if (side === "A") return { kind: "new", label: `new in run ${comparisonId}`, title: REPO_TAG_TITLE.new };
+  if (repo.fetchFailed) return { kind: "failed", label: "fetch failed", title: REPO_TAG_TITLE.failed };
   return null;
 }
 
@@ -163,7 +191,8 @@ export function repoTags(repo: RepoNode, comparisonId: number): RepoTag[] {
   const tags: RepoTag[] = [];
   const primary = repoTag(repo, comparisonId);
   if (primary) tags.push(primary);
-  if (repo.projectFetchFailed) tags.push({ kind: "project-failed", label: "project fetch failed" });
+  if (repo.projectFetchFailed)
+    tags.push({ kind: "project-failed", label: "project fetch failed", title: REPO_TAG_TITLE["project-failed"] });
   return tags;
 }
 

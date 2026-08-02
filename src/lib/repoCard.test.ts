@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   absentSide,
+  barCellTooltip,
   countBadges,
   defaultOpen,
   distributionSplit,
@@ -58,10 +59,10 @@ describe("repoBreakdown / countBadges", () => {
     const breakdown = repoBreakdown(r);
     expect(breakdown).toEqual({ added: 1, removed: 1, modified: 1, esc: 1 });
     expect(countBadges(breakdown)).toEqual([
-      { kind: "added", label: "+1" },
-      { kind: "removed", label: "−1" },
-      { kind: "modified", label: "~1" },
-      { kind: "esc", label: "↑1 esc" },
+      { kind: "added", label: "+1", title: "1 grants added since baseline" },
+      { kind: "removed", label: "−1", title: "1 grants revoked since baseline" },
+      { kind: "modified", label: "~1", title: "1 level changes since baseline" },
+      { kind: "esc", label: "↑1 esc", title: "1 of those changes are escalations (permission increased)" },
     ]);
   });
 
@@ -130,6 +131,18 @@ describe("distributionSplit", () => {
   });
 });
 
+describe("barCellTooltip", () => {
+  it("reports admin/write/read counts, not percentages", () => {
+    expect(barCellTooltip(repo({ adminCount: 2, writeCount: 1, readCount: 1 }))).toBe(
+      "2 admin · 1 write · 1 read",
+    );
+  });
+
+  it("still reports zeros for a repo with no grants, rather than omitting the tooltip", () => {
+    expect(barCellTooltip(repo())).toBe("0 admin · 0 write · 0 read");
+  });
+});
+
 describe("absentSide", () => {
   it("flags a repo missing from the Comparison side as absent from B, and vice versa", () => {
     expect(absentSide(repo({ statusA: "Ok", statusB: null }))).toBe("B");
@@ -145,40 +158,42 @@ describe("repoTags", () => {
 
   it("names the Comparison run for absent/new discovery tags", () => {
     expect(repoTags(repo({ statusA: "Ok", statusB: null }), 5)).toEqual([
-      { kind: "gone", label: "absent from run 5" },
+      { kind: "gone", label: "absent from run 5", title: "Repo not found" },
     ]);
     expect(repoTags(repo({ statusA: null, statusB: "Ok" }), 5)).toEqual([
-      { kind: "new", label: "new in run 5" },
+      { kind: "new", label: "new in run 5", title: "Repo not present in the baseline" },
     ]);
   });
 
   it("discovery absence takes priority over the repo's own fetchFailed (PD-19)", () => {
     expect(repoTags(repo({ statusA: "Ok", statusB: null, fetchFailed: true }), 5)).toEqual([
-      { kind: "gone", label: "absent from run 5" },
+      { kind: "gone", label: "absent from run 5", title: "Repo not found" },
     ]);
   });
 
   it("shows 'fetch failed' when only the repo's own fetch failed", () => {
-    expect(repoTags(repo({ fetchFailed: true }), 5)).toEqual([{ kind: "failed", label: "fetch failed" }]);
+    expect(repoTags(repo({ fetchFailed: true }), 5)).toEqual([
+      { kind: "failed", label: "fetch failed", title: "Repo's permissions couldn't be fetched" },
+    ]);
   });
 
   it("shows 'project fetch failed' when only the owning Project's fetch failed", () => {
     expect(repoTags(repo({ projectFetchFailed: true }), 5)).toEqual([
-      { kind: "project-failed", label: "project fetch failed" },
+      { kind: "project-failed", label: "project fetch failed", title: "Project's permissions couldn't be fetched" },
     ]);
   });
 
   it("shows both fetch-failure tags together, distinctly, when both are true", () => {
     expect(repoTags(repo({ fetchFailed: true, projectFetchFailed: true }), 5)).toEqual([
-      { kind: "failed", label: "fetch failed" },
-      { kind: "project-failed", label: "project fetch failed" },
+      { kind: "failed", label: "fetch failed", title: "Repo's permissions couldn't be fetched" },
+      { kind: "project-failed", label: "project fetch failed", title: "Project's permissions couldn't be fetched" },
     ]);
   });
 
   it("still surfaces 'project fetch failed' alongside a discovery tag", () => {
     expect(repoTags(repo({ statusA: null, statusB: "Ok", projectFetchFailed: true }), 5)).toEqual([
-      { kind: "new", label: "new in run 5" },
-      { kind: "project-failed", label: "project fetch failed" },
+      { kind: "new", label: "new in run 5", title: "Repo not present in the baseline" },
+      { kind: "project-failed", label: "project fetch failed", title: "Project's permissions couldn't be fetched" },
     ]);
   });
 });

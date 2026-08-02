@@ -113,8 +113,8 @@
   class:state-same={row.state === "same"}
   class:escalation={row.isEscalation}
 >
-  <span class="sigil">{row.sigil}</span>
-  <span class="meter {row.levelClass}" class:struck={row.struck}>
+  <span class="sigil" title={row.sigilTitle}>{row.sigil}</span>
+  <span class="meter {row.levelClass}" class:struck={row.struck} title={row.meterTitle}>
     <span></span><span></span><span></span>
   </span>
   <span class="level-word {row.levelClass}" class:struck={row.struck}>{row.levelWord}</span>
@@ -129,7 +129,7 @@
   </span>
   <span class="tags">
     {#each row.tags as tag (tag.label)}
-      <span class="tag tag-{tag.kind}">{tag.label}</span>
+      <span class="tag tag-{tag.kind}" title={tag.title}>{tag.label}</span>
     {/each}
     {#if staged}
       <button type="button" class="undo" onclick={handleUndo}>↺ undo</button>

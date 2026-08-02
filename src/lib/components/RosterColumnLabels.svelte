@@ -1,12 +1,12 @@
 <!-- Column-label strip for the roster grid (ADR-0006). Rendered once above the canvas, not
      per card — its grid tracks mirror RosterRow.svelte's exactly so labels stay aligned. -->
 <div class="column-labels">
-  <span>±</span>
-  <span>lvl</span>
-  <span>access</span>
-  <span>source</span>
-  <span>user</span>
-  <span>since baseline</span>
+  <span title="Diff outcome">±</span>
+  <span title="Permission level">lvl</span>
+  <span title="Permission level">access</span>
+  <span title="How this principal holds the grant">source</span>
+  <span title="The user or group">user</span>
+  <span title="What changed vs. the baseline">since baseline</span>
   <span>notes</span>
 </div>
 
