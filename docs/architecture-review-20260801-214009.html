@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Architecture review — repo-dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+      .badge-strong { background: #d1fae5; color: #065f46; }
+      .badge-explore { background: #fef3c7; color: #92400e; }
+      .badge-speculative { background: #e2e8f0; color: #334155; }
+      .mono { font-variant-ligatures: none; }
+      .conduit { background: repeating-linear-gradient(45deg, #f1f5f9, #f1f5f9 6px, #e2e8f0 6px, #e2e8f0 12px); }
+      .iface-bar { height: 10px; }
+      .impl-bar { }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-14">
+
+      <header class="space-y-4 border-b border-slate-200 pb-8">
+        <div class="flex items-baseline justify-between">
+          <h1 class="font-serif text-3xl font-semibold">Architecture review — repo-dashboard</h1>
+          <span class="text-sm text-slate-500">2026-08-01</span>
+        </div>
+        <p class="text-sm text-slate-600 max-w-2xl">
+          Scoped to the hottest files in recent history: the roster render tree
+          (<code class="mono">+page.svelte → ProjectSection → RepoCard → RosterRow</code>),
+          the Rust Run/Refresh/Apply trio (<code class="mono">collect.rs</code>, <code class="mono">refresh.rs</code>,
+          <code class="mono">apply.rs</code>), and the pending-edit staging layer (<code class="mono">pendingEdits.ts</code>).
+        </p>
+        <div class="flex flex-wrap gap-x-6 gap-y-2 text-xs text-slate-500 pt-2">
+          <span class="flex items-center gap-1.5"><span class="inline-block w-4 h-3 border border-slate-400"></span> module</span>
+          <span class="flex items-center gap-1.5"><span class="inline-block w-4 h-0 border-t-2 border-dashed border-slate-400"></span> seam</span>
+          <span class="flex items-center gap-1.5"><span class="inline-block w-4 h-0 border-t-2 border-red-500"></span> leak across seam</span>
+          <span class="flex items-center gap-1.5"><span class="inline-block w-4 h-3 deep"></span> deep module</span>
+        </div>
+      </header>
+
+      <section id="candidates" class="space-y-14">
+
+        <!-- Candidate 1 -->
+        <article id="c1" class="space-y-4">
+          <div class="flex items-center gap-3 flex-wrap">
+            <h2 class="font-serif text-xl font-semibold">Collapse the editing prop chain into a seam at RosterRow</h2>
+            <span class="badge-strong text-xs px-2 py-0.5 rounded-full font-medium">Strong</span>
+            <span class="badge-explore text-xs px-2 py-0.5 rounded-full font-medium">local-substitutable</span>
+          </div>
+          <p class="text-sm font-mono text-slate-500">
+            src/routes/dashboard/+page.svelte:148-166,308-319 · ProjectSection.svelte:9-31,53-65 ·
+            RepoCard.svelte:18-45,102-112 · RosterRow.svelte:6-29
+          </p>
+
+          <div class="rounded-lg border border-slate-200 bg-white p-4">
+            <pre class="mermaid">
+flowchart LR
+  P["+page.svelte<br/>pending, onStage, onUndo"] -.seam.-> PS[ProjectSection]
+  PS -.seam.-> RC[RepoCard]
+  RC -.seam.-> RR["RosterRow<br/>(only reader)"]
+  classDef pass stroke:#94a3b8,stroke-width:1px,stroke-dasharray: 3 3;
+  class PS,RC pass
+            </pre>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-4 space-y-2">
+              <div class="text-xs uppercase tracking-wider text-slate-400">Before</div>
+              <div class="space-y-1">
+                <div class="conduit border border-slate-300 rounded px-3 py-2 text-xs">ProjectSection — 4 props, unused</div>
+                <div class="conduit border border-slate-300 rounded px-3 py-2 text-xs">RepoCard — 4 props, unused</div>
+                <div class="border border-slate-800 rounded px-3 py-2 text-xs bg-slate-100">RosterRow — reads pending/onStage/onUndo</div>
+              </div>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4 space-y-2">
+              <div class="text-xs uppercase tracking-wider text-slate-400">After</div>
+              <div class="space-y-1">
+                <div class="border border-dashed border-slate-300 rounded px-3 py-2 text-xs text-slate-400">ProjectSection — no editing props</div>
+                <div class="border border-dashed border-slate-300 rounded px-3 py-2 text-xs text-slate-400">RepoCard — no editing props</div>
+                <div class="deep text-white rounded px-3 py-2 text-xs">RosterRow — reads EditingContext directly</div>
+              </div>
+            </div>
+          </div>
+
+          <p class="text-sm"><span class="font-semibold">Problem:</span> <code class="mono">pending</code>, <code class="mono">editingEnabled</code>, <code class="mono">onStage</code>, <code class="mono">onUndo</code> pass through two components that never inspect them — pure conduits.</p>
+          <p class="text-sm"><span class="font-semibold">Solution:</span> put a Svelte context (an <span class="italic">EditingContext</span> seam) at the top of the tree; RosterRow reads it directly instead of receiving it relayed four layers deep.</p>
+          <ul class="text-sm list-disc list-inside space-y-1 text-slate-700">
+            <li>Locality: editing state read only where it's used</li>
+            <li>Interface shrinks: 4 fewer props × 2 files</li>
+            <li>Deletion test passes: intermediate layers earn nothing today</li>
+          </ul>
+        </article>
+
+        <!-- Candidate 2 -->
+        <article id="c2" class="space-y-4">
+          <div class="flex items-center gap-3 flex-wrap">
+            <h2 class="font-serif text-xl font-semibold">Finish the fetch extraction: flatten Project data to a repo is still duplicated</h2>
+            <span class="badge-strong text-xs px-2 py-0.5 rounded-full font-medium">Strong</span>
+            <span class="badge-explore text-xs px-2 py-0.5 rounded-full font-medium">in-process</span>
+          </div>
+          <p class="text-sm font-mono text-slate-500">
+            src-tauri/src/collect.rs:258-286 · src-tauri/src/refresh.rs:192-222
+          </p>
+
+          <div class="rounded-lg border border-slate-200 bg-white p-4">
+            <pre class="mermaid">
+flowchart TB
+  subgraph Run["collect.rs (Run)"]
+    F1[fetch_project_permissions] --> N1["normalize_project_permissions<br/>+ normalize_project_group_permissions<br/>(inlined, 14 lines)"]
+  end
+  subgraph Ref["refresh.rs (Refresh)"]
+    F2[fetch_project_permissions] --> N2["normalize_project_permissions<br/>+ normalize_project_group_permissions<br/>(inlined, 14 lines, near-identical)"]
+  end
+  N1 -.leak.-> DUP((duplicated logic))
+  N2 -.leak.-> DUP
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class DUP leak
+            </pre>
+          </div>
+
+          <p class="text-sm"><span class="font-semibold">Problem:</span> PD-69 extracted the HTTP-fetch layer (<code class="mono">fetch_repo_permissions</code>/<code class="mono">fetch_project_permissions</code>) but stopped one level early — the step that turns a <code class="mono">ProjectFetchResult</code> into per-repo <code class="mono">PermissionRecord</code>s is copy-pasted between the Run loop and the Refresh loop.</p>
+          <p class="text-sm"><span class="font-semibold">Solution:</span> extract <code class="mono">flatten_project_result_to_repo(project_key, repo, &ProjectFetchResult) -> (Vec&lt;PermissionRecord&gt;, Vec&lt;GroupMembershipStatus&gt;)</code> and call it from both.</p>
+          <ul class="text-sm list-disc list-inside space-y-1 text-slate-700">
+            <li>Locality: one place to fix Project-grant flattening bugs</li>
+            <li>Deletion test passes: ~15 duplicated lines vanish from each file, no complexity moves elsewhere</li>
+            <li>Cheap: same cargo test suite covers both call sites once merged</li>
+          </ul>
+        </article>
+
+        <!-- Candidate 3 -->
+        <article id="c3" class="space-y-4">
+          <div class="flex items-center gap-3 flex-wrap">
+            <h2 class="font-serif text-xl font-semibold">Deepen the BitbucketClient write surface: one parameterized call, not eight</h2>
+            <span class="badge-strong text-xs px-2 py-0.5 rounded-full font-medium">Strong</span>
+            <span class="badge-explore text-xs px-2 py-0.5 rounded-full font-medium">ports & adapters</span>
+          </div>
+          <p class="text-sm font-mono text-slate-500">
+            src-tauri/src/apply.rs:81-128 · BitbucketClient trait (client.rs)
+          </p>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-4">
+              <div class="text-xs uppercase tracking-wider text-slate-400 mb-2">Before — interface ≈ implementation</div>
+              <div class="flex items-end gap-2 h-40">
+                <div class="w-8 bg-slate-800 iface-bar" style="height: 85%"></div>
+                <div class="text-xs self-center text-slate-500 -rotate-90 w-16">8 trait methods, near-identical</div>
+                <div class="w-8 bg-slate-300 impl-bar" style="height: 90%"></div>
+              </div>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4">
+              <div class="text-xs uppercase tracking-wider text-slate-400 mb-2">After — deep</div>
+              <div class="flex items-end gap-2 h-40">
+                <div class="w-8 bg-slate-800 iface-bar" style="height: 15%"></div>
+                <div class="text-xs self-center text-slate-500 -rotate-90 w-16">set_permission(scope, target, key, perm)</div>
+                <div class="w-8 deep impl-bar" style="height: 90%"></div>
+              </div>
+            </div>
+          </div>
+
+          <p class="text-sm"><span class="font-semibold">Problem:</span> <code class="mono">apply_one</code> matches <code class="mono">(GrantScope, EditTarget) × EditAction</code> — 8 branches forwarding to 8 structurally identical client methods that differ only in scope/target. The interface is trivial; the "logic" is enumeration.</p>
+          <p class="text-sm"><span class="font-semibold">Solution:</span> collapse the trait to <code class="mono">set_permission</code>/<code class="mono">remove_permission</code> parameterized by scope and target; <code class="mono">apply_one</code> becomes one call.</p>
+          <ul class="text-sm list-disc list-inside space-y-1 text-slate-700">
+            <li>Leverage: one method covers 8 call sites and the fakes used in tests</li>
+            <li>Two adapters (real HTTP client, test fake) justify keeping the seam — just narrower</li>
+            <li>Deletion test: inlining apply_one doesn't help, the duplication is one layer down in the trait itself</li>
+          </ul>
+        </article>
+
+        <!-- Candidate 4 -->
+        <article id="c4" class="space-y-4">
+          <div class="flex items-center gap-3 flex-wrap">
+            <h2 class="font-serif text-xl font-semibold">Give the Apply/Refresh state machine a seam an injectable invoke can cross</h2>
+            <span class="badge-strong text-xs px-2 py-0.5 rounded-full font-medium">Strong</span>
+            <span class="badge-explore text-xs px-2 py-0.5 rounded-full font-medium">mock</span>
+          </div>
+          <p class="text-sm font-mono text-slate-500">
+            src/routes/dashboard/+page.svelte:168-245
+          </p>
+
+          <div class="rounded-lg border border-slate-200 bg-white p-4">
+            <pre class="mermaid">
+sequenceDiagram
+  participant U as User
+  participant PS as +page.svelte
+  participant IPC as Tauri invoke
+  U->>PS: confirmApply()
+  PS->>PS: dialogPhase = "applying"
+  PS->>IPC: apply_pending_edits(...)
+  IPC-->>PS: ApplyResult[] or throw
+  Note over PS: no test covers the throw path,<br/>dialogPhase revert, or refreshing reset
+            </pre>
+          </div>
+
+          <p class="text-sm"><span class="font-semibold">Problem:</span> the pure helpers (<code class="mono">canRefresh</code>, <code class="mono">confirmRows</code>, <code class="mono">settleApplied</code>...) are unit-tested, but the state machine that calls them — <code class="mono">dialogPhase</code> transitions, error revert, <code class="mono">finally</code> cleanup — lives inline in the component with no seam to inject a fake <code class="mono">invoke</code>.</p>
+          <p class="text-sm"><span class="font-semibold">Solution:</span> extract <code class="mono">confirmApply</code>/<code class="mono">refreshAffected</code> into a <code class="mono">.svelte.ts</code> module parameterized over an <code class="mono">invoke</code>-like function, matching the discipline <code class="mono">lib.rs</code> already applies to <code class="mono">run_now</code>/<code class="mono">refresh_snapshot</code> as thin wrappers.</p>
+          <ul class="text-sm list-disc list-inside space-y-1 text-slate-700">
+            <li>Testability: stuck dialogPhase / unreset refreshing become reproducible in vitest, not just by hand in pnpm tauri dev</li>
+            <li>Locality: orchestration bugs move out of the render component</li>
+            <li>Matches the pattern already proven on the Rust side</li>
+          </ul>
+        </article>
+
+        <!-- Candidate 5 -->
+        <article id="c5" class="space-y-4">
+          <div class="flex items-center gap-3 flex-wrap">
+            <h2 class="font-serif text-xl font-semibold">Unify confirmRows / resultRows around one row builder</h2>
+            <span class="badge-explore text-xs px-2 py-0.5 rounded-full font-medium">Worth exploring</span>
+            <span class="badge-explore text-xs px-2 py-0.5 rounded-full font-medium">local-substitutable</span>
+          </div>
+          <p class="text-sm font-mono text-slate-500">
+            src/lib/pendingEdits.ts:74-86,128,151-168
+          </p>
+
+          <div class="rounded-lg border border-slate-200 bg-white p-4">
+            <pre class="mermaid">
+flowchart LR
+  A[PendingEdits] --> B["confirmRows()<br/>toLevel/fromLevel logic"]
+  C["ApplyResult[]"] --> D["resultRows()<br/>toLevel/fromLevel logic (dup)"]
+  B --> E[ConfirmRow]
+  D --> F["ResultRow extends ConfirmRow"]
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class B,D leak
+            </pre>
+          </div>
+
+          <p class="text-sm"><span class="font-semibold">Problem:</span> <code class="mono">confirmRows</code> and <code class="mono">resultRows</code> both compute <code class="mono">toLevel</code>/<code class="mono">fromLevel</code> the same way (<code class="mono">action.type === "SetLevel" ? action.level.toLowerCase() : "removed"</code>) from overlapping inputs; <code class="mono">ResultRow</code> is already declared as <code class="mono">ConfirmRow</code> + <code class="mono">ok</code>/<code class="mono">errorMessage</code>, but the builders weren't unified around it.</p>
+          <p class="text-sm"><span class="font-semibold">Solution:</span> a shared <code class="mono">rowFromRequest(request, principalLabel, beforeLevel)</code> feeds both builders.</p>
+          <ul class="text-sm list-disc list-inside space-y-1 text-slate-700">
+            <li>Locality: one place to fix row-shape bugs, both already covered by pendingEdits.test.ts</li>
+            <li>Deletion test passes cleanly — small, low-risk, worth doing next time this file is touched</li>
+          </ul>
+        </article>
+
+        <!-- Candidate 6 -->
+        <article id="c6" class="space-y-4">
+          <div class="flex items-center gap-3 flex-wrap">
+            <h2 class="font-serif text-xl font-semibold">Cascade count: a deep pure function sitting behind an untested wiring invariant</h2>
+            <span class="badge-explore text-xs px-2 py-0.5 rounded-full font-medium">Worth exploring</span>
+            <span class="badge-speculative text-xs px-2 py-0.5 rounded-full font-medium">local-substitutable</span>
+          </div>
+          <p class="text-sm font-mono text-slate-500">
+            src/lib/rosterRow.ts:39-52,174-184 · ProjectSection.svelte:41 · RepoCard.svelte:107 · RosterRow.svelte:39,42,99
+          </p>
+
+          <div class="rounded-lg border border-slate-200 bg-white p-4">
+            <pre class="mermaid">
+flowchart TB
+  PS["ProjectSection<br/>assembles projectPrincipals"] --> RC[RepoCard: passes through untouched]
+  RC --> RR["RosterRow: picks pool by scope,<br/>calls cascadeMemberCount()"]
+  RR --> M["menu.cascadeCount<br/>(shown to user)"]
+  RR --> S["selectRemove() reuses menu?.cascadeCount<br/>rather than recomputing — convention, not enforced"]
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class S leak
+            </pre>
+          </div>
+
+          <p class="text-sm"><span class="font-semibold">Problem:</span> <code class="mono">cascadeMemberCount</code> is deep and well tested in isolation, but the invariant "the confirm dialog shows the same count the menu showed" is enforced only by a code comment across three files, not by the type system.</p>
+          <p class="text-sm"><span class="font-semibold">Solution:</span> speculative — worth a closer look only if a future ticket touches this path again; not urgent enough to restructure today.</p>
+          <ul class="text-sm list-disc list-inside space-y-1 text-slate-700">
+            <li>Locality risk: a future caller that recomputes instead of reusing menu.cascadeCount breaks silently</li>
+            <li>Deletion test: the pure function stays; the fragile part is the plumbing feeding it</li>
+          </ul>
+        </article>
+
+        <!-- Candidate 7 -->
+        <article id="c7" class="space-y-4">
+          <div class="flex items-center gap-3 flex-wrap">
+            <h2 class="font-serif text-xl font-semibold">Rust/TypeScript types hand-mirrored across the IPC seam</h2>
+            <span class="badge-explore text-xs px-2 py-0.5 rounded-full font-medium">Worth exploring</span>
+            <span class="badge-explore text-xs px-2 py-0.5 rounded-full font-medium">ports & adapters</span>
+          </div>
+          <p class="text-sm font-mono text-slate-500">
+            src/lib/roster.ts:1-2 · src/lib/pendingEdits.ts:1-4,94-101 · src-tauri/src/model.rs:6-44 · src-tauri/src/apply.rs:12-43
+          </p>
+
+          <div class="rounded-lg border border-slate-200 bg-white p-4">
+            <pre class="mermaid">
+flowchart LR
+  subgraph Rust
+    M["model.rs: AccessType, Permission,<br/>GrantScope"] --> A["apply.rs: EditTarget, EditAction,<br/>PendingEditRequest, ApplyResult"]
+  end
+  subgraph TS
+    R["roster.ts (hand-mirrored)"]
+    P["pendingEdits.ts (hand-mirrored)"]
+  end
+  A -. "serde wire shape,<br/>no shared schema" .-> P
+  M -. "no shared schema" .-> R
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class A,M leak
+            </pre>
+          </div>
+
+          <p class="text-sm"><span class="font-semibold">Problem:</span> the same domain types exist twice — once as Rust enums with serde tagging, once as hand-written TS unions that must track them. <code class="mono">pendingEdits.ts</code> even types <code class="mono">ApplyResult.outcome</code> as <code class="mono">{Ok: null} | {Err: ApplyError}</code> to match Rust's <code class="mono">Result</code> serialization verbatim. A renamed/added <code class="mono">Permission</code> variant in Rust doesn't force the TS side to follow — the failure mode is silent runtime drift, not a compile error.</p>
+          <p class="text-sm"><span class="font-semibold">Solution:</span> worth exploring a codegen seam (e.g. <code class="mono">ts-rs</code> or `specta`) that derives the TS types from the Rust source of truth, so the two sides can't drift silently.</p>
+          <ul class="text-sm list-disc list-inside space-y-1 text-slate-700">
+            <li>Locality: one edit (in Rust) updates both sides</li>
+            <li>Removes a class of bug the type system currently can't catch</li>
+            <li>Scope: touches build tooling, not just app code — worth a dedicated grilling pass before committing</li>
+          </ul>
+        </article>
+
+        <!-- Candidate 8 -->
+        <article id="c8" class="space-y-4">
+          <div class="flex items-center gap-3 flex-wrap">
+            <h2 class="font-serif text-xl font-semibold">EditableLevel / CoreLevel: an unchecked cast standing in for a real type relationship</h2>
+            <span class="badge-speculative text-xs px-2 py-0.5 rounded-full font-medium">Speculative</span>
+            <span class="badge-speculative text-xs px-2 py-0.5 rounded-full font-medium">local-substitutable</span>
+          </div>
+          <p class="text-sm font-mono text-slate-500">
+            src/lib/pendingEdits.ts:12 · src/lib/rosterRow.ts:176-177,11 · src-tauri/src/apply.rs:22-25
+          </p>
+
+          <p class="text-sm"><span class="font-semibold">Problem:</span> <code class="mono">rowMenu</code> does <code class="mono">adminLight(entry.permission) as EditableLevel</code> — true today only because <code class="mono">CoreLevel</code> (rosterRow.ts) and <code class="mono">EditableLevel</code> (pendingEdits.ts) happen to share the same three variants, defined independently in two files. Nothing connects them.</p>
+          <p class="text-sm"><span class="font-semibold">Solution:</span> export one "editable subset" type and use it in both places, removing the cast.</p>
+          <ul class="text-sm list-disc list-inside space-y-1 text-slate-700">
+            <li>Small, low-risk — bundle with candidate 5 next time pendingEdits.ts is touched</li>
+            <li>Deletion test: the cast itself would be unnecessary once the types are unified</li>
+          </ul>
+        </article>
+
+      </section>
+
+      <section id="top-recommendation" class="border-t border-slate-200 pt-10">
+        <div class="rounded-xl border-2 border-emerald-700 bg-emerald-50 p-6 space-y-3">
+          <div class="text-xs uppercase tracking-wider text-emerald-700 font-semibold">Top recommendation</div>
+          <h3 class="font-serif text-xl font-semibold">
+            <a href="#c2" class="hover:underline">Finish the fetch extraction — flatten Project data to a repo, once</a>
+          </h3>
+          <p class="text-sm text-slate-700 max-w-2xl">
+            Smallest diff, highest confidence: PD-69 already proved the extraction pattern and the test suite for it exists.
+            Pulling <code class="mono">flatten_project_result_to_repo</code> out of both <code class="mono">collect.rs</code> and
+            <code class="mono">refresh.rs</code> removes real duplication with nothing to design — no new seam decisions, no ADR
+            conflict, no cross-language coordination. Candidates 1 and 4 (the prop chain and the untested state machine) are the
+            next-highest leverage, but both call for a short grilling pass on where exactly the seam should sit before touching code.
+          </p>
+        </div>
+      </section>
+
+    </main>
+  </body>
+</html>

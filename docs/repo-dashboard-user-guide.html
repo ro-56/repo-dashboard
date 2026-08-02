@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>repo-dashboard — User Guide</title>
+<style>
+  :root {
+    --ink: #1b1f24;
+    --ink-mute: #6b7280;
+    --surface: #ffffff;
+    --surface-alt: #f6f7f9;
+    --rule: #e2e5e9;
+    --accent: #2451c2;
+    --added: #1a7f4e;
+    --revoked: #b3261e;
+    --changed: #9a6a00;
+    --code-bg: #f1f3f5;
+    --radius: 6px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--surface-alt);
+    line-height: 1.55;
+  }
+  .wrap {
+    max-width: 900px;
+    margin: 0 auto;
+    background: var(--surface);
+    min-height: 100vh;
+    padding: 0 0 80px;
+    box-shadow: 0 0 0 1px var(--rule);
+  }
+  header.hero {
+    padding: 48px 48px 32px;
+    border-bottom: 1px solid var(--rule);
+  }
+  header.hero h1 {
+    margin: 0 0 8px;
+    font-size: 30px;
+    letter-spacing: -0.01em;
+  }
+  header.hero p.tagline {
+    margin: 0;
+    color: var(--ink-mute);
+    font-size: 17px;
+  }
+  nav.toc {
+    margin: 24px 48px;
+    padding: 20px 24px;
+    background: var(--surface-alt);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-mute); }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+  nav.toc li { break-inside: avoid; margin-bottom: 4px; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+
+  main { padding: 0 48px; }
+  section { padding: 36px 0; border-bottom: 1px solid var(--rule); }
+  section:last-child { border-bottom: none; }
+  h2 {
+    font-size: 22px;
+    margin: 0 0 6px;
+    scroll-margin-top: 20px;
+  }
+  h3 {
+    font-size: 17px;
+    margin: 28px 0 8px;
+    scroll-margin-top: 20px;
+  }
+  p { margin: 10px 0; }
+  ul, ol { margin: 10px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  code {
+    background: var(--code-bg);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.92em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .callout {
+    margin: 16px 0;
+    padding: 14px 18px;
+    border-radius: var(--radius);
+    border-left: 4px solid var(--accent);
+    background: #eef2fb;
+    font-size: 14.5px;
+  }
+  .callout.warn { border-left-color: var(--changed); background: #fbf3e2; }
+  .callout.tip { border-left-color: var(--added); background: #e9f6ef; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 14.5px;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  th { color: var(--ink-mute); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .badge {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-family: ui-monospace, monospace;
+  }
+  .badge.added { background: #e2f5ea; color: var(--added); }
+  .badge.revoked { background: #fbe4e2; color: var(--revoked); }
+  .badge.changed { background: #f8ecd0; color: var(--changed); }
+
+  .diagram {
+    margin: 18px 0;
+    padding: 18px;
+    background: var(--surface-alt);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    white-space: pre;
+    overflow-x: auto;
+    color: #2a2f36;
+  }
+
+  .steps { counter-reset: step; list-style: none; padding-left: 0; margin: 14px 0; }
+  .steps li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 36px;
+    margin-bottom: 14px;
+  }
+  .steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  dl.glossary dt {
+    font-weight: 700;
+    margin-top: 14px;
+  }
+  dl.glossary dd {
+    margin: 2px 0 0;
+    color: #333;
+  }
+
+  footer {
+    padding: 24px 48px;
+    color: var(--ink-mute);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>repo-dashboard</h1>
+  <p class="tagline">A desktop tool for auditing who has access to your team's Bitbucket Cloud repositories — and catching when that access changes.</p>
+</header>
+
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#overview">What this does</a></li>
+    <li><a href="#setup">Getting started</a></li>
+    <li><a href="#concepts">Key concepts</a></li>
+    <li><a href="#running">Taking a snapshot ("Run now")</a></li>
+    <li><a href="#reading">Reading the dashboard</a></li>
+    <li><a href="#comparing">Comparing two runs</a></li>
+    <li><a href="#filtering">Filtering and expanding</a></li>
+    <li><a href="#editing">Changing or removing access</a></li>
+    <li><a href="#refresh">Refreshing after a change</a></li>
+    <li><a href="#export">Exporting a CSV roster</a></li>
+    <li><a href="#snapshots">Managing snapshots</a></li>
+    <li><a href="#appearance">Appearance</a></li>
+    <li><a href="#faq">FAQ / troubleshooting</a></li>
+    <li><a href="#glossary">Glossary</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<section id="overview">
+  <h2>What this does</h2>
+  <p>
+    Bitbucket Cloud repository access — who can read, write to, or administer a repo, whether granted
+    directly or through a group, at the repo level or cascading down from its Project — can change at
+    any time, by anyone with admin rights, with no built-in history. repo-dashboard closes that gap:
+  </p>
+  <ul>
+    <li>It scans every repository and Project in your Bitbucket workspace and records exactly who has what access.</li>
+    <li>Each scan is saved as a permanent, timestamped <strong>snapshot</strong> — a record of "access as of this moment" that never changes afterward.</li>
+    <li>You pick any two snapshots and the dashboard shows you the differences: who gained access, who lost it, and whose permission level went up or down — with escalations (e.g. read → admin) called out specifically.</li>
+    <li>From that same view, you can fix problems directly — lower or remove someone's access — without leaving the app.</li>
+    <li>You can export a point-in-time roster to a CSV file to share with a reviewer.</li>
+  </ul>
+  <p>It runs as a local desktop app. Nothing is uploaded anywhere except the API calls it makes to Bitbucket itself; all snapshot data stays on your machine.</p>
+</section>
+
+<section id="setup">
+  <h2>Getting started</h2>
+  <h3>Installing</h3>
+  <p>repo-dashboard is a desktop application built with Tauri. Building it yourself requires:</p>
+  <ul>
+    <li><a href="https://pnpm.io/">pnpm</a></li>
+    <li><a href="https://www.rust-lang.org/tools/install">Rust</a> (stable)</li>
+    <li>Tauri's platform dependencies for your OS (WebKit/GTK on Linux, etc.)</li>
+  </ul>
+  <p>From the project folder:</p>
+  <div class="diagram">pnpm install
+pnpm tauri build      # produces a distributable binary
+# — or, while developing —
+pnpm tauri dev        # runs the full app with hot reload</div>
+  <p>If you were handed a prebuilt binary instead, just launch it — no installation steps beyond that.</p>
+
+  <h3>First launch: connecting to Bitbucket</h3>
+  <p>On first open, the dashboard has no data yet. Open the <strong>settings drawer</strong> (the gear icon, top right) and fill in the <strong>credentials</strong> panel:</p>
+  <ol class="steps">
+    <li><strong>Username</strong> — your Bitbucket Cloud username.</li>
+    <li><strong>App password</strong> — a Bitbucket app password with read access to repositories, projects, and workspace membership. (Only needed for read access at this point — see the callout below for what's needed to edit access later.)</li>
+    <li><strong>Workspace</strong> — the Bitbucket workspace slug to audit (repo-dashboard audits exactly one workspace).</li>
+  </ol>
+  <p>Click <strong>Save credentials</strong>. The credential is stored encrypted in your operating system's keychain (macOS Keychain, Windows Credential Manager, or the Linux secret service) — it is never written to a plain file, and the app never redisplays the password once saved.</p>
+  <div class="callout">
+    <strong>Editing permissions later needs a broader credential.</strong> The app doesn't check this
+    upfront — everything looks the same either way, since the same credential is used for reading and
+    writing. If your app password only has read scopes, you'll only find out when you try to
+    <a href="#editing">apply an edit</a> and it's rejected as unauthorized. If you plan to use the
+    permission-editing feature, make sure the app password also has admin scope on repositories and
+    projects.
+  </div>
+  <p>Once connected, open the drawer again any time via <strong>Change credentials</strong> to update the username, password, or workspace.</p>
+
+  <h3>Your first run</h3>
+  <p>Still in the settings drawer, click <strong>Get all data</strong> under "run" to fetch your first snapshot. See <a href="#running">Taking a snapshot</a> below for what happens during this step.</p>
+</section>
+
+<section id="concepts">
+  <h2>Key concepts</h2>
+  <p>A handful of terms recur throughout the dashboard. Understanding them up front makes the rest of the UI self-explanatory.</p>
+  <dl class="glossary">
+    <dt>Principal</dt>
+    <dd>Whoever holds a permission — a person (identified by their stable account, not their display name, so a nickname change is never mistaken for someone leaving and a new person arriving) or a group.</dd>
+    <dt>Direct / Group / Member grant</dt>
+    <dd>
+      <strong>Direct</strong> — a permission assigned to one person by name.<br>
+      <strong>Group</strong> — a permission assigned to a group as a whole.<br>
+      <strong>Member</strong> — a permission a person holds only because they belong to a group that has a Group grant. Shown separately from a Direct grant even for the same person on the same repo, since they're two different things.
+    </dd>
+    <dt>Repo-level vs. Project-level</dt>
+    <dd>A grant can live on a specific repository, or on its Project — a Project-level grant automatically applies to every repository the Project owns. The dashboard marks Project-level rows with a "↳" prefix in the source column.</dd>
+    <dt>Run</dt>
+    <dd>A full scan of the whole workspace: every repository and Project is rediscovered from scratch and every permission is re-fetched. Produces one new snapshot.</dd>
+    <dt>Refresh</dt>
+    <dd>A narrow, targeted re-fetch of just the repos/Projects affected by a batch of edits you just applied — much faster than a full Run, but it never discovers new repositories (see <a href="#refresh">Refreshing</a>).</dd>
+    <dt>Snapshot</dt>
+    <dd>The saved result of one Run or Refresh: a complete, permanent picture of access at that moment. Snapshots are never edited after the fact, only deleted.</dd>
+    <dt>Baseline / Comparison</dt>
+    <dd>The two snapshots you're comparing. Baseline is "what it was", Comparison is "what it is now". All diffs (grants, revokes, level changes) are read as movement from Baseline to Comparison.</dd>
+    <dt>Grant / Revoke / Escalation / Demotion</dt>
+    <dd>
+      <span class="badge added">+</span> <strong>Grant</strong> — access that exists in the Comparison but didn't in the Baseline.<br>
+      <span class="badge revoked">−</span> <strong>Revoke</strong> — access that existed in the Baseline but is gone in the Comparison.<br>
+      <span class="badge changed">~</span> <strong>Level change</strong> — the same grant exists in both, but at a different level: an <strong>Escalation</strong> if it went up, a <strong>Demotion</strong> if it went down.
+    </dd>
+  </dl>
+</section>
+
+<section id="running">
+  <h2>Taking a snapshot ("Run now")</h2>
+  <p>From the settings drawer, click <strong>Get all data</strong>. This triggers a full workspace scan:</p>
+  <div class="diagram">discover every repo &amp; Project in the workspace
+        │
+        ▼
+for each one: fetch direct grants, group grants,
+              and (where resolvable) group member grants
+        │
+        ▼
+save everything as one new, timestamped snapshot</div>
+  <p>While it runs, a progress bar shows which repository is currently being fetched and how many remain. When it finishes, the dashboard automatically switches to comparing the new snapshot against the one before it.</p>
+  <div class="callout warn">
+    <strong>If the very first step (discovering repositories) fails</strong> — e.g. your credential is rejected outright — the whole Run is aborted and nothing is saved; you'll see the error directly. If discovery succeeds but fetching one particular repo or Project fails partway through, that one repo/Project is marked <em>fetch failed</em> in the resulting snapshot and the rest of the Run continues normally — it isn't treated as a failed Run.
+  </div>
+  <p>A Run always jumps you to the newest-vs-previous comparison, even if you had manually picked an older pair to look at.</p>
+</section>
+
+<section id="reading">
+  <h2>Reading the dashboard</h2>
+  <p>The main view is organized as <strong>Project → repository → principal</strong>. Each Project has a header with a repo/grant count; each repository is a collapsible card.</p>
+
+  <h3>Repo cards</h3>
+  <p>Each card's header shows, left to right: an expand/collapse arrow, the Project/repo path, a small admin/write/read distribution bar, a grant count ("7 grants · 2 admin"), and count badges summarizing what changed on that repo (<span class="badge added">+2</span> <span class="badge revoked">−1</span> <span class="badge changed">~1</span>, or <code>no change</code>). Repos with at least one change open automatically when the page loads; if nothing changed anywhere in the whole comparison, every card opens instead (so you're never staring at an all-collapsed empty-looking screen).</p>
+  <p>A repo card can also carry a tag next to its name:</p>
+  <table>
+    <tr><th>Tag</th><th>Meaning</th></tr>
+    <tr><td><code>absent from run N</code></td><td>This repo existed in the Baseline but is gone from the Comparison (renamed, archived, or no longer visible to the credential used).</td></tr>
+    <tr><td><code>new in run N</code></td><td>This repo didn't exist in the Baseline but appears in the Comparison.</td></tr>
+    <tr><td><code>fetch failed</code></td><td>The repo was discovered but its own permissions couldn't be fetched this Run — its grants are simply unknown, not "zero".</td></tr>
+    <tr><td><code>project fetch failed</code></td><td>The owning Project's own permissions call failed (independent of whether the repo's own fetch succeeded).</td></tr>
+  </table>
+
+  <h3>Rows inside a card</h3>
+  <p>Each row is one principal's grant on that repo. Columns, left to right:</p>
+  <table>
+    <tr><th>Column</th><th>Shows</th></tr>
+    <tr><td><code>±</code></td><td>A sigil for the row's diff state: <code>+</code> grant, <code>−</code> revoke, <code>↑</code> escalation, <code>~</code> other level change, <code>·</code> unchanged.</td></tr>
+    <tr><td><code>lvl</code></td><td>A small filled-segment meter — a quick visual read of read/write/admin level.</td></tr>
+    <tr><td><code>access</code></td><td>The permission word: read, write, create-repo, or admin.</td></tr>
+    <tr><td><code>source</code></td><td><code>direct</code>, <code>group</code>, or <code>grp:&lt;name&gt;</code> for a grant derived from group membership; prefixed with <code>↳</code> for a Project-level grant.</td></tr>
+    <tr><td><code>user</code></td><td>The principal's display name.</td></tr>
+    <tr><td><code>since baseline</code></td><td>For a changed row, the "from → to" transition (e.g. <code>read → admin</code>).</td></tr>
+    <tr><td><code>notes</code></td><td>Tags: <code>escalation</code> / <code>escalation → admin</code>, <code>members unresolved</code> (see below), or pending-edit tags.</td></tr>
+  </table>
+  <p><code>members unresolved</code> appears on a group's own row when the group's permission was fetched successfully but its member list could not be (typically an app-password scope issue) — in that case no individual member rows are shown for that group at all, since there's no way to know who they are.</p>
+  <div class="callout">
+    <strong>Note on "create-repo".</strong> Bitbucket has a fourth permission level, project-scope only,
+    between write and admin. It's shown as its own distinct word wherever a level is displayed, but for
+    the purposes of counting changes and deciding escalation/demotion, it's treated as equivalent to
+    admin — so a create-repo ↔ admin change never shows up as a diff.
+  </div>
+</section>
+
+<section id="comparing">
+  <h2>Comparing two runs</h2>
+  <p>The top bar has two selectors, <strong>baseline</strong> and <strong>comparison</strong>, each listing every recorded run by number and date (run 1 is always the very first run ever taken). Change either selector to change what's being compared; use the <strong>⇄</strong> button to swap them.</p>
+  <p>Selecting the same run for both is allowed — it just shows that run's roster with no diff markers, which is a normal way to browse current access without comparing to history.</p>
+  <p>Next to the selectors, a note like <code>14 days apart · 82 → 91 grants</code> (or <code>single run · 82 → 82 grants</code> when both sides match) gives a quick sense of scale, and a row of chips on the right summarizes the diff: <span class="badge added">+3 added</span> <span class="badge revoked">−1 revoked</span> <span class="badge changed">~2 changed</span> plus a separate <code>↑N escalations</code> chip when any level change went up. If nothing changed at all, a single <code>no change</code> chip appears instead.</p>
+</section>
+
+<section id="filtering">
+  <h2>Filtering and expanding</h2>
+  <p>The bar just under the header offers two tabs:</p>
+  <ul>
+    <li><strong>All access</strong> — every grant in the Comparison snapshot, changed or not.</li>
+    <li><strong>Changes only</strong> — just the rows that differ from the Baseline; repos with zero changes disappear entirely from the list.</li>
+  </ul>
+  <p>Next to the tabs: a live count (<code>N live · N changed · N rows</code>), an <strong>Expand all / Collapse all</strong> toggle (its label always reflects what clicking it will do, scoped to whatever's currently visible under the active tab), and <strong>Reset</strong>, which returns to the All access tab and clears every manual expand/collapse you made.</p>
+  <p>If a filter leaves nothing to show, an empty-state message explains why — either "no permission changes between run X and run Y" (with a button to switch to All access), or a generic "nothing matches these filters" (with a button to reset).</p>
+</section>
+
+<section id="editing">
+  <h2>Changing or removing access</h2>
+  <p>From the Comparison snapshot's roster — but only while that snapshot is the <em>most recent</em> one recorded — you can edit access directly from the dashboard, without going to Bitbucket.</p>
+  <div class="callout warn">
+    Editing is only available when the Comparison you're viewing is the latest snapshot. If you've
+    picked an older run to compare against, the row menus (⋯) simply aren't there — editing against a
+    historical view would be changing the present based on a look at the past.
+  </div>
+  <h3>What can be edited</h3>
+  <ul>
+    <li>Any <strong>Direct</strong> grant (a specific person's own permission) — at repo or Project scope.</li>
+    <li>Any <strong>Group</strong> grant (the group's own permission) — at repo or Project scope.</li>
+    <li><strong>Member</strong> rows (access derived from group membership) have no edit menu at all — to change them, edit the underlying group's own grant instead.</li>
+  </ul>
+  <p>Granting access to someone who currently has none isn't supported yet — editing only covers changing or removing an existing grant.</p>
+
+  <h3>Staging a change</h3>
+  <ol class="steps">
+    <li>Click the <code>⋯</code> menu at the right of a row.</li>
+    <li>Pick a new level (Read / Write / Admin) to stage a level change, or <strong>✕ Remove access</strong> to stage a removal. Re-selecting the row's current level cancels the staged edit instead of doing nothing.</li>
+    <li>If you're removing a <strong>group's</strong> grant, the menu warns you how many people's access is derived from it and would disappear too (e.g. "removing this also drops access for 3 members") — group-derived (Member) access has no separate on/off switch, so removing the group's own grant removes all of it at once.</li>
+  </ol>
+  <p>Staged rows are marked <code>pending · unsaved</code> or <code>pending removal</code> and preview the change immediately (struck-through for a removal). Nothing is sent to Bitbucket yet. Click <strong>↺ undo</strong> on a staged row to discard just that one change.</p>
+  <p>You can stage as many changes as you like across different repos before applying anything.</p>
+
+  <h3>Applying</h3>
+  <p>Once at least one change is staged, an <strong>Apply N changes</strong> button appears in the top bar. Clicking it opens a confirmation dialog listing every staged change (repo, person, from → to level, and any cascade warning), for one final review before anything actually happens.</p>
+  <p>Click <strong>Confirm</strong> to send the whole batch to Bitbucket. Each change is applied independently — one failing (e.g. insufficient credential scope, the grant was already changed elsewhere, or rate limiting) does not block the rest of the batch. The results view shows a ✓/✕ status per row, with a reason for any failure:</p>
+  <table>
+    <tr><th>Failure</th><th>Meaning</th></tr>
+    <tr><td>credential lacks the required scope</td><td>Your app password doesn't have admin rights on that repo/Project.</td></tr>
+    <tr><td>rate limited — retry</td><td>Bitbucket throttled the request; try applying again shortly.</td></tr>
+    <tr><td>(other message)</td><td>Whatever error Bitbucket returned verbatim.</td></tr>
+  </table>
+  <p>Anything that failed stays staged in the dashboard for you to retry later; anything that succeeded is cleared from the pending list.</p>
+  <div class="callout">
+    Applying changes Bitbucket's live permissions — it does not change the snapshot you're looking at.
+    A snapshot never updates itself; the dashboard will keep showing the old numbers until you take a
+    new Run or Refresh (below).
+  </div>
+  <p>Any staged-but-not-yet-applied edits are silently discarded (not carried forward) if a new Run or Refresh completes, or if you switch the Comparison to a different snapshot — either way, the snapshot they were staged against is no longer the one on screen.</p>
+</section>
+
+<section id="refresh">
+  <h2>Refreshing after a change</h2>
+  <p>Right after applying a batch (in the results view), if at least one edit succeeded, a <strong>Refresh affected</strong> button appears. This is a fast way to see your edits reflected without a full Run:</p>
+  <ul>
+    <li>It creates one new snapshot by copying every repo/Project untouched by your batch straight from the snapshot you edited against.</li>
+    <li>It only re-fetches live data for the specific repos (or, for a Project-scope edit, every repo that Project owns) your <em>successful</em> edits touched.</li>
+    <li>It does <strong>not</strong> rediscover the workspace — if a repo was created, deleted, or moved between Projects since your last Run, only a full Run will pick that up.</li>
+  </ul>
+  <p>On success, the dialog closes, remaining pending edits are cleared, and the new snapshot is automatically selected as the Comparison (your Baseline selection is left alone).</p>
+  <p>Closing the results view instead (without refreshing) retires that opportunity — you'd need a full Run to see the change reflected afterward.</p>
+</section>
+
+<section id="export">
+  <h2>Exporting a CSV roster</h2>
+  <p>Click <strong>Export</strong> in the filter bar to save a CSV file of the current Comparison snapshot's full roster.</p>
+  <ul>
+    <li>Always the Comparison snapshot alone — never a diff, and unaffected by whatever Baseline or view filters are currently active on screen.</li>
+    <li>One row per grant: repo project, repo, principal id, display name, access type (<code>direct</code> / <code>group</code> / <code>member:&lt;group&gt;</code>), scope (<code>repo</code> / <code>project</code>), permission level, and the run's timestamp.</li>
+    <li>You'll be prompted with a native Save dialog; the suggested filename is <code>roster_&lt;workspace&gt;_&lt;timestamp&gt;.csv</code>.</li>
+  </ul>
+  <p>This is meant for a one-off share or archive — the dashboard itself remains the source of truth for ongoing auditing, not the CSV.</p>
+</section>
+
+<section id="snapshots">
+  <h2>Managing snapshots</h2>
+  <p>The settings drawer's <strong>snapshots</strong> panel lists every run ever recorded, newest first. Click <strong>Delete</strong> next to one, then <strong>Confirm</strong> to permanently remove it (or <strong>Cancel</strong> to back out).</p>
+  <div class="callout warn">
+    Deleting a snapshot is permanent. If you delete the snapshot currently selected as Baseline or
+    Comparison, the dashboard falls back to comparing the newest remaining run against the one before
+    it — the same default it uses on first load.
+  </div>
+</section>
+
+<section id="appearance">
+  <h2>Appearance</h2>
+  <p>The settings drawer's <strong>appearance</strong> panel switches between Light and Dark themes. The choice applies immediately and persists between sessions.</p>
+</section>
+
+<section id="faq">
+  <h2>FAQ / troubleshooting</h2>
+
+  <h3>Nothing happens when I click "Get all data"</h3>
+  <p>Check that credentials are saved (the drawer's credentials panel should read "connected as ... on ..."). If a Run fails outright with an error, it's most likely that Bitbucket rejected the credential itself (e.g. wrong password, or the app password lacks basic workspace-read scope) — in that case no snapshot is saved at all.</p>
+
+  <h3>A repo shows "fetch failed" — is my data wrong?</h3>
+  <p>No — a fetch failure means the tool doesn't yet know that repo's permissions for this Run; it's tracked separately from "this repo genuinely has zero grants." Re-running (or refreshing, if the failure is on an edited repo) will attempt the fetch again.</p>
+
+  <h3>Why can't I edit permissions on a snapshot I'm viewing?</h3>
+  <p>Editing is only offered when the Comparison snapshot is the newest one on record. Select the latest run as your Comparison to get edit menus back.</p>
+
+  <h3>Why don't I see any member rows under this group?</h3>
+  <p>Either the group truly has no members, or its membership couldn't be fetched (usually a scope limitation on the app password) — in the latter case the row is tagged <code>members unresolved</code> and no member rows are shown, since the tool has no way to know who they'd be.</p>
+
+  <h3>I applied an edit and the dashboard still shows the old permission</h3>
+  <p>That's expected — applying pushes the change to Bitbucket, but a snapshot is immutable and never updates itself. Use <strong>Refresh affected</strong> from the apply results view, or take a new full Run, to see it reflected.</p>
+
+  <h3>My apply failed with "credential lacks the required scope"</h3>
+  <p>Editing permissions requires broader Bitbucket app-password scopes (repository/project admin) than just viewing them does. Update the app password's scopes in Bitbucket, save the new password in the credentials panel, and retry — the failed edit stays staged for you.</p>
+
+  <h3>Can I audit more than one Bitbucket workspace?</h3>
+  <p>No — one configured workspace at a time. Switching workspaces means changing the workspace field in the credentials panel and taking a new Run.</p>
+
+  <h3>Is this connected to any notifications or alerts?</h3>
+  <p>No. It's a pull-based tool — you open it and compare runs yourself; nothing pushes alerts to you.</p>
+</section>
+
+<section id="glossary">
+  <h2>Glossary</h2>
+  <dl class="glossary">
+    <dt>Principal</dt>
+    <dd>A user or a group that can hold a permission grant.</dd>
+    <dt>Grant scope (Repo / Project)</dt>
+    <dd>Whether a grant lives on the repository itself, or on its Project (cascading to every repo the Project owns).</dd>
+    <dt>Direct grant</dt>
+    <dd>A permission assigned to one person individually.</dd>
+    <dt>Group grant</dt>
+    <dd>A permission assigned to a group as its own entity.</dd>
+    <dt>Member grant</dt>
+    <dd>A permission a person holds by virtue of belonging to a group with a Group grant; not separately editable.</dd>
+    <dt>Run</dt>
+    <dd>A full workspace scan (rediscovers every repo/Project) that produces one new snapshot.</dd>
+    <dt>Refresh</dt>
+    <dd>A narrow re-fetch of just the repos/Projects touched by a just-applied edit batch; produces a new snapshot but never rediscovers the workspace.</dd>
+    <dt>Snapshot</dt>
+    <dd>One immutable, timestamped Run or Refresh's worth of data across the workspace.</dd>
+    <dt>Baseline / Comparison</dt>
+    <dd>The earlier ("what it was") and later ("what it is now") snapshot in the pair being compared.</dd>
+    <dt>Grant / Revoke</dt>
+    <dd>Access that appears / disappears between Baseline and Comparison.</dd>
+    <dt>Escalation / Demotion</dt>
+    <dd>A grant's level going up / down between Baseline and Comparison.</dd>
+    <dt>Pending edit</dt>
+    <dd>A staged, not-yet-applied change to a Direct or Group grant, held locally until you click Apply.</dd>
+    <dt>Apply</dt>
+    <dd>Sending every currently staged edit to Bitbucket as live permission changes.</dd>
+    <dt>Unresolvable membership</dt>
+    <dd>A group whose own grant was fetched but whose member list couldn't be — no Member rows are derived for it that Run.</dd>
+  </dl>
+</section>
+
+</main>
+
+<footer>repo-dashboard user guide — generated from the current codebase.</footer>
+</div>
+</body>
+</html>
