@@ -230,7 +230,7 @@ pub async fn refresh_and_store<C: BitbucketClient>(
 mod tests {
     use super::*;
     use crate::apply::{EditAction, EditTarget, PendingEditRequest};
-    use crate::client::ClientError;
+    use crate::client::{ClientError, PrincipalRef};
     use crate::collect::collect_and_store;
     use crate::model::{AccessType, Permission, RepoStatus};
     use crate::normalize::{RawGroupPermission, RawMember, RawUserPermission};
@@ -408,78 +408,23 @@ mod tests {
             self.project_group_permissions.get(project_key).cloned().unwrap_or(Ok(Vec::new()))
         }
 
-        async fn set_repo_direct_permission(
+        async fn set_permission(
             &self,
             _workspace: &str,
-            _repo: &str,
-            _account_id: &str,
+            _scope: GrantScope,
+            _key: &str,
+            _principal: PrincipalRef,
             _permission: Permission,
         ) -> Result<(), ClientError> {
             Ok(())
         }
 
-        async fn remove_repo_direct_permission(
+        async fn remove_permission(
             &self,
             _workspace: &str,
-            _repo: &str,
-            _account_id: &str,
-        ) -> Result<(), ClientError> {
-            Ok(())
-        }
-
-        async fn set_project_direct_permission(
-            &self,
-            _workspace: &str,
-            _project_key: &str,
-            _account_id: &str,
-            _permission: Permission,
-        ) -> Result<(), ClientError> {
-            Ok(())
-        }
-
-        async fn remove_project_direct_permission(
-            &self,
-            _workspace: &str,
-            _project_key: &str,
-            _account_id: &str,
-        ) -> Result<(), ClientError> {
-            Ok(())
-        }
-
-        async fn set_repo_group_permission(
-            &self,
-            _workspace: &str,
-            _repo: &str,
-            _group_slug: &str,
-            _permission: Permission,
-        ) -> Result<(), ClientError> {
-            Ok(())
-        }
-
-        async fn remove_repo_group_permission(
-            &self,
-            _workspace: &str,
-            _repo: &str,
-            _group_slug: &str,
-        ) -> Result<(), ClientError> {
-            Ok(())
-        }
-
-        async fn set_project_group_permission(
-            &self,
-            _workspace: &str,
-            _project_key: &str,
-            _group_slug: &str,
-            _permission: Permission,
-        ) -> Result<(), ClientError> {
-            Ok(())
-        }
-
-        async fn remove_project_group_permission(
-            &self,
-            _workspace: &str,
-            _project_key: &str,
-            _group_slug: &str,
+            _scope: GrantScope,
+            _key: &str,
+            _principal: PrincipalRef,
         ) -> Result<(), ClientError> {
             Ok(())
         }

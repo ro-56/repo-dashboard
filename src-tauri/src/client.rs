@@ -3,8 +3,18 @@
 //! against canned responses, with `RealBitbucketClient` the only implementation that ever
 //! makes a real network call.
 
-use crate::model::Permission;
+use crate::model::{GrantScope, Permission};
 use crate::normalize::{RawGroupMembersResponse, RawGroupPermission, RawMember, RawUserPermission};
+
+/// Which kind of Principal a permission write targets — a Bitbucket `account_id` (Direct) or a
+/// group slug (Group). Owned here rather than reusing `apply.rs`'s `EditTarget` so `client.rs`
+/// doesn't depend on the apply-layer type; `apply_one` converts `EditTarget` into this at the
+/// call site.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum PrincipalRef {
+    Direct(String),
+    Group(String),
+}
 
 /// Distinguishes the failure classes `collect_and_store` needs to treat differently:
 /// `Unauthorized` aborts the whole Run, `RateLimited` is retried once by the client itself
@@ -62,84 +72,28 @@ pub trait BitbucketClient {
         project_key: &str,
     ) -> impl std::future::Future<Output = Result<Vec<RawGroupPermission>, ClientError>> + Send;
 
-    /// Sets a Direct grant's level on a repo (PD-60). `PUT
-    /// /2.0/repositories/{workspace}/{repo}/permissions-config/users/{account_id}` —
-    /// requires `repository:admin` scope, checked only lazily (ADR-0023).
-    fn set_repo_direct_permission(
+    /// Sets a grant's level on a repo or Project, for either a Direct or Group principal
+    /// (PD-60/PD-61/PD-62) — `key` is the repo slug when `scope == GrantScope::Repo`, the
+    /// project key when `scope == GrantScope::Project`. `PUT
+    /// .../permissions-config/{users,groups}/{id}` — requires `repository:admin` (Repo scope) or
+    /// `project:admin` (Project scope), checked only lazily (ADR-0023).
+    fn set_permission(
         &self,
         workspace: &str,
-        repo: &str,
-        account_id: &str,
+        scope: GrantScope,
+        key: &str,
+        principal: PrincipalRef,
         permission: Permission,
     ) -> impl std::future::Future<Output = Result<(), ClientError>> + Send;
 
-    /// Removes a Direct grant from a repo entirely (PD-60). `DELETE` on the same
-    /// `permissions-config/users/{account_id}` path as `set_repo_direct_permission`.
-    fn remove_repo_direct_permission(
+    /// Removes a grant from a repo or Project entirely, for either a Direct or Group principal.
+    /// `DELETE` on the same `permissions-config/{users,groups}/{id}` path as `set_permission`.
+    fn remove_permission(
         &self,
         workspace: &str,
-        repo: &str,
-        account_id: &str,
-    ) -> impl std::future::Future<Output = Result<(), ClientError>> + Send;
-
-    /// Sets a Direct grant's level on a Project (PD-61), cascading to every repo it owns. `PUT
-    /// /2.0/workspaces/{workspace}/projects/{project_key}/permissions-config/users/{account_id}`
-    /// — requires `project:admin` scope, checked only lazily (ADR-0023).
-    fn set_project_direct_permission(
-        &self,
-        workspace: &str,
-        project_key: &str,
-        account_id: &str,
-        permission: Permission,
-    ) -> impl std::future::Future<Output = Result<(), ClientError>> + Send;
-
-    /// Removes a Direct grant from a Project entirely (PD-61). `DELETE` on the same
-    /// `permissions-config/users/{account_id}` path as `set_project_direct_permission`.
-    fn remove_project_direct_permission(
-        &self,
-        workspace: &str,
-        project_key: &str,
-        account_id: &str,
-    ) -> impl std::future::Future<Output = Result<(), ClientError>> + Send;
-
-    /// Sets a Group grant's level on a repo (PD-62). `PUT
-    /// /2.0/repositories/{workspace}/{repo}/permissions-config/groups/{group_slug}` —
-    /// requires `repository:admin` scope, checked only lazily (ADR-0023).
-    fn set_repo_group_permission(
-        &self,
-        workspace: &str,
-        repo: &str,
-        group_slug: &str,
-        permission: Permission,
-    ) -> impl std::future::Future<Output = Result<(), ClientError>> + Send;
-
-    /// Removes a Group grant from a repo entirely (PD-62). `DELETE` on the same
-    /// `permissions-config/groups/{group_slug}` path as `set_repo_group_permission`.
-    fn remove_repo_group_permission(
-        &self,
-        workspace: &str,
-        repo: &str,
-        group_slug: &str,
-    ) -> impl std::future::Future<Output = Result<(), ClientError>> + Send;
-
-    /// Sets a Group grant's level on a Project (PD-62), cascading to every repo it owns. `PUT
-    /// /2.0/workspaces/{workspace}/projects/{project_key}/permissions-config/groups/{group_slug}`
-    /// — requires `project:admin` scope, checked only lazily (ADR-0023).
-    fn set_project_group_permission(
-        &self,
-        workspace: &str,
-        project_key: &str,
-        group_slug: &str,
-        permission: Permission,
-    ) -> impl std::future::Future<Output = Result<(), ClientError>> + Send;
-
-    /// Removes a Group grant from a Project entirely (PD-62). `DELETE` on the same
-    /// `permissions-config/groups/{group_slug}` path as `set_project_group_permission`.
-    fn remove_project_group_permission(
-        &self,
-        workspace: &str,
-        project_key: &str,
-        group_slug: &str,
+        scope: GrantScope,
+        key: &str,
+        principal: PrincipalRef,
     ) -> impl std::future::Future<Output = Result<(), ClientError>> + Send;
 }
 
@@ -226,6 +180,26 @@ impl RealBitbucketClient {
                 self.write_once(method, url, body).await
             }
             result => result,
+        }
+    }
+
+    /// Builds the `permissions-config/{users,groups}/{id}` URL for a write, branching once on
+    /// `scope` for the base path and once on `principal` for the segment — shared by
+    /// `set_permission` and `remove_permission`.
+    fn permission_url(&self, workspace: &str, scope: GrantScope, key: &str, principal: &PrincipalRef) -> String {
+        let base = match scope {
+            GrantScope::Repo => format!("https://api.bitbucket.org/2.0/repositories/{workspace}/{key}"),
+            GrantScope::Project => {
+                format!("https://api.bitbucket.org/2.0/workspaces/{workspace}/projects/{key}")
+            }
+        };
+        match principal {
+            PrincipalRef::Direct(account_id) => {
+                format!("{base}/permissions-config/users/{account_id}")
+            }
+            PrincipalRef::Group(group_slug) => {
+                format!("{base}/permissions-config/groups/{group_slug}")
+            }
         }
     }
 
@@ -379,107 +353,27 @@ impl BitbucketClient for RealBitbucketClient {
             .collect())
     }
 
-    async fn set_repo_direct_permission(
+    async fn set_permission(
         &self,
         workspace: &str,
-        repo: &str,
-        account_id: &str,
+        scope: GrantScope,
+        key: &str,
+        principal: PrincipalRef,
         permission: Permission,
     ) -> Result<(), ClientError> {
-        let url = format!(
-            "https://api.bitbucket.org/2.0/repositories/{workspace}/{repo}/permissions-config/users/{account_id}"
-        );
+        let url = self.permission_url(workspace, scope, key, &principal);
         let body = serde_json::json!({ "permission": permission.as_str() });
         self.write_with_retry(reqwest::Method::PUT, &url, Some(&body)).await
     }
 
-    async fn remove_repo_direct_permission(
+    async fn remove_permission(
         &self,
         workspace: &str,
-        repo: &str,
-        account_id: &str,
+        scope: GrantScope,
+        key: &str,
+        principal: PrincipalRef,
     ) -> Result<(), ClientError> {
-        let url = format!(
-            "https://api.bitbucket.org/2.0/repositories/{workspace}/{repo}/permissions-config/users/{account_id}"
-        );
-        self.write_with_retry(reqwest::Method::DELETE, &url, None).await
-    }
-
-    async fn set_project_direct_permission(
-        &self,
-        workspace: &str,
-        project_key: &str,
-        account_id: &str,
-        permission: Permission,
-    ) -> Result<(), ClientError> {
-        let url = format!(
-            "https://api.bitbucket.org/2.0/workspaces/{workspace}/projects/{project_key}/permissions-config/users/{account_id}"
-        );
-        let body = serde_json::json!({ "permission": permission.as_str() });
-        self.write_with_retry(reqwest::Method::PUT, &url, Some(&body)).await
-    }
-
-    async fn remove_project_direct_permission(
-        &self,
-        workspace: &str,
-        project_key: &str,
-        account_id: &str,
-    ) -> Result<(), ClientError> {
-        let url = format!(
-            "https://api.bitbucket.org/2.0/workspaces/{workspace}/projects/{project_key}/permissions-config/users/{account_id}"
-        );
-        self.write_with_retry(reqwest::Method::DELETE, &url, None).await
-    }
-
-    async fn set_repo_group_permission(
-        &self,
-        workspace: &str,
-        repo: &str,
-        group_slug: &str,
-        permission: Permission,
-    ) -> Result<(), ClientError> {
-        let url = format!(
-            "https://api.bitbucket.org/2.0/repositories/{workspace}/{repo}/permissions-config/groups/{group_slug}"
-        );
-        let body = serde_json::json!({ "permission": permission.as_str() });
-        self.write_with_retry(reqwest::Method::PUT, &url, Some(&body)).await
-    }
-
-    async fn remove_repo_group_permission(
-        &self,
-        workspace: &str,
-        repo: &str,
-        group_slug: &str,
-    ) -> Result<(), ClientError> {
-        let url = format!(
-            "https://api.bitbucket.org/2.0/repositories/{workspace}/{repo}/permissions-config/groups/{group_slug}"
-        );
-        self.write_with_retry(reqwest::Method::DELETE, &url, None).await
-    }
-
-    async fn set_project_group_permission(
-        &self,
-        workspace: &str,
-        project_key: &str,
-        group_slug: &str,
-        permission: Permission,
-    ) -> Result<(), ClientError> {
-        let url = format!(
-            "https://api.bitbucket.org/2.0/workspaces/{workspace}/projects/{project_key}/permissions-config/groups/{group_slug}"
-        );
-        let body = serde_json::json!({ "permission": permission.as_str() });
-        self.write_with_retry(reqwest::Method::PUT, &url, Some(&body)).await
-    }
-
-    async fn remove_project_group_permission(
-        &self,
-        workspace: &str,
-        project_key: &str,
-        group_slug: &str,
-    ) -> Result<(), ClientError> {
-        let url = format!(
-            "https://api.bitbucket.org/2.0/workspaces/{workspace}/projects/{project_key}/permissions-config/groups/{group_slug}"
-        );
+        let url = self.permission_url(workspace, scope, key, &principal);
         self.write_with_retry(reqwest::Method::DELETE, &url, None).await
     }
 }

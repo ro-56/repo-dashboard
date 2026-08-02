@@ -490,79 +490,24 @@ mod tests {
         }
 
         // Not exercised by this module's tests — `apply.rs` owns the write-path fake that
-        // actually asserts against these four methods.
-        async fn set_repo_direct_permission(
+        // actually asserts against these two methods.
+        async fn set_permission(
             &self,
             _workspace: &str,
-            _repo: &str,
-            _account_id: &str,
+            _scope: crate::model::GrantScope,
+            _key: &str,
+            _principal: crate::client::PrincipalRef,
             _permission: crate::model::Permission,
         ) -> Result<(), ClientError> {
             Ok(())
         }
 
-        async fn remove_repo_direct_permission(
+        async fn remove_permission(
             &self,
             _workspace: &str,
-            _repo: &str,
-            _account_id: &str,
-        ) -> Result<(), ClientError> {
-            Ok(())
-        }
-
-        async fn set_project_direct_permission(
-            &self,
-            _workspace: &str,
-            _project_key: &str,
-            _account_id: &str,
-            _permission: crate::model::Permission,
-        ) -> Result<(), ClientError> {
-            Ok(())
-        }
-
-        async fn remove_project_direct_permission(
-            &self,
-            _workspace: &str,
-            _project_key: &str,
-            _account_id: &str,
-        ) -> Result<(), ClientError> {
-            Ok(())
-        }
-
-        async fn set_repo_group_permission(
-            &self,
-            _workspace: &str,
-            _repo: &str,
-            _group_slug: &str,
-            _permission: crate::model::Permission,
-        ) -> Result<(), ClientError> {
-            Ok(())
-        }
-
-        async fn remove_repo_group_permission(
-            &self,
-            _workspace: &str,
-            _repo: &str,
-            _group_slug: &str,
-        ) -> Result<(), ClientError> {
-            Ok(())
-        }
-
-        async fn set_project_group_permission(
-            &self,
-            _workspace: &str,
-            _project_key: &str,
-            _group_slug: &str,
-            _permission: crate::model::Permission,
-        ) -> Result<(), ClientError> {
-            Ok(())
-        }
-
-        async fn remove_project_group_permission(
-            &self,
-            _workspace: &str,
-            _project_key: &str,
-            _group_slug: &str,
+            _scope: crate::model::GrantScope,
+            _key: &str,
+            _principal: crate::client::PrincipalRef,
         ) -> Result<(), ClientError> {
             Ok(())
         }
