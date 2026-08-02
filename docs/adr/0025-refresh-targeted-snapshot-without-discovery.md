@@ -1,5 +1,7 @@
 # Refresh: a targeted Snapshot copy-plus-fetch, offered as a complement to Apply — not a full Run
 
+Status: Baseline-selection detail superseded by ADR-0027
+
 Applying a batch of Pending edits (ADR-0022) mutates live Bitbucket state, but until now the only way to see that reflected in the dashboard was a full Run — workspace-wide discovery plus a fetch of every repo and Project, even though the edit batch itself only ever touches a handful of them. Refresh is a new, separate action offered in the Apply results view: it creates one new Snapshot by copying every repo/project the batch didn't touch verbatim from the source Snapshot, and re-fetching live data only for the Refresh targets named by the batch's *successful* edits (Project-scope edits cascade to every repo the source Snapshot already records under that Project — Refresh never calls `list_repositories` to redetermine that set).
 
 Refresh is deliberately narrow and transient: it's reachable only from the just-finished Apply's results view, targets only successful edits (failed ones stay staged for retry, per ADR-0022, and contribute no target), fires immediately with no confirm step (it only reads), clears any remaining staged edits and auto-selects its new Snapshot as Comparison exactly as a Run does, and is retired the moment that results view is dismissed — a full Run is the only path forward after that.

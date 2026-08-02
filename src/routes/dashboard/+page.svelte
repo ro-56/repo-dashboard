@@ -220,7 +220,9 @@
 
   // Refresh (PD-70): a narrow, Repo-scope-only copy-plus-fetch, offered right in the results
   // view. On success it clears the remaining Pending edits exactly as a Run does, refreshes the
-  // snapshot list, and auto-selects the new Snapshot as the Comparison (baseline untouched).
+  // snapshot list, and auto-selects the new Snapshot as the Comparison, advancing the Baseline to
+  // the pre-refresh Comparison (the snapshot the batch was staged against) so the pair isolates
+  // exactly what the batch changed (ADR-0027).
   async function refreshAffected() {
     if (dialogResults === null || dialogSourceSnapshotId === null) return;
     refreshing = true;
@@ -233,7 +235,7 @@
       dialogOpen = false;
       pending = clearEdits();
       const params = new URLSearchParams({
-        baseline: String(data.baselineId),
+        baseline: String(dialogSourceSnapshotId),
         comparison: String(newSnapshotId),
       });
       await goto(`?${params.toString()}`, { invalidateAll: true, keepFocus: true, noScroll: true });
