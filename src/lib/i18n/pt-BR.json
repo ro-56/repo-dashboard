@@ -30,6 +30,7 @@
     "tabAll": "Todo o acesso",
     "tabChanges": "Somente alterações",
     "searchPlaceholder": "Pesquisar por nome",
+    "searchClearAria": "Limpar pesquisa",
     "countNote": "{live} ativos · {changed} alterados · {rows} linhas",
     "expandAll": "Expandir tudo",
     "collapseAll": "Recolher tudo",

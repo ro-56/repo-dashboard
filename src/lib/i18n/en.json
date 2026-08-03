@@ -30,6 +30,7 @@
     "tabAll": "All access",
     "tabChanges": "Changes only",
     "searchPlaceholder": "Search by name",
+    "searchClearAria": "Clear search",
     "countNote": "{live} live · {changed} changed · {rows} rows",
     "expandAll": "Expand all",
     "collapseAll": "Collapse all",

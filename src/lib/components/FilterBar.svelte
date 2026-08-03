@@ -41,13 +41,25 @@
       {$_("filterBar.tabChanges")}
     </button>
   </div>
-  <input
-    type="text"
-    class="search-input"
-    placeholder={$_("filterBar.searchPlaceholder")}
-    value={searchQuery}
-    oninput={(e) => onSearchChange(e.currentTarget.value)}
-  />
+  <div class="search-wrap">
+    <input
+      type="text"
+      class="search-input"
+      placeholder={$_("filterBar.searchPlaceholder")}
+      value={searchQuery}
+      oninput={(e) => onSearchChange(e.currentTarget.value)}
+    />
+    {#if searchQuery.length > 0}
+      <button
+        type="button"
+        class="search-clear"
+        aria-label={$_("filterBar.searchClearAria")}
+        onclick={() => onSearchChange("")}
+      >
+        ×
+      </button>
+    {/if}
+  </div>
   <div class="right-controls">
     <span class="count-note">{countNoteText}</span>
     <button type="button" class="control" disabled={bulkDisabled} onclick={onBulkToggle}>{expandLabel}</button>
@@ -101,12 +113,16 @@
     color: var(--ink);
   }
 
-  .search-input {
-    box-sizing: border-box;
+  .search-wrap {
+    position: relative;
     flex: none;
     width: 230px;
+  }
+  .search-input {
+    box-sizing: border-box;
+    width: 100%;
     height: var(--h-control);
-    padding: 0 var(--s-6);
+    padding: 0 var(--s-8) 0 var(--s-6);
     border: 1px solid var(--control-edge);
     border-radius: var(--r-card);
     background: var(--surface);
@@ -116,6 +132,29 @@
   }
   .search-input::placeholder {
     color: var(--ink-mute);
+  }
+  .search-clear {
+    position: absolute;
+    top: 50%;
+    right: var(--s-3);
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    font-family: var(--font-sans);
+    font-size: var(--t-body-s);
+    line-height: 1;
+    color: var(--ink-mute);
+    cursor: pointer;
+  }
+  .search-clear:hover {
+    color: var(--ink);
   }
 
   .right-controls {
