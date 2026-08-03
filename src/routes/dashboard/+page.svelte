@@ -62,6 +62,11 @@
   // restores whatever expansion state the user had, rather than resetting it.
   let viewMode = $state<ViewMode>("all");
 
+  // Principal search (PD-84/PD-85): session-only, survives Baseline/Comparison navigation (no
+  // $effect resetting it on data.comparisonId change, unlike `pending`) — cleared only by
+  // resetView() below.
+  let searchQuery = $state("");
+
   function repoKey(repoProject: string, repo: string): string {
     return `${repoProject}::${repo}`;
   }
@@ -83,10 +88,10 @@
   let seqs = $derived(snapshotSeqs(data.snapshots));
   let same = $derived(data.baselineId === data.comparisonId);
 
-  let counts = $derived(viewCounts(data.tree, viewMode));
-  let allOpen = $derived(allVisibleOpen(data.tree, viewMode, anyChanges, isToggled));
+  let counts = $derived(viewCounts(data.tree, viewMode, searchQuery));
+  let allOpen = $derived(allVisibleOpen(data.tree, viewMode, anyChanges, isToggled, searchQuery));
   let expandLabel = $derived(allOpen ? $_("filterBar.collapseAll") : $_("filterBar.expandAll"));
-  let isEmpty = $derived(visibleRepoCount(data.tree, viewMode) === 0);
+  let isEmpty = $derived(visibleRepoCount(data.tree, viewMode, searchQuery) === 0);
   let empty = $derived(
     isEmpty
       ? emptyStateFor(
@@ -108,7 +113,7 @@
   // leaving cards hidden by the current tab untouched (PD-20: "opens every visible card").
   function setBulkOpen(desiredOpen: boolean) {
     for (const project of data.tree) {
-      for (const repo of visibleRepos(project, viewMode)) {
+      for (const repo of visibleRepos(project, viewMode, searchQuery)) {
         const currentlyOpen = isRepoOpen(repo, anyChanges, isToggled(project.repoProject, repo.repo));
         if (currentlyOpen !== desiredOpen) {
           toggleRepo(project.repoProject, repo.repo);
@@ -124,6 +129,11 @@
   function resetView() {
     viewMode = "all";
     toggledRepos.clear();
+    searchQuery = "";
+  }
+
+  function setSearchQuery(query: string) {
+    searchQuery = query;
   }
 
   function handleEmptyAction() {
@@ -301,10 +311,12 @@
   {:else}
     <FilterBar
       {viewMode}
+      {searchQuery}
       countNoteText={countNote($_, counts)}
       {expandLabel}
       bulkDisabled={isEmpty}
       onSetViewMode={setViewMode}
+      onSearchChange={setSearchQuery}
       onBulkToggle={handleBulkToggle}
       onReset={resetView}
       onExportClick={handleExport}
@@ -320,6 +332,7 @@
           comparisonId={data.comparisonId}
           {anyChanges}
           {viewMode}
+          {searchQuery}
           {isToggled}
           onToggle={toggleRepo}
           {pending}

@@ -4,19 +4,23 @@
 
   let {
     viewMode,
+    searchQuery,
     countNoteText,
     expandLabel,
     bulkDisabled,
     onSetViewMode,
+    onSearchChange,
     onBulkToggle,
     onReset,
     onExportClick,
   }: {
     viewMode: ViewMode;
+    searchQuery: string;
     countNoteText: string;
     expandLabel: string;
     bulkDisabled: boolean;
     onSetViewMode: (mode: ViewMode) => void;
+    onSearchChange: (query: string) => void;
     onBulkToggle: () => void;
     onReset: () => void;
     onExportClick: () => void;
@@ -37,6 +41,13 @@
       {$_("filterBar.tabChanges")}
     </button>
   </div>
+  <input
+    type="text"
+    class="search-input"
+    placeholder={$_("filterBar.searchPlaceholder")}
+    value={searchQuery}
+    oninput={(e) => onSearchChange(e.currentTarget.value)}
+  />
   <div class="right-controls">
     <span class="count-note">{countNoteText}</span>
     <button type="button" class="control" disabled={bulkDisabled} onclick={onBulkToggle}>{expandLabel}</button>
@@ -88,6 +99,23 @@
     box-shadow: var(--shadow-segment);
     font-weight: 600;
     color: var(--ink);
+  }
+
+  .search-input {
+    box-sizing: border-box;
+    flex: none;
+    width: 230px;
+    height: var(--h-control);
+    padding: 0 var(--s-6);
+    border: 1px solid var(--control-edge);
+    border-radius: var(--r-card);
+    background: var(--surface);
+    font-family: var(--font-sans);
+    font-size: var(--t-body-s);
+    color: var(--ink);
+  }
+  .search-input::placeholder {
+    color: var(--ink-mute);
   }
 
   .right-controls {

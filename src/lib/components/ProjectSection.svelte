@@ -12,6 +12,7 @@
     comparisonId,
     anyChanges,
     viewMode,
+    searchQuery,
     isToggled,
     onToggle,
     pending,
@@ -23,6 +24,7 @@
     comparisonId: number;
     anyChanges: boolean;
     viewMode: ViewMode;
+    searchQuery: string;
     isToggled: (repoProject: string, repo: string) => boolean;
     onToggle: (repoProject: string, repo: string) => void;
     pending: PendingEdits;
@@ -32,10 +34,10 @@
   } = $props();
 
   // Meta/counts always describe the whole project (ADR-0008) — only the rendered repo list
-  // narrows under Changes only.
+  // narrows under Changes only / an active search.
   let counts = $derived(countBadges($_, projectBreakdown(project)));
   let meta = $derived(projectMeta($_, project));
-  let repos = $derived(visibleRepos(project, viewMode));
+  let repos = $derived(visibleRepos(project, viewMode, searchQuery));
   // Every repo's principals across the whole Project, unfiltered by `viewMode` (PD-62) — the
   // cascade-count candidate pool for a Project-scope Group grant needs every Member it derives,
   // not just whichever repos "Changes only" happens to be showing right now.

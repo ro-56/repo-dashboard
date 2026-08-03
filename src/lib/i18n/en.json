@@ -29,6 +29,7 @@
   "filterBar": {
     "tabAll": "All access",
     "tabChanges": "Changes only",
+    "searchPlaceholder": "Search by name",
     "countNote": "{live} live · {changed} changed · {rows} rows",
     "expandAll": "Expand all",
     "collapseAll": "Collapse all",
