@@ -3,6 +3,11 @@
 
 import type { ComparisonSummary, PairStats, SnapshotSummary } from "./roster";
 import type { Translate } from "./i18n/translate";
+import tauriConfig from "../../src-tauri/tauri.conf.json";
+
+/** Read from tauri.conf.json (the Tauri app's own name of record) rather than hardcoded, so the
+ * head bar's wordmark can't drift from the packaged app's actual product name. */
+export const appName: string = tauriConfig.productName;
 
 export interface SnapshotOption {
   id: number;

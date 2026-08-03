@@ -1,7 +1,7 @@
 <script lang="ts">
   import { _ } from "svelte-i18n";
   import type { ComparisonSummary, PairStats, SnapshotSummary } from "$lib/roster";
-  import { deltaChips, selectorOptions, snapshotSeqs, spanNote } from "$lib/headBar";
+  import { appName, deltaChips, selectorOptions, snapshotSeqs, spanNote } from "$lib/headBar";
 
   let {
     snapshots,
@@ -56,7 +56,7 @@
 
 <header class="head-bar">
   <div class="wordmark">
-    <span class="brand">perm-diff</span>
+    <span class="brand">{appName}</span>
     <span class="eyebrow">{$_("headBar.eyebrow")}</span>
   </div>
   {#if baseline && comparisonSnapshot}
