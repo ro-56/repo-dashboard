@@ -91,15 +91,26 @@ describe("repoHasChanges / treeHasAnyChanges / defaultOpen / isRepoOpen", () => 
   it("defaults every card open when the whole pair has zero changes, else only hot ones", () => {
     const hot = repo({ principals: [principal({ diffStatus: { status: "Grant" } })] });
     const cold = repo();
-    expect(defaultOpen(cold, false)).toBe(true);
-    expect(defaultOpen(cold, true)).toBe(false);
-    expect(defaultOpen(hot, true)).toBe(true);
+    expect(defaultOpen(cold, false, false)).toBe(true);
+    expect(defaultOpen(cold, true, false)).toBe(false);
+    expect(defaultOpen(hot, true, false)).toBe(true);
+  });
+
+  it("a repo matched by an active search defaults open even with zero diff activity (PD-86)", () => {
+    const cold = repo();
+    expect(defaultOpen(cold, true, true)).toBe(true);
   });
 
   it("isRepoOpen XORs the default against the user's own toggle", () => {
     const cold = repo();
-    expect(isRepoOpen(cold, true, false)).toBe(false);
-    expect(isRepoOpen(cold, true, true)).toBe(true);
+    expect(isRepoOpen(cold, true, false, false)).toBe(false);
+    expect(isRepoOpen(cold, true, false, true)).toBe(true);
+  });
+
+  it("a manual collapse still overrides the search-match auto-expand default (PD-86)", () => {
+    const cold = repo();
+    expect(isRepoOpen(cold, true, true, false)).toBe(true);
+    expect(isRepoOpen(cold, true, true, true)).toBe(false);
   });
 });
 

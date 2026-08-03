@@ -24,6 +24,13 @@ export function matchesSearch(repo: RepoNode, query: string): boolean {
   return repo.principals.some((entry) => entry.principal.label.toLowerCase().includes(needle));
 }
 
+/** Whether a repo is visible specifically *because of* an active search, as distinct from
+ * `matchesSearch`'s "vacuously true" answer when search is inactive — a blank query must never
+ * force every repo open, only an actual match against typed text does (PD-86). */
+export function isSearchMatch(repo: RepoNode, query: string): boolean {
+  return query.trim().length > 0 && matchesSearch(repo, query);
+}
+
 /** Repo cards visible under the current tab — a repo with zero changes disappears entirely in
  * Changes only (PD-20); a repo with no Principal matching an active search disappears entirely
  * too, ANDed on top of the view-mode predicate (PD-85). */
@@ -67,7 +74,8 @@ export function allVisibleOpen(
 ): boolean {
   for (const project of tree) {
     for (const repo of visibleRepos(project, mode, query)) {
-      if (!isRepoOpen(repo, treeHasChanges, isToggled(project.repoProject, repo.repo))) return false;
+      if (!isRepoOpen(repo, treeHasChanges, isSearchMatch(repo, query), isToggled(project.repoProject, repo.repo)))
+        return false;
     }
   }
   return true;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countNote, matchesSearch, viewCounts, visibleRepos, type ViewCounts } from "./filterBar";
+import { countNote, isSearchMatch, matchesSearch, viewCounts, visibleRepos, type ViewCounts } from "./filterBar";
 import type { PrincipalEntry, ProjectNode, RepoNode } from "./roster";
 import { t } from "./i18n/testHelpers";
 
@@ -82,6 +82,21 @@ describe("matchesSearch", () => {
   it("does not match when the query matches no principal in the repo", () => {
     const r = repo({ principals: [principal({ principal: { id: "u1", label: "Alice Smith" } })] });
     expect(matchesSearch(r, "zzz")).toBe(false);
+  });
+});
+
+describe("isSearchMatch", () => {
+  it("is false when search is inactive, unlike matchesSearch's vacuous true (PD-86)", () => {
+    const r = repo({ principals: [principal({ principal: { id: "u1", label: "Alice" } })] });
+    expect(matchesSearch(r, "")).toBe(true);
+    expect(isSearchMatch(r, "")).toBe(false);
+    expect(isSearchMatch(r, "   ")).toBe(false);
+  });
+
+  it("is true only when an active query actually matches the repo", () => {
+    const r = repo({ principals: [principal({ principal: { id: "u1", label: "Alice" } })] });
+    expect(isSearchMatch(r, "alice")).toBe(true);
+    expect(isSearchMatch(r, "zzz")).toBe(false);
   });
 });
 

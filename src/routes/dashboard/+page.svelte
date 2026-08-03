@@ -25,6 +25,7 @@
   import {
     allVisibleOpen,
     countNote,
+    isSearchMatch,
     viewCounts,
     visibleRepoCount,
     visibleRepos,
@@ -114,7 +115,12 @@
   function setBulkOpen(desiredOpen: boolean) {
     for (const project of data.tree) {
       for (const repo of visibleRepos(project, viewMode, searchQuery)) {
-        const currentlyOpen = isRepoOpen(repo, anyChanges, isToggled(project.repoProject, repo.repo));
+        const currentlyOpen = isRepoOpen(
+          repo,
+          anyChanges,
+          isSearchMatch(repo, searchQuery),
+          isToggled(project.repoProject, repo.repo),
+        );
         if (currentlyOpen !== desiredOpen) {
           toggleRepo(project.repoProject, repo.repo);
         }

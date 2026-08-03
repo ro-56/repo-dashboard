@@ -106,15 +106,18 @@ export function treeHasAnyChanges(tree: RosterTree): boolean {
   return tree.some((project) => project.repos.some((repo) => isHot(repoBreakdown(repo))));
 }
 
-export function defaultOpen(repo: RepoNode, treeHasChanges: boolean): boolean {
-  return !treeHasChanges || repoHasChanges(repo);
+/** ADR-0009 / PD-16 plus PD-86: a repo kept visible only because it satisfies an active
+ * Principal search defaults open too, same as one carrying a change — `matchedBySearch` is
+ * false whenever search is inactive, so this is a no-op extension of the existing rule. */
+export function defaultOpen(repo: RepoNode, treeHasChanges: boolean, matchedBySearch: boolean): boolean {
+  return !treeHasChanges || repoHasChanges(repo) || matchedBySearch;
 }
 
 /** Whether a card renders open right now: the default-expand rule XOR'd against the user's own
  * toggle (PD-16). Shared by RepoCard.svelte, the bulk expand/collapse scope check, and the
  * label decision (filterBar.ts) — same formula, one place. */
-export function isRepoOpen(repo: RepoNode, treeHasChanges: boolean, toggled: boolean): boolean {
-  return defaultOpen(repo, treeHasChanges) !== toggled;
+export function isRepoOpen(repo: RepoNode, treeHasChanges: boolean, matchedBySearch: boolean, toggled: boolean): boolean {
+  return defaultOpen(repo, treeHasChanges, matchedBySearch) !== toggled;
 }
 
 /** Card header text reads in grants, never headcount — "7 grants · 2 admin" (ADR-0008).

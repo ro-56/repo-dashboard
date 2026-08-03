@@ -2,7 +2,7 @@
   import { _ } from "svelte-i18n";
   import type { ProjectNode } from "$lib/roster";
   import { countBadges, projectBreakdown, projectMeta } from "$lib/repoCard";
-  import { visibleRepos, type ViewMode } from "$lib/filterBar";
+  import { isSearchMatch, visibleRepos, type ViewMode } from "$lib/filterBar";
   import type { PendingEdits, StagedEdit } from "$lib/pendingEdits";
   import CountBadges from "./CountBadges.svelte";
   import RepoCard from "./RepoCard.svelte";
@@ -58,6 +58,7 @@
           {comparisonId}
           {anyChanges}
           {viewMode}
+          matchedBySearch={isSearchMatch(repo, searchQuery)}
           toggled={isToggled(project.repoProject, repo.repo)}
           onToggle={() => onToggle(project.repoProject, repo.repo)}
           {projectPrincipals}

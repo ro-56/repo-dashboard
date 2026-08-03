@@ -22,6 +22,7 @@
     comparisonId,
     anyChanges,
     viewMode,
+    matchedBySearch,
     toggled,
     onToggle,
     projectPrincipals,
@@ -34,6 +35,7 @@
     comparisonId: number;
     anyChanges: boolean;
     viewMode: ViewMode;
+    matchedBySearch: boolean;
     toggled: boolean;
     onToggle: () => void;
     // Every repo's principals across the owning Project (PD-62's cascade-count candidate pool
@@ -48,7 +50,7 @@
 
   // `toggled` records whether the user has clicked this card away from its computed default;
   // XOR-ing against the default keeps that default live as the underlying tree data changes.
-  let open = $derived(isRepoOpen(repo, anyChanges, toggled));
+  let open = $derived(isRepoOpen(repo, anyChanges, matchedBySearch, toggled));
   // Header counts always describe the whole repo (ADR-0008) — only the rendered rows narrow.
   let counts = $derived(countBadges($_, repoBreakdown(repo)));
   let split = $derived(distributionSplit(repo));
