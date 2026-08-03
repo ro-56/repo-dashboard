@@ -16,6 +16,7 @@
   <div class="drawer-body">
     {@render children()}
   </div>
+  <div class="drawer-version">v{__APP_VERSION__}</div>
 </aside>
 
 <style>
@@ -76,5 +77,14 @@
     min-height: 0;
     overflow-y: auto;
     padding: var(--s-8) var(--s-7);
+  }
+
+  .drawer-version {
+    flex: none;
+    padding: var(--s-3) var(--s-7);
+    font-family: var(--font-sans);
+    font-size: var(--t-tag);
+    color: var(--ink-faint);
+    text-align: right;
   }
 </style>

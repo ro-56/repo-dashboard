@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.0] - 2026-08-03
+
+### Added
+- Principal search in the Roster FilterBar: narrows the tree to repos containing at least one Principal (Direct, Group, or Member) whose label matches the typed text, AND-combined with the existing view mode; a repo kept visible by a match auto-expands, and a clear-search button resets it.
+- App version shown at the bottom of the side drawer.
+
+### Changed
+- A search match now narrows a repo's visible rows to only the matching Principal(s), rather than showing every row in the repo.
+
 ## [1.0.0] - 2026-08-02
 
 First release candidate.
