@@ -1,7 +1,7 @@
 <script lang="ts">
   import { _ } from "svelte-i18n";
   import type { PrincipalEntry, RepoNode } from "$lib/roster";
-  import { hasDiff, sortedPrincipals } from "$lib/rosterRow";
+  import { sortedPrincipals } from "$lib/rosterRow";
   import {
     absentSide,
     barCellTooltip,
@@ -12,7 +12,7 @@
     repoBreakdown,
     repoTags,
   } from "$lib/repoCard";
-  import type { ViewMode } from "$lib/filterBar";
+  import { isEntryVisible, isSearchMatch, type ViewMode } from "$lib/filterBar";
   import type { PendingEdits, StagedEdit } from "$lib/pendingEdits";
   import CountBadges from "./CountBadges.svelte";
   import RosterRow from "./RosterRow.svelte";
@@ -22,7 +22,7 @@
     comparisonId,
     anyChanges,
     viewMode,
-    matchedBySearch,
+    searchQuery,
     toggled,
     onToggle,
     projectPrincipals,
@@ -35,7 +35,7 @@
     comparisonId: number;
     anyChanges: boolean;
     viewMode: ViewMode;
-    matchedBySearch: boolean;
+    searchQuery: string;
     toggled: boolean;
     onToggle: () => void;
     // Every repo's principals across the owning Project (PD-62's cascade-count candidate pool
@@ -50,7 +50,7 @@
 
   // `toggled` records whether the user has clicked this card away from its computed default;
   // XOR-ing against the default keeps that default live as the underlying tree data changes.
-  let open = $derived(isRepoOpen(repo, anyChanges, matchedBySearch, toggled));
+  let open = $derived(isRepoOpen(repo, anyChanges, isSearchMatch(repo, searchQuery), toggled));
   // Header counts always describe the whole repo (ADR-0008) — only the rendered rows narrow.
   let counts = $derived(countBadges($_, repoBreakdown(repo)));
   let split = $derived(distributionSplit(repo));
@@ -58,7 +58,10 @@
   let barTitle = $derived(barCellTooltip($_, repo));
   let gone = $derived(absentSide(repo) === "B");
   let sorted = $derived(sortedPrincipals(repo.principals));
-  let roster = $derived(viewMode === "changes" ? sorted.filter(hasDiff) : sorted);
+  // Rows narrow with both the tab (Changes only hides non-diffed rows) and an active search
+  // (only this row's own Principal matching keeps it visible) — same `isEntryVisible` predicate
+  // the count note and repo-visibility check use, so neither can drift from what's drawn (PD-86).
+  let roster = $derived(sorted.filter((entry) => isEntryVisible(entry, viewMode, searchQuery)));
 
   // A principal can appear more than once per repo (e.g. Direct plus Member-of-group-X, or
   // the same access type at both Repo and Project scope per PD-30), so the key needs the

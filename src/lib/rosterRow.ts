@@ -65,6 +65,16 @@ export function hasDiff(entry: PrincipalEntry): boolean {
   return entry.diffStatus.status !== "None";
 }
 
+/** Case-insensitive substring match of `query` against this single row's Principal label — a
+ * blank/whitespace query always matches, mirroring filterBar.ts's repo-level `matchesSearch`
+ * (PD-86 follow-up: a repo kept visible by a match in one row only draws that row, not the
+ * whole roster, unlike PD-85's original "full context" behavior). */
+export function matchesSearchQuery(entry: PrincipalEntry, query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return entry.principal.label.toLowerCase().includes(needle);
+}
+
 /** `direct`, `group`, or `grp:<name>`, plus a `↳ ` prefix for Project-level grants
  * (ADR-0020) — never spills into the notes column. */
 export function sourceLabel(t: Translate, accessType: AccessType, scope: GrantScope): string {

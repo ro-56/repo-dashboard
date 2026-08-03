@@ -7,6 +7,7 @@ import {
   editTargetForEntry,
   hasDiff,
   isUnresolvedGroup,
+  matchesSearchQuery,
   pendingRowView,
   rowMenu,
   sortedPrincipals,
@@ -84,6 +85,21 @@ describe("hasDiff", () => {
   it("is false for None and true for any diff status", () => {
     expect(hasDiff(entry({ diffStatus: { status: "None" } }))).toBe(false);
     expect(hasDiff(entry({ diffStatus: { status: "Grant" } }))).toBe(true);
+  });
+});
+
+describe("matchesSearchQuery", () => {
+  it("matches any row when the query is blank or whitespace", () => {
+    const row = entry({ principal: { id: "u1", label: "Alice Smith" } });
+    expect(matchesSearchQuery(row, "")).toBe(true);
+    expect(matchesSearchQuery(row, "   ")).toBe(true);
+  });
+
+  it("matches case-insensitively as a substring against this row's own Principal label", () => {
+    const row = entry({ principal: { id: "u1", label: "Bob Smith" } });
+    expect(matchesSearchQuery(row, "bob")).toBe(true);
+    expect(matchesSearchQuery(row, "BOB")).toBe(true);
+    expect(matchesSearchQuery(row, "zzz")).toBe(false);
   });
 });
 

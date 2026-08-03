@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { countNote, isSearchMatch, matchesSearch, viewCounts, visibleRepos, type ViewCounts } from "./filterBar";
+import {
+  countNote,
+  isEntryVisible,
+  isSearchMatch,
+  matchesSearch,
+  viewCounts,
+  visibleRepos,
+  type ViewCounts,
+} from "./filterBar";
 import type { PrincipalEntry, ProjectNode, RepoNode } from "./roster";
 import { t } from "./i18n/testHelpers";
 
@@ -100,6 +108,25 @@ describe("isSearchMatch", () => {
   });
 });
 
+describe("isEntryVisible", () => {
+  it("all mode: a row is visible only if it matches an active search", () => {
+    const alice = principal({ principal: { id: "u1", label: "Alice" } });
+    const zed = principal({ principal: { id: "u2", label: "Zed" } });
+    expect(isEntryVisible(alice, "all", "alice")).toBe(true);
+    expect(isEntryVisible(zed, "all", "alice")).toBe(false);
+    expect(isEntryVisible(zed, "all", "")).toBe(true);
+  });
+
+  it("changes mode: a row needs both a diff and a search match", () => {
+    const matchedNoDiff = principal({ principal: { id: "u1", label: "Alice" } });
+    const matchedWithDiff = principal({ principal: { id: "u1", label: "Alice" }, diffStatus: { status: "Grant" } });
+    const diffNoMatch = principal({ principal: { id: "u2", label: "Bob" }, diffStatus: { status: "Grant" } });
+    expect(isEntryVisible(matchedNoDiff, "changes", "alice")).toBe(false);
+    expect(isEntryVisible(matchedWithDiff, "changes", "alice")).toBe(true);
+    expect(isEntryVisible(diffNoMatch, "changes", "alice")).toBe(false);
+  });
+});
+
 describe("visibleRepos", () => {
   it("narrows to repos with a search match in All access mode", () => {
     const alice = repo({ repo: "alice-repo", principals: [principal({ principal: { id: "u1", label: "Alice" } })] });
@@ -155,9 +182,10 @@ describe("viewCounts", () => {
     });
     const tree = [project([aliceRepo, bobRepo])];
 
-    // "all" mode: bobRepo is filtered out by the "alice" query, so only aliceRepo's 2 rows count
-    // (both are "live" — neither is a Revoke).
-    expect(viewCounts(tree, "all", "alice")).toEqual({ live: 2, changed: 1, rows: 2 });
+    // "all" mode: bobRepo is filtered out by the "alice" query, and within aliceRepo only the
+    // matching "Alice" row counts — "Zed" doesn't match the query, so it's excluded too (PD-86:
+    // search narrows to matching rows, not every row in a repo that happens to match somewhere).
+    expect(viewCounts(tree, "all", "alice")).toEqual({ live: 1, changed: 1, rows: 1 });
 
     // "changes" mode ANDs on top: aliceRepo is visible (has a match and a diff), only its
     // diffed row counts — the non-diffed "Zed" row is excluded by the mode filter.

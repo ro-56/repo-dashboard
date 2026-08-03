@@ -2,9 +2,9 @@
 // N live · N changed · N rows note, and the scope of the Expand all / Collapse all / Reset
 // controls. Pure functions only — markup lives in FilterBar.svelte.
 
-import type { ProjectNode, RepoNode, RosterTree } from "./roster";
-import { isRepoOpen, repoHasChanges } from "./repoCard";
-import { hasDiff } from "./rosterRow";
+import type { PrincipalEntry, ProjectNode, RepoNode, RosterTree } from "./roster";
+import { isRepoOpen } from "./repoCard";
+import { hasDiff, matchesSearchQuery } from "./rosterRow";
 import type { Translate } from "./i18n/translate";
 
 export type ViewMode = "all" | "changes";
@@ -19,9 +19,8 @@ export interface ViewCounts {
  * (Direct/Group/Member alike) — a blank/whitespace query always matches, so search is a no-op
  * when inactive (PD-85). */
 export function matchesSearch(repo: RepoNode, query: string): boolean {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return true;
-  return repo.principals.some((entry) => entry.principal.label.toLowerCase().includes(needle));
+  if (!query.trim()) return true;
+  return repo.principals.some((entry) => matchesSearchQuery(entry, query));
 }
 
 /** Whether a repo is visible specifically *because of* an active search, as distinct from
@@ -31,21 +30,32 @@ export function isSearchMatch(repo: RepoNode, query: string): boolean {
   return query.trim().length > 0 && matchesSearch(repo, query);
 }
 
-/** Repo cards visible under the current tab — a repo with zero changes disappears entirely in
- * Changes only (PD-20); a repo with no Principal matching an active search disappears entirely
- * too, ANDed on top of the view-mode predicate (PD-85). */
-export function visibleRepos(project: ProjectNode, mode: ViewMode, query: string): RepoNode[] {
-  const repos = mode === "all" ? project.repos : project.repos.filter(repoHasChanges);
-  return repos.filter((repo) => matchesSearch(repo, query));
+/** Whether a single row renders under the current tab + search: Changes only additionally
+ * requires a diff, and an active search additionally requires *this row's own* Principal to
+ * match — a repo kept visible by a match in one row draws only that row (and, in Changes only,
+ * only diffed rows), never the whole roster unfiltered (PD-86 follow-up: PD-85's original User
+ * Story 6 called for full context — showing every row once a repo matched — but that read as a
+ * bug once search shipped, so this narrows to matching rows only). Shared by the repo-visibility
+ * check below, the count note, and RepoCard.svelte's own row filter so none of the three can
+ * disagree about which rows are on screen. */
+export function isEntryVisible(entry: PrincipalEntry, mode: ViewMode, query: string): boolean {
+  return (mode === "all" || hasDiff(entry)) && matchesSearchQuery(entry, query);
 }
 
-/** Rows counted under the current tab: every row in All access, only diffed rows in Changes
- * only, within whichever repos `visibleRepos` currently keeps on screen — mirrors the card-level
- * filter above so the note never disagrees with what's drawn (PD-20, PD-85). */
+/** Repo cards visible under the current tab — a repo disappears entirely once none of its rows
+ * pass `isEntryVisible` (PD-20, PD-85, PD-86): zero changes in Changes only, or zero Principals
+ * matching an active search, or (combined) no row that's both diffed and matching. */
+export function visibleRepos(project: ProjectNode, mode: ViewMode, query: string): RepoNode[] {
+  return project.repos.filter((repo) => repo.principals.some((entry) => isEntryVisible(entry, mode, query)));
+}
+
+/** Rows counted under the current tab: exactly the rows `isEntryVisible` keeps, within whichever
+ * repos `visibleRepos` currently keeps on screen — mirrors the card-level filter above so the
+ * note never disagrees with what's drawn (PD-20, PD-85, PD-86). */
 export function viewCounts(tree: RosterTree, mode: ViewMode, query: string): ViewCounts {
   const entries = tree.flatMap((project) =>
     visibleRepos(project, mode, query).flatMap((repo) =>
-      repo.principals.filter((entry) => mode === "all" || hasDiff(entry)),
+      repo.principals.filter((entry) => isEntryVisible(entry, mode, query)),
     ),
   );
   return {
