@@ -96,7 +96,7 @@ describe("repoHasChanges / treeHasAnyChanges / defaultOpen / isRepoOpen", () => 
     expect(defaultOpen(hot, true, false)).toBe(true);
   });
 
-  it("a repo matched by an active search defaults open even with zero diff activity (PD-86)", () => {
+  it("a repo matched by an active search defaults open even with zero diff activity", () => {
     const cold = repo();
     expect(defaultOpen(cold, true, true)).toBe(true);
   });
@@ -107,7 +107,7 @@ describe("repoHasChanges / treeHasAnyChanges / defaultOpen / isRepoOpen", () => 
     expect(isRepoOpen(cold, true, false, true)).toBe(true);
   });
 
-  it("a manual collapse still overrides the search-match auto-expand default (PD-86)", () => {
+  it("a manual collapse still overrides the search-match auto-expand default", () => {
     const cold = repo();
     expect(isRepoOpen(cold, true, true, false)).toBe(true);
     expect(isRepoOpen(cold, true, true, true)).toBe(false);
@@ -177,7 +177,7 @@ describe("repoTags", () => {
     ]);
   });
 
-  it("discovery absence takes priority over the repo's own fetchFailed (PD-19)", () => {
+  it("discovery absence takes priority over the repo's own fetchFailed", () => {
     expect(repoTags(t, repo({ statusA: "Ok", statusB: null, fetchFailed: true }), 5)).toEqual([
       { kind: "gone", label: "absent from run 5", title: "Repo not found" },
     ]);

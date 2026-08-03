@@ -290,7 +290,7 @@ describe("canRefresh", () => {
     expect(canRefresh([repoScopeResult(false), repoScopeResult(false)])).toBe(false);
   });
 
-  it("is true for a mixed-scope batch with at least one successful edit (PD-71)", () => {
+  it("is true for a mixed-scope batch with at least one successful edit", () => {
     expect(canRefresh([repoScopeResult(true), projectScopeResult(true)])).toBe(true);
   });
 

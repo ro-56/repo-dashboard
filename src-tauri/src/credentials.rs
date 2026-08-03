@@ -1,4 +1,4 @@
-//! OS-keychain-backed credential persistence (closes the gap PD-5 deliberately left open).
+//! OS-keychain-backed credential persistence.
 //! `CredentialsStore` never holds credentials itself — every `set`/`get` round-trips through
 //! a `keyring_core` credential store, so nothing is lost when the app restarts. Production
 //! uses the platform-native store; tests substitute an in-memory `keyring_core::mock::Store`

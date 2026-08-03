@@ -55,15 +55,15 @@
   }
 
   // Keys of repos the user has clicked away from their computed default-open state
-  // (PD-16's default-expand rule) — not "which repos are open" directly, so that rule keeps
+  // (the default-expand rule) — not "which repos are open" directly, so that rule keeps
   // applying to every repo the user hasn't touched even as the underlying tree changes.
   let toggledRepos = new SvelteSet<string>();
 
-  // All access / Changes only (PD-20). Kept independent of toggledRepos so switching tabs
+  // All access / Changes only. Kept independent of toggledRepos so switching tabs
   // restores whatever expansion state the user had, rather than resetting it.
   let viewMode = $state<ViewMode>("all");
 
-  // Principal search (PD-84/PD-85): session-only, survives Baseline/Comparison navigation (no
+  // Principal search: session-only, survives Baseline/Comparison navigation (no
   // $effect resetting it on data.comparisonId change, unlike `pending`) — cleared only by
   // resetView() below.
   let searchQuery = $state("");
@@ -111,7 +111,7 @@
   }
 
   // Flips every currently visible card whose open state doesn't already match `desiredOpen`,
-  // leaving cards hidden by the current tab untouched (PD-20: "opens every visible card").
+  // leaving cards hidden by the current tab untouched ("opens every visible card").
   function setBulkOpen(desiredOpen: boolean) {
     for (const project of data.tree) {
       for (const repo of visibleRepos(project, viewMode, searchQuery)) {
@@ -165,7 +165,7 @@
     navigateToPair(data.comparisonId, data.baselineId);
   }
 
-  // Permission editing (PD-59/PD-60). Enabled only while the Comparison is the latest
+  // Permission editing. Enabled only while the Comparison is the latest
   // Snapshot (ADR-0022) — editing against a historical view would mutate the present based on
   // a look at the past.
   let editingEnabled = $derived(data.snapshots.length > 0 && data.comparisonId === data.snapshots[0].id);
@@ -242,7 +242,7 @@
     dialogOpen = false;
   }
 
-  // Refresh (PD-70): a narrow, Repo-scope-only copy-plus-fetch, offered right in the results
+  // Refresh: a narrow, Repo-scope-only copy-plus-fetch, offered right in the results
   // view. On success it clears the remaining Pending edits exactly as a Run does, refreshes the
   // snapshot list, and auto-selects the new Snapshot as the Comparison, advancing the Baseline to
   // the pre-refresh Comparison (the snapshot the batch was staged against) so the pair isolates
@@ -270,7 +270,7 @@
     }
   }
 
-  // Export (PD-72/PD-74): always the Comparison Snapshot alone, diff-free and unfiltered —
+  // Export: always the Comparison Snapshot alone, diff-free and unfiltered —
   // fetched fresh via get_roster_tree(comparisonId, comparisonId) rather than reusing data.tree,
   // since the dashboard's own tree is diffed against whatever Baseline is currently selected.
   async function handleExport() {

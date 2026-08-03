@@ -1,4 +1,4 @@
-// Whole-dashboard light/dark theme (PD-57, ADR-0016). Applied via a `data-theme` attribute
+// Whole-dashboard light/dark theme (ADR-0016). Applied via a `data-theme` attribute
 // on the root <html> element so every component re-skins through tokens.css custom properties
 // alone — no per-component JS branching (PRD, ADR-0005).
 

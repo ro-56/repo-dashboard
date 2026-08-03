@@ -1,4 +1,4 @@
-// Presentation logic for the head bar's Run pair selectors and delta chips (PD-18, PD-41). Pure
+// Presentation logic for the head bar's Run pair selectors and delta chips. Pure
 // functions only — markup lives in HeadBar.svelte.
 
 import type { ComparisonSummary, PairStats, SnapshotSummary } from "./roster";
@@ -82,7 +82,7 @@ export function selectorOptions(
 
 /** "N days apart · X → Y grants", or "single run · X → X grants" when both sides of the Run
  * pair are the same Snapshot. Baseline grant count is derived from the Comparison's total minus
- * the pair's signed net, rather than carried separately, since PD-17 only returns totals for the
+ * the pair's signed net, rather than carried separately, since the backend only returns totals for the
  * Comparison side. `same` is passed in rather than re-derived from the two ids, so the page has
  * one place that decides the Run pair is a same-Snapshot roster view. */
 export function spanNote(

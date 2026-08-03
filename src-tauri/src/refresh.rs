@@ -1,8 +1,8 @@
-//! Orchestrates Refresh (PD-70/PD-71): after a batch of Pending edits is applied, creates a new
+//! Orchestrates Refresh: after a batch of Pending edits is applied, creates a new
 //! Snapshot by copying the source Snapshot's data — the one the batch was staged against — and
 //! replacing only the data for the repos/Projects named by the batch's *successful* edits,
-//! refetched live via `fetch_repo_permissions`/`fetch_project_permissions` (extracted in PD-69,
-//! with fresh group-membership resolution). A Repo-scope target replaces just that repo's
+//! refetched live via `fetch_repo_permissions`/`fetch_project_permissions` (with fresh
+//! group-membership resolution). A Repo-scope target replaces just that repo's
 //! Repo-scope Direct+Group data. A Project-scope target replaces that Project's Direct+Group
 //! data across every repo the *source Snapshot* already records under that Project's key — one
 //! fetch per Project, never per repo, and never a fresh discovery call to redetermine Project
@@ -1010,7 +1010,7 @@ mod tests {
 
     #[tokio::test]
     async fn group_membership_status_filtering_is_scoped_by_group_id_not_a_blanket_repo_match() {
-        // Regression test for PD-71: the same group holds a grant at both Repo scope and
+        // Regression test: the same group holds a grant at both Repo scope and
         // Project scope on the same repo. Only the touched scope's status should be affected —
         // a blanket repo/project match would incorrectly drop the untouched scope's row.
         let source_client = FakeBitbucketClient::new()

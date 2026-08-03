@@ -1,8 +1,8 @@
-//! Applies a batch of staged permission edits (PD-59/PD-60/PD-61/PD-62) to live Bitbucket. Each
+//! Applies a batch of staged permission edits to live Bitbucket. Each
 //! `PendingEditRequest` is routed to `BitbucketClient::set_permission`/`remove_permission` and
 //! applied independently (ADR-0022) — one item failing never blocks the rest of the batch. All
-//! four `(scope, target)` combinations — Direct/Repo (PD-60), Direct/Project (PD-61), Group/Repo
-//! and Group/Project (PD-62) — are wired to real client calls.
+//! four `(scope, target)` combinations — Direct/Repo, Direct/Project, Group/Repo
+//! and Group/Project — are wired to real client calls.
 
 use serde::{Deserialize, Serialize};
 
@@ -74,7 +74,7 @@ impl From<ClientError> for ApplyError {
 }
 
 /// One edit's outcome, paired with the request it came from so the frontend can match a result
-/// back to its staged edit without relying on array-order bookkeeping. `Deserialize` (PD-70) is
+/// back to its staged edit without relying on array-order bookkeeping. `Deserialize` is
 /// for `refresh_snapshot`, which takes a batch of these back in as its own input — the same
 /// shape `apply_pending_edits` just handed the frontend.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -86,7 +86,7 @@ pub struct ApplyResult {
 
 /// Routes one edit to `BitbucketClient::set_permission`/`remove_permission`. `Project` scope
 /// targets `edit.repo_project` as the key, cascading to every repo it owns, rather than
-/// `edit.repo` — true for both `Direct` (PD-61) and `Group` (PD-62) targets.
+/// `edit.repo` — true for both `Direct` and `Group` targets.
 async fn apply_one<C: BitbucketClient>(
     client: &C,
     workspace: &str,
@@ -417,7 +417,7 @@ mod tests {
 
     #[tokio::test]
     async fn an_unauthorized_item_does_not_abort_the_rest_of_the_batch() {
-        // Unlike collect_and_store's Run-wide abort-on-401 (PD-7), apply_pending_edits treats
+        // Unlike collect_and_store's Run-wide abort-on-401, apply_pending_edits treats
         // every item independently (ADR-0022) — permission edits are user-initiated one-offs,
         // not a single atomic Run.
         let client = FakeClient::new().with_result(GrantScope::Repo, "acct-1", Err(ClientError::Unauthorized));

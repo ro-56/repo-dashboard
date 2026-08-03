@@ -1,4 +1,4 @@
-// Whole-dashboard display language (PD-80, ADR-0028). Wraps svelte-i18n's locale store so
+// Whole-dashboard display language (ADR-0028). Wraps svelte-i18n's locale store so
 // components consume translations through the `$_` store alone, mirroring theme.ts's shape.
 
 import { init, locale as i18nLocale, register } from "svelte-i18n";

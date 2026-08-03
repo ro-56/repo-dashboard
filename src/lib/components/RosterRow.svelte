@@ -18,7 +18,7 @@
     entry: PrincipalEntry;
     repoProject: string;
     repo: string;
-    // Cascade-count candidate pools (PD-62): this repo's own principals for a Repo-scope Group
+    // Cascade-count candidate pools: this repo's own principals for a Repo-scope Group
     // entry, every repo's principals across the owning Project for a Project-scope one — see
     // `cascadeMemberCount` (rosterRow.ts) for why the pool differs by scope.
     repoPrincipals: PrincipalEntry[];
@@ -95,7 +95,7 @@
       request: { scope: entry.scope, target, repoProject, repo, action: { type: "Remove" } },
       principalLabel: entry.principal.label,
       beforeLevel: entry.permission,
-      // Reuses whatever the open menu already computed (PD-62) rather than recomputing, so the
+      // Reuses whatever the open menu already computed rather than recomputing, so the
       // confirm dialog is guaranteed to show the exact same count the user saw before staging.
       cascadeCount: target.type === "Group" ? (menu?.cascadeCount ?? null) : undefined,
     });

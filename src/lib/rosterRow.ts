@@ -36,7 +36,7 @@ export function isUnresolvedGroup(entry: PrincipalEntry): boolean {
 }
 
 /** How many `Member` entries in `candidates` derive from `entry`'s Group grant — the cascade
- * warning for a staged Group removal (ADR-0022, PD-62): those Member rows disappear along with
+ * warning for a staged Group removal (ADR-0022): those Member rows disappear along with
  * it, since a Member's access is computed from its group's own grant rather than stored
  * separately. `null` when unavailable rather than zero: `entry` isn't a Group at all, or its
  * membership is unresolvable (CONTEXT.md's Unresolvable membership) — in the latter case there's
@@ -67,8 +67,8 @@ export function hasDiff(entry: PrincipalEntry): boolean {
 
 /** Case-insensitive substring match of `query` against this single row's Principal label — a
  * blank/whitespace query always matches, mirroring filterBar.ts's repo-level `matchesSearch`
- * (PD-86 follow-up: a repo kept visible by a match in one row only draws that row, not the
- * whole roster, unlike PD-85's original "full context" behavior). */
+ * (a repo kept visible by a match in one row only draws that row, not the
+ * whole roster, unlike an earlier "full context" behavior). */
 export function matchesSearchQuery(entry: PrincipalEntry, query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
@@ -203,7 +203,7 @@ const EDITABLE_LEVELS: EditableLevel[] = ["Read", "Write", "Admin"];
 /** The edit target a row's menu would stage against, or `null` when this entry can't be edited
  * at all — Member rows get no menu at either scope, permanently (ADR-0021: a member's access is
  * derived from their group's own grant, and Bitbucket has no endpoint to set it independently).
- * Direct (PD-60/PD-61) and Group (PD-62) entries are both editable at Repo and Project scope. */
+ * Direct and Group entries are both editable at Repo and Project scope. */
 export function editTargetForEntry(entry: PrincipalEntry): EditTarget | null {
   switch (entry.accessType.type) {
     case "Direct":
@@ -224,13 +224,13 @@ export interface LevelMenuOption {
 export interface RowMenu {
   levelOptions: LevelMenuOption[];
   effectiveLevel: EditableLevel;
-  /** The cascade note for a Project-scope grant — `null` at Repo scope. PD-61 calls for reusing
+  /** The cascade note for a Project-scope grant — `null` at Repo scope. Reuses
    * whatever cascade note is "already shown elsewhere in the dashboard" rather than introducing
    * new note-computation logic ("no new note needed") — the only such note that exists today is
    * `sourceTooltip`'s "Project-level grant" string (ADR-0020's `.source`-cell tooltip), so that's
    * what's reused here rather than a newly-computed repo-count string. */
   scopeNote: string | null;
-  /** How many Member grants would disappear if this Group grant were removed (PD-62) — `null`
+  /** How many Member grants would disappear if this Group grant were removed — `null`
    * for Direct entries and for a Group whose membership is unresolvable. See
    * `cascadeMemberCount`. */
   cascadeCount: number | null;

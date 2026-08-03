@@ -40,7 +40,7 @@
       await invoke("delete_snapshot", { id });
       pendingId = null;
       // ADR-0011: deleting the Snapshot currently used as Baseline or Comparison falls back
-      // to latest-vs-previous — same rule as a new run (PD-24) — by dropping the query params
+      // to latest-vs-previous — same rule as a new run — by dropping the query params
       // and letting +page.ts's load fall back to its own defaults. Otherwise the current
       // selection is untouched; invalidateAll just refreshes the snapshot list under it.
       if (id === baselineId || id === comparisonId) {

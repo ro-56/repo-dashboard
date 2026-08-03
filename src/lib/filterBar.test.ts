@@ -94,7 +94,7 @@ describe("matchesSearch", () => {
 });
 
 describe("isSearchMatch", () => {
-  it("is false when search is inactive, unlike matchesSearch's vacuous true (PD-86)", () => {
+  it("is false when search is inactive, unlike matchesSearch's vacuous true", () => {
     const r = repo({ principals: [principal({ principal: { id: "u1", label: "Alice" } })] });
     expect(matchesSearch(r, "")).toBe(true);
     expect(isSearchMatch(r, "")).toBe(false);
@@ -183,8 +183,8 @@ describe("viewCounts", () => {
     const tree = [project([aliceRepo, bobRepo])];
 
     // "all" mode: bobRepo is filtered out by the "alice" query, and within aliceRepo only the
-    // matching "Alice" row counts — "Zed" doesn't match the query, so it's excluded too (PD-86:
-    // search narrows to matching rows, not every row in a repo that happens to match somewhere).
+    // matching "Alice" row counts — "Zed" doesn't match the query, so it's excluded too
+    // (search narrows to matching rows, not every row in a repo that happens to match somewhere).
     expect(viewCounts(tree, "all", "alice")).toEqual({ live: 1, changed: 1, rows: 1 });
 
     // "changes" mode ANDs on top: aliceRepo is visible (has a match and a diff), only its

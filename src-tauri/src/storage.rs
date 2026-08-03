@@ -1,7 +1,7 @@
 //! SQLite persistence for `Snapshot`s. `init_schema` creates the four tables (`snapshots`,
 //! `permission_records`, `repo_fetch_statuses`, `group_membership_statuses` — the last
 //! persisted ahead of any consumer, per ADR-0003). `save_snapshot`/`load_snapshot` are pure
-//! translations between the PD-1–PD-4 domain types and rows; `diff.rs` is never touched.
+//! translations between the domain types and rows; `diff.rs` is never touched.
 
 use rusqlite::{params, Connection};
 use serde::Serialize;
@@ -92,10 +92,10 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
     )?;
 
     // `CREATE TABLE IF NOT EXISTS` is a no-op on a database that already has
-    // `permission_records` from before PD-28 (ADR-0012), so it never gains the `scope`
-    // column that save_snapshot/load_snapshot now require. Backfill it explicitly: every
-    // row written before PD-28 predates Project-scoped grants entirely, so `repo` (see
-    // `encode_scope`) is the only correct value for it.
+    // `permission_records` from before Project-scoped grants existed (ADR-0012), so it never
+    // gains the `scope` column that save_snapshot/load_snapshot now require. Backfill it
+    // explicitly: every such pre-existing row predates Project-scoped grants entirely, so
+    // `repo` (see `encode_scope`) is the only correct value for it.
     let has_scope_column = conn
         .prepare("SELECT scope FROM permission_records LIMIT 0")
         .is_ok();
@@ -111,9 +111,9 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
 
 /// Persists a full snapshot (all five tables) inside a single transaction, returning the
 /// new `snapshots.id`. `run_at` is an RFC3339 timestamp string, passed through verbatim.
-/// `project_statuses` is folded in here (rather than left to the separate
-/// `save_project_fetch_statuses` PD-28 originally shipped it as) so a Run's Snapshot can
-/// never be durably committed while the overall Run is reported to the caller as failed.
+/// `project_statuses` is folded in here (rather than left to a separate
+/// `save_project_fetch_statuses` call) so a Run's Snapshot can never be durably committed
+/// while the overall Run is reported to the caller as failed.
 pub fn save_snapshot(
     conn: &mut Connection,
     run_at: &str,
@@ -286,7 +286,7 @@ pub fn load_project_fetch_statuses(
     Ok(rows)
 }
 
-/// Deleting a Snapshot that never existed is an error, not a silent no-op (PD-25) — the
+/// Deleting a Snapshot that never existed is an error, not a silent no-op — the
 /// frontend needs to know a delete request didn't correspond to anything real.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeleteSnapshotError {

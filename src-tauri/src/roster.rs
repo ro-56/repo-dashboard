@@ -472,7 +472,7 @@ fn build_roster_tree(
 
 /// The test seam: loads Snapshot A and B via `storage::load_snapshot`, runs the diff engine
 /// unmodified, and returns the fully grouped, diff-annotated Roster tree alongside the
-/// workspace-summary and pair-stat aggregates (PD-17). Selecting the same Snapshot for both
+/// workspace-summary and pair-stat aggregates. Selecting the same Snapshot for both
 /// ids is a valid Run pair — every entry comes back with `DiffStatus::None` and every
 /// pair-level stat is zero.
 pub fn get_roster_tree(

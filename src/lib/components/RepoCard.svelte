@@ -38,7 +38,7 @@
     searchQuery: string;
     toggled: boolean;
     onToggle: () => void;
-    // Every repo's principals across the owning Project (PD-62's cascade-count candidate pool
+    // Every repo's principals across the owning Project (the cascade-count candidate pool
     // for Project-scope Group rows) — computed once in ProjectSection.svelte, passed through
     // unchanged here.
     projectPrincipals: PrincipalEntry[];
@@ -60,11 +60,11 @@
   let sorted = $derived(sortedPrincipals(repo.principals));
   // Rows narrow with both the tab (Changes only hides non-diffed rows) and an active search
   // (only this row's own Principal matching keeps it visible) — same `isEntryVisible` predicate
-  // the count note and repo-visibility check use, so neither can drift from what's drawn (PD-86).
+  // the count note and repo-visibility check use, so neither can drift from what's drawn.
   let roster = $derived(sorted.filter((entry) => isEntryVisible(entry, viewMode, searchQuery)));
 
   // A principal can appear more than once per repo (e.g. Direct plus Member-of-group-X, or
-  // the same access type at both Repo and Project scope per PD-30), so the key needs the
+  // the same access type at both Repo and Project scope), so the key needs the
   // access type — and, for Member, the group_id — and the scope to stay unique.
   function principalEntryKey(entry: PrincipalEntry): string {
     const groupId = entry.accessType.type === "Member" ? entry.accessType.group_id : "";

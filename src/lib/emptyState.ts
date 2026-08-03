@@ -1,4 +1,4 @@
-// Presentation logic for the two "nothing to draw" states (PD-20). Pure functions only —
+// Presentation logic for the two "nothing to draw" states. Pure functions only —
 // markup lives in EmptyState.svelte.
 
 import type { ComparisonSummary, PairStats } from "./roster";

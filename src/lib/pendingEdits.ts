@@ -1,4 +1,4 @@
-// Local staging area for permission edits (PD-59/PD-60, ADR-0022) — nothing here calls
+// Local staging area for permission edits (ADR-0022) — nothing here calls
 // Bitbucket. Edits accumulate keyed by scope+target+repo across the whole roster tree (not
 // scoped per repo card) until a single global Apply sends the batch to the `apply_pending_edits`
 // Tauri command. Mirrors src-tauri/src/apply.rs's wire shape by hand — no shared schema yet.
@@ -28,7 +28,7 @@ export interface StagedEdit {
   principalLabel: string;
   beforeLevel: Permission;
   // How many Member grants derive from this Group grant (rosterRow.ts's `cascadeMemberCount`,
-  // ADR-0022/PD-62) — only ever set for a Group `Remove` action; `null` when membership is
+  // ADR-0022) — only ever set for a Group `Remove` action; `null` when membership is
   // unresolvable (CONTEXT.md), `undefined` for anything else (Direct edits, Group level changes).
   cascadeCount?: number | null;
 }
@@ -65,7 +65,7 @@ export interface ConfirmRow {
   principalLabel: string;
   fromLevel: string;
   toLevel: string; // "removed" for a Remove action
-  // Carried straight through from the staged edit (PD-62) — see `StagedEdit.cascadeCount`.
+  // Carried straight through from the staged edit — see `StagedEdit.cascadeCount`.
   cascadeCount?: number | null;
 }
 
@@ -111,8 +111,8 @@ export function applyErrorMessage(error: ApplyError): string {
   }
 }
 
-/** Drops every successfully-applied edit from `pending`; a failed item stays staged for retry
- * (PD-60 acceptance criteria) — matched back to its slot by the same key it was staged under,
+/** Drops every successfully-applied edit from `pending`; a failed item stays staged for retry —
+ * matched back to its slot by the same key it was staged under,
  * not by array order, so this stays correct even if a future caller reorders results. */
 export function settleApplied(pending: PendingEdits, results: ApplyResult[]): PendingEdits {
   const next = new Map(pending);
@@ -130,14 +130,14 @@ export interface ResultRow extends ConfirmRow {
   errorMessage?: string;
 }
 
-/** The successful subset of a batch's `ApplyResult`s — the only ones Refresh (PD-70) ever
+/** The successful subset of a batch's `ApplyResult`s — the only ones Refresh ever
  * touches, both to decide whether to offer it and to build the exact payload it sends. */
 export function successfulResults(results: ApplyResult[]): ApplyResult[] {
   return results.filter((result) => "Ok" in result.outcome);
 }
 
 /** Whether "Refresh affected" should be offered for this batch: at least one edit succeeded,
- * regardless of scope mix (PD-71 — Repo-scope and Project-scope targets are both refreshable,
+ * regardless of scope mix (Repo-scope and Project-scope targets are both refreshable,
  * so a batch mixing them, or one entirely Project-scope, no longer falls back to the re-run
  * prompt). Only an all-failed batch is a no-op with nothing to offer. */
 export function canRefresh(results: ApplyResult[]): boolean {

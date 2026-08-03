@@ -1,4 +1,4 @@
-// Diff-free CSV export of a single Snapshot's full roster (PD-72, PD-74, ADR-0026). Pure
+// Diff-free CSV export of a single Snapshot's full roster (ADR-0026). Pure
 // functions only — plugin wiring (Save As dialog, file write) lives in HeadBar.svelte/the
 // dashboard page.
 
@@ -17,7 +17,7 @@ export function escapeCsvField(field: string): string {
   return field;
 }
 
-/** `direct`, `group`, or `member:<group_id>` (mirrors `AccessType`'s wire shape, PD-72). */
+/** `direct`, `group`, or `member:<group_id>` (mirrors `AccessType`'s wire shape). */
 function accessTypeCsv(accessType: AccessType): string {
   switch (accessType.type) {
     case "Direct":
@@ -30,7 +30,7 @@ function accessTypeCsv(accessType: AccessType): string {
 }
 
 /** Flattens every `PrincipalEntry` in `tree` into one CSV row each. Ignores `diffStatus` and
- * view-mode filtering entirely (PD-72) — every row is a plain current-state row for `runAt`,
+ * view-mode filtering entirely — every row is a plain current-state row for `runAt`,
  * regardless of what diff markers or filters the input tree happens to carry. */
 export function rosterToCsv(tree: RosterTree, runAt: string): string {
   const rows: string[][] = [CSV_HEADER];

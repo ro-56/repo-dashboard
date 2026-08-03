@@ -1,4 +1,4 @@
-// Presentation logic for the 31px filter bar (PD-20): the All access / Changes only tab, the
+// Presentation logic for the 31px filter bar: the All access / Changes only tab, the
 // N live · N changed · N rows note, and the scope of the Expand all / Collapse all / Reset
 // controls. Pure functions only — markup lives in FilterBar.svelte.
 
@@ -17,7 +17,7 @@ export interface ViewCounts {
 
 /** Case-insensitive substring match of `query` against every Principal's label in the repo
  * (Direct/Group/Member alike) — a blank/whitespace query always matches, so search is a no-op
- * when inactive (PD-85). */
+ * when inactive. */
 export function matchesSearch(repo: RepoNode, query: string): boolean {
   if (!query.trim()) return true;
   return repo.principals.some((entry) => matchesSearchQuery(entry, query));
@@ -25,7 +25,7 @@ export function matchesSearch(repo: RepoNode, query: string): boolean {
 
 /** Whether a repo is visible specifically *because of* an active search, as distinct from
  * `matchesSearch`'s "vacuously true" answer when search is inactive — a blank query must never
- * force every repo open, only an actual match against typed text does (PD-86). */
+ * force every repo open, only an actual match against typed text does. */
 export function isSearchMatch(repo: RepoNode, query: string): boolean {
   return query.trim().length > 0 && matchesSearch(repo, query);
 }
@@ -33,9 +33,9 @@ export function isSearchMatch(repo: RepoNode, query: string): boolean {
 /** Whether a single row renders under the current tab + search: Changes only additionally
  * requires a diff, and an active search additionally requires *this row's own* Principal to
  * match — a repo kept visible by a match in one row draws only that row (and, in Changes only,
- * only diffed rows), never the whole roster unfiltered (PD-86 follow-up: PD-85's original User
- * Story 6 called for full context — showing every row once a repo matched — but that read as a
- * bug once search shipped, so this narrows to matching rows only). Shared by the repo-visibility
+ * only diffed rows), never the whole roster unfiltered (an earlier version showed full context —
+ * every row once a repo matched — but that read as a bug once search shipped, so this narrows to
+ * matching rows only). Shared by the repo-visibility
  * check below, the count note, and RepoCard.svelte's own row filter so none of the three can
  * disagree about which rows are on screen. */
 export function isEntryVisible(entry: PrincipalEntry, mode: ViewMode, query: string): boolean {
@@ -43,7 +43,7 @@ export function isEntryVisible(entry: PrincipalEntry, mode: ViewMode, query: str
 }
 
 /** Repo cards visible under the current tab — a repo disappears entirely once none of its rows
- * pass `isEntryVisible` (PD-20, PD-85, PD-86): zero changes in Changes only, or zero Principals
+ * pass `isEntryVisible`: zero changes in Changes only, or zero Principals
  * matching an active search, or (combined) no row that's both diffed and matching. */
 export function visibleRepos(project: ProjectNode, mode: ViewMode, query: string): RepoNode[] {
   return project.repos.filter((repo) => repo.principals.some((entry) => isEntryVisible(entry, mode, query)));
@@ -51,7 +51,7 @@ export function visibleRepos(project: ProjectNode, mode: ViewMode, query: string
 
 /** Rows counted under the current tab: exactly the rows `isEntryVisible` keeps, within whichever
  * repos `visibleRepos` currently keeps on screen — mirrors the card-level filter above so the
- * note never disagrees with what's drawn (PD-20, PD-85, PD-86). */
+ * note never disagrees with what's drawn. */
 export function viewCounts(tree: RosterTree, mode: ViewMode, query: string): ViewCounts {
   const entries = tree.flatMap((project) =>
     visibleRepos(project, mode, query).flatMap((repo) =>
@@ -74,7 +74,7 @@ export function visibleRepoCount(tree: RosterTree, mode: ViewMode, query: string
 }
 
 /** Whether every currently visible card is open — decides the bulk control's label: "the
- * control's label reflects which action it will perform" (PD-20). */
+ * control's label reflects which action it will perform". */
 export function allVisibleOpen(
   tree: RosterTree,
   mode: ViewMode,

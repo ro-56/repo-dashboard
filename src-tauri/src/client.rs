@@ -73,7 +73,7 @@ pub trait BitbucketClient {
     ) -> impl std::future::Future<Output = Result<Vec<RawGroupPermission>, ClientError>> + Send;
 
     /// Sets a grant's level on a repo or Project, for either a Direct or Group principal
-    /// (PD-60/PD-61/PD-62) — `key` is the repo slug when `scope == GrantScope::Repo`, the
+    /// — `key` is the repo slug when `scope == GrantScope::Repo`, the
     /// project key when `scope == GrantScope::Project`. `PUT
     /// .../permissions-config/{users,groups}/{id}` — requires `repository:admin` (Repo scope) or
     /// `project:admin` (Project scope), checked only lazily (ADR-0023).
@@ -135,7 +135,7 @@ impl RealBitbucketClient {
     }
 
     /// A single retry, after a short fixed backoff, when the first attempt is `RateLimited`.
-    /// `Unauthorized` is never retried, per PD-7's acceptance criteria.
+    /// `Unauthorized` is never retried.
     async fn get_with_retry(&self, url: &str) -> Result<serde_json::Value, ClientError> {
         match self.get_once(url).await {
             Err(ClientError::RateLimited) => {
@@ -276,7 +276,7 @@ impl BitbucketClient for RealBitbucketClient {
                     group_slug: group.get("slug")?.as_str()?.to_string(),
                     group_name: group.get("name")?.as_str()?.to_string(),
                     permission: v.get("permission")?.as_str()?.to_string(),
-                    // Placeholder — `collect_and_store` (PD-9) fetches each group's members
+                    // Placeholder — `collect_and_store` fetches each group's members
                     // separately (once per Run, cached by group id) and overwrites this field
                     // before normalization, so the value set here is never actually consumed.
                     members: RawGroupMembersResponse::FetchFailed,

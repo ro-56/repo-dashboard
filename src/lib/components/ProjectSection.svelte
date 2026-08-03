@@ -38,7 +38,7 @@
   let counts = $derived(countBadges($_, projectBreakdown(project)));
   let meta = $derived(projectMeta($_, project));
   let repos = $derived(visibleRepos(project, viewMode, searchQuery));
-  // Every repo's principals across the whole Project, unfiltered by `viewMode` (PD-62) — the
+  // Every repo's principals across the whole Project, unfiltered by `viewMode` — the
   // cascade-count candidate pool for a Project-scope Group grant needs every Member it derives,
   // not just whichever repos "Changes only" happens to be showing right now.
   let projectPrincipals = $derived(project.repos.flatMap((r) => r.principals));

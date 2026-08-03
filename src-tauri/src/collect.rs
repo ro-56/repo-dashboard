@@ -1,7 +1,7 @@
 //! Orchestrates one Run: discovers repos, fetches each repo's Direct and Group grants,
 //! resolves each encountered group's membership at most once per Run (cached by group id
 //! and reused across every repo that group grants access to), normalizes everything via the
-//! existing PD-2 `normalize_repo_permissions` and PD-3/PD-4 `normalize_repo_group_permissions`
+//! existing `normalize_repo_permissions` and `normalize_repo_group_permissions`
 //! unmodified, and persists the result as one new immutable Snapshot. The `run_now` Tauri
 //! command is a thin wrapper around `collect_and_store` — all meaningful logic lives here,
 //! covered by `cargo test`.
@@ -65,7 +65,7 @@ async fn resolve_group_members<C: BitbucketClient>(
 
 /// Fetches and normalizes a single repo's Direct + Group permissions (including per-group
 /// membership resolution via `member_cache`). Callable independently of the Run's
-/// repo-discovery loop, e.g. by Refresh (PD-68) for a narrow, explicit list of repos.
+/// repo-discovery loop, e.g. by Refresh for a narrow, explicit list of repos.
 pub async fn fetch_repo_permissions<C: BitbucketClient>(
     client: &C,
     workspace: &str,
@@ -129,7 +129,7 @@ pub async fn fetch_repo_permissions<C: BitbucketClient>(
 
 /// Fetches a single Project's Direct + Group permissions (including per-group membership
 /// resolution via `member_cache`), independent of any specific repo or the Run's overall loop
-/// state. Callable directly by Refresh (PD-68) for a narrow, explicit list of Projects.
+/// state. Callable directly by Refresh for a narrow, explicit list of Projects.
 pub async fn fetch_project_permissions<C: BitbucketClient>(
     client: &C,
     workspace: &str,
@@ -239,13 +239,13 @@ pub async fn collect_and_store<C: BitbucketClient>(
     let mut group_membership_statuses: Vec<GroupMembershipStatus> = Vec::new();
     let mut project_statuses: Vec<ProjectFetchStatus> = Vec::new();
     // Caches each group's resolved membership by group id for the lifetime of this Run, so a
-    // group granting access to many repos only costs one `list_group_members` call (the
-    // caching improvement agreed in the PD-5 design session). Shared between repo-level and
-    // Project-level group resolution since both draw from the same group id space.
+    // group granting access to many repos only costs one `list_group_members` call. Shared
+    // between repo-level and Project-level group resolution since both draw from the same
+    // group id space.
     let mut member_cache: MemberCache = HashMap::new();
     // Caches each Project's raw Direct/Group responses by project key, so a Project owning
     // many repos only costs one `list_project_direct_permissions` and one
-    // `list_project_group_permissions` call (PD-29), mirroring `member_cache` above.
+    // `list_project_group_permissions` call, mirroring `member_cache` above.
     let mut project_cache: HashMap<String, (RawUsersResponse, RawGroupsResponse)> = HashMap::new();
 
     for (i, repo) in repos.into_iter().enumerate() {
@@ -897,7 +897,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_project_level_create_repo_grant_completes_the_run_without_crashing() {
-        // Regression test for PD-58: Bitbucket's Project-level permissions-config API returns
+        // Regression test: Bitbucket's Project-level permissions-config API returns
         // "create-repo" as a real value, which used to panic in normalize.rs and crash the
         // entire Run.
         let client = FakeBitbucketClient::new(Ok(vec![repo("TEAM", "repo-a")]))
@@ -1211,7 +1211,7 @@ mod tests {
     #[tokio::test]
     async fn a_repos_first_time_project_fetch_is_folded_into_that_repos_single_progress_tick() {
         // repo-a and repo-b share Project "TEAM"; the Project is only fetched once, on
-        // repo-a's turn (PD-29's project_cache), but that must never produce its own event.
+        // repo-a's turn (project_cache), but that must never produce its own event.
         let client = FakeBitbucketClient::new(Ok(vec![
             repo("TEAM", "repo-a"),
             repo("TEAM", "repo-b"),

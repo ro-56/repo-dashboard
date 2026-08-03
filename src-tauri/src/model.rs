@@ -10,8 +10,8 @@ pub struct Principal {
 }
 
 /// How a `PermissionRecord` was granted. `Direct` and `Group` (ADR-0002: a group's own
-/// grant is a first-class Principal, independent of member resolution) exist as of PD-3;
-/// `Member(group_id)` (PD-4) is a resolved group member's own grant, layered on top of
+/// grant is a first-class Principal, independent of member resolution) exist as such;
+/// `Member(group_id)` is a resolved group member's own grant, layered on top of
 /// that group's `Group` record — never collapsed into it (ADR-0001).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(tag = "type", content = "group_id")]
@@ -119,8 +119,8 @@ pub struct ProjectFetchStatus {
 /// Per-group, per-repo, per-snapshot record of whether that group's membership list was
 /// resolvable. `true` for both a successful-but-empty fetch and a successful non-empty
 /// fetch; `false` only when the fetch itself failed or was inaccessible. Not consumed by
-/// the diff engine in v1 (PD-1 user stories 14/17) — retained for future visibility-flap
-/// detection, kept distinct from "confirmed empty".
+/// the diff engine in v1 — retained for future visibility-flap detection, kept distinct
+/// from "confirmed empty".
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupMembershipStatus {
     pub repo_project: String,

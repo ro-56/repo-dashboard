@@ -95,18 +95,18 @@ export function projectBreakdown(project: ProjectNode): Breakdown {
 
 /** Whether a repo carries at least one Grant/Revoke/LevelChange — shared by the default-expand
  * rule (below) and the Changes only tab's card-level filter (filterBar.ts), so the two can't
- * drift apart on what counts as "changed" (PD-20). */
+ * drift apart on what counts as "changed". */
 export function repoHasChanges(repo: RepoNode): boolean {
   return isHot(repoBreakdown(repo));
 }
 
-/** ADR-0009 / PD-16: repos with at least one change open automatically; if the whole Run
+/** ADR-0009: repos with at least one change open automatically; if the whole Run
  * pair has zero changes anywhere, every card opens instead of everything collapsing. */
 export function treeHasAnyChanges(tree: RosterTree): boolean {
   return tree.some((project) => project.repos.some((repo) => isHot(repoBreakdown(repo))));
 }
 
-/** ADR-0009 / PD-16 plus PD-86: a repo kept visible only because it satisfies an active
+/** ADR-0009: a repo kept visible only because it satisfies an active
  * Principal search defaults open too, same as one carrying a change — `matchedBySearch` is
  * false whenever search is inactive, so this is a no-op extension of the existing rule. */
 export function defaultOpen(repo: RepoNode, treeHasChanges: boolean, matchedBySearch: boolean): boolean {
@@ -114,7 +114,7 @@ export function defaultOpen(repo: RepoNode, treeHasChanges: boolean, matchedBySe
 }
 
 /** Whether a card renders open right now: the default-expand rule XOR'd against the user's own
- * toggle (PD-16). Shared by RepoCard.svelte, the bulk expand/collapse scope check, and the
+ * toggle. Shared by RepoCard.svelte, the bulk expand/collapse scope check, and the
  * label decision (filterBar.ts) — same formula, one place. */
 export function isRepoOpen(repo: RepoNode, treeHasChanges: boolean, matchedBySearch: boolean, toggled: boolean): boolean {
   return defaultOpen(repo, treeHasChanges, matchedBySearch) !== toggled;
@@ -172,10 +172,10 @@ export function barCellTooltip(t: Translate, repo: RepoNode): string {
 
 /** A repo absent from the Comparison side carries `absent from run N`; a repo absent only from
  * the Baseline — present for the first time as of the Comparison — carries `new in run N`. Both
- * name the Comparison run, matching the reference design. Repo arrival proper is PD-17; until
- * then this is driven entirely off repo-absence data, per PD-16's stated scope.
+ * name the Comparison run, matching the reference design. This is driven entirely off
+ * repo-absence data.
  *
- * Discovery (absent/new) takes priority over `fetchFailed` (PD-19) — a repo genuinely missing
+ * Discovery (absent/new) takes priority over `fetchFailed` — a repo genuinely missing
  * from one side's discovery is the more significant structural fact than a fetch error on the
  * side where it *was* discovered. `fetch failed` reuses the neutral tag palette (ADR-0005): it
  * is not a diff outcome, so it may not claim the red/green hues those are reserved for. */
@@ -201,7 +201,7 @@ export function repoTag(t: Translate, repo: RepoNode, comparisonId: number): Rep
  * independent `project fetch failed` tag when the owning Project's own fetch failed (ADR-0012).
  * The two failures are orthogonal (a repo's own fetch and its Project's fetch fail or succeed
  * independently), so `project fetch failed` is additive rather than subject to `repoTag`'s
- * priority order — both tags can render together (PD-40). */
+ * priority order — both tags can render together. */
 export function repoTags(t: Translate, repo: RepoNode, comparisonId: number): RepoTag[] {
   const tags: RepoTag[] = [];
   const primary = repoTag(t, repo, comparisonId);
@@ -217,7 +217,7 @@ export function repoTags(t: Translate, repo: RepoNode, comparisonId: number): Re
 
 /** Project meta ("3 repositories · 14 grants") — grants, not headcount, per ADR-0008: that ADR
  * names per-project rollups explicitly and rejects counting distinct principals as an informal
- * second permission model, so this deviates from PD-16's literal example text ("12 people"). */
+ * second permission model, so this deviates from the reference design's literal example text ("12 people"). */
 export function projectMeta(t: Translate, project: ProjectNode): string {
   const repoCount = project.repos.length;
   const grantsTotal = project.repos.reduce(
