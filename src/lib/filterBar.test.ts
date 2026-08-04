@@ -108,22 +108,50 @@ describe("isSearchMatch", () => {
   });
 });
 
+const noneExcluded = new Set<string>();
+
 describe("isEntryVisible", () => {
   it("all mode: a row is visible only if it matches an active search", () => {
     const alice = principal({ principal: { id: "u1", label: "Alice" } });
     const zed = principal({ principal: { id: "u2", label: "Zed" } });
-    expect(isEntryVisible(alice, "all", "alice")).toBe(true);
-    expect(isEntryVisible(zed, "all", "alice")).toBe(false);
-    expect(isEntryVisible(zed, "all", "")).toBe(true);
+    expect(isEntryVisible(alice, "all", "alice", noneExcluded)).toBe(true);
+    expect(isEntryVisible(zed, "all", "alice", noneExcluded)).toBe(false);
+    expect(isEntryVisible(zed, "all", "", noneExcluded)).toBe(true);
   });
 
   it("changes mode: a row needs both a diff and a search match", () => {
     const matchedNoDiff = principal({ principal: { id: "u1", label: "Alice" } });
     const matchedWithDiff = principal({ principal: { id: "u1", label: "Alice" }, diffStatus: { status: "Grant" } });
     const diffNoMatch = principal({ principal: { id: "u2", label: "Bob" }, diffStatus: { status: "Grant" } });
-    expect(isEntryVisible(matchedNoDiff, "changes", "alice")).toBe(false);
-    expect(isEntryVisible(matchedWithDiff, "changes", "alice")).toBe(true);
-    expect(isEntryVisible(diffNoMatch, "changes", "alice")).toBe(false);
+    expect(isEntryVisible(matchedNoDiff, "changes", "alice", noneExcluded)).toBe(false);
+    expect(isEntryVisible(matchedWithDiff, "changes", "alice", noneExcluded)).toBe(true);
+    expect(isEntryVisible(diffNoMatch, "changes", "alice", noneExcluded)).toBe(false);
+  });
+
+  it("a blank exclusion set is a no-op", () => {
+    const alice = principal({ principal: { id: "u1", label: "Alice" } });
+    expect(isEntryVisible(alice, "all", "", new Set())).toBe(true);
+  });
+
+  it("hides a row whose own principal id is excluded, ANDing with an active search", () => {
+    const alice = principal({ principal: { id: "u1", label: "Alice" } });
+    expect(isEntryVisible(alice, "all", "", new Set(["u1"]))).toBe(false);
+    expect(isEntryVisible(alice, "all", "alice", new Set(["u1"]))).toBe(false);
+  });
+
+  it("hides a row whose own principal id is excluded, ANDing with Changes only mode", () => {
+    const diffed = principal({ principal: { id: "u1", label: "Alice" }, diffStatus: { status: "Grant" } });
+    expect(isEntryVisible(diffed, "changes", "", new Set(["u1"]))).toBe(false);
+  });
+
+  it("cascades to a Member row derived from an excluded group but not an unrelated Direct row for the same person", () => {
+    const memberRow = principal({
+      principal: { id: "u2", label: "Bob" },
+      accessType: { type: "Member", group_id: "auditors" },
+    });
+    const unrelatedDirect = principal({ principal: { id: "u2", label: "Bob" }, accessType: { type: "Direct" } });
+    expect(isEntryVisible(memberRow, "all", "", new Set(["auditors"]))).toBe(false);
+    expect(isEntryVisible(unrelatedDirect, "all", "", new Set(["auditors"]))).toBe(true);
   });
 });
 
@@ -132,7 +160,7 @@ describe("visibleRepos", () => {
     const alice = repo({ repo: "alice-repo", principals: [principal({ principal: { id: "u1", label: "Alice" } })] });
     const bob = repo({ repo: "bob-repo", principals: [principal({ principal: { id: "u2", label: "Bob" } })] });
     const p = project([alice, bob]);
-    expect(visibleRepos(p, "all", "alice")).toEqual([alice]);
+    expect(visibleRepos(p, "all", "alice", noneExcluded)).toEqual([alice]);
   });
 
   it("narrows to repos with a search match in Changes only mode", () => {
@@ -145,7 +173,7 @@ describe("visibleRepos", () => {
       principals: [principal({ principal: { id: "u2", label: "Bob" }, diffStatus: { status: "Grant" } })],
     });
     const p = project([hotMatch, hotNoMatch]);
-    expect(visibleRepos(p, "changes", "alice")).toEqual([hotMatch]);
+    expect(visibleRepos(p, "changes", "alice", noneExcluded)).toEqual([hotMatch]);
   });
 
   it("excludes a repo with a search match but no diff in Changes only mode", () => {
@@ -154,7 +182,7 @@ describe("visibleRepos", () => {
       principals: [principal({ principal: { id: "u1", label: "Alice" } })],
     });
     const p = project([coldMatch]);
-    expect(visibleRepos(p, "changes", "alice")).toEqual([]);
+    expect(visibleRepos(p, "changes", "alice", noneExcluded)).toEqual([]);
   });
 
   it("excludes a repo with a diff but no search match when a query is set", () => {
@@ -163,7 +191,28 @@ describe("visibleRepos", () => {
       principals: [principal({ principal: { id: "u2", label: "Bob" }, diffStatus: { status: "Grant" } })],
     });
     const p = project([hotNoMatch]);
-    expect(visibleRepos(p, "changes", "alice")).toEqual([]);
+    expect(visibleRepos(p, "changes", "alice", noneExcluded)).toEqual([]);
+  });
+
+  it("drops a repo whose only rows are excluded", () => {
+    const onlyExcluded = repo({
+      repo: "only-excluded",
+      principals: [principal({ principal: { id: "u1", label: "Alice" } })],
+    });
+    const p = project([onlyExcluded]);
+    expect(visibleRepos(p, "all", "", new Set(["u1"]))).toEqual([]);
+  });
+
+  it("keeps a repo visible when only some of its rows are excluded", () => {
+    const mixed = repo({
+      repo: "mixed",
+      principals: [
+        principal({ principal: { id: "u1", label: "Alice" } }),
+        principal({ principal: { id: "u2", label: "Bob" } }),
+      ],
+    });
+    const p = project([mixed]);
+    expect(visibleRepos(p, "all", "", new Set(["u1"]))).toEqual([mixed]);
   });
 });
 
@@ -185,14 +234,37 @@ describe("viewCounts", () => {
     // "all" mode: bobRepo is filtered out by the "alice" query, and within aliceRepo only the
     // matching "Alice" row counts — "Zed" doesn't match the query, so it's excluded too
     // (search narrows to matching rows, not every row in a repo that happens to match somewhere).
-    expect(viewCounts(tree, "all", "alice")).toEqual({ live: 1, changed: 1, rows: 1 });
+    expect(viewCounts(tree, "all", "alice", noneExcluded)).toEqual({ live: 1, changed: 1, rows: 1 });
 
     // "changes" mode ANDs on top: aliceRepo is visible (has a match and a diff), only its
     // diffed row counts — the non-diffed "Zed" row is excluded by the mode filter.
-    expect(viewCounts(tree, "changes", "alice")).toEqual({ live: 1, changed: 1, rows: 1 });
+    expect(viewCounts(tree, "changes", "alice", noneExcluded)).toEqual({ live: 1, changed: 1, rows: 1 });
 
     // No query: both repos count, mirroring pre-search behavior. bobRepo's Revoke is "changed"
     // but not "live" (it no longer holds the permission); aliceRepo's two rows are both live.
-    expect(viewCounts(tree, "all", "")).toEqual({ live: 2, changed: 2, rows: 3 });
+    expect(viewCounts(tree, "all", "", noneExcluded)).toEqual({ live: 2, changed: 2, rows: 3 });
+  });
+
+  it("recomputes counts over exactly what's left once a Principal is excluded", () => {
+    const aliceRepo = repo({
+      repo: "alice-repo",
+      principals: [
+        principal({ principal: { id: "u1", label: "Alice" }, diffStatus: { status: "Grant" } }),
+        principal({ principal: { id: "u2", label: "Zed" } }),
+      ],
+    });
+    const tree = [project([aliceRepo])];
+
+    expect(viewCounts(tree, "all", "", new Set(["u1"]))).toEqual({ live: 1, changed: 0, rows: 1 });
+  });
+
+  it("a blank exclusion set is a no-op on counts", () => {
+    const aliceRepo = repo({
+      repo: "alice-repo",
+      principals: [principal({ principal: { id: "u1", label: "Alice" }, diffStatus: { status: "Grant" } })],
+    });
+    const tree = [project([aliceRepo])];
+
+    expect(viewCounts(tree, "all", "", new Set())).toEqual(viewCounts(tree, "all", "", noneExcluded));
   });
 });

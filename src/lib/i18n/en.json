@@ -98,6 +98,7 @@
     "createRepo": "Create-repo"
   },
   "roster": {
+    "hide": "Hide",
     "pendingRemovedTo": "removed",
     "columns": {
       "diff": "±",

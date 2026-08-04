@@ -23,6 +23,7 @@
     anyChanges,
     viewMode,
     searchQuery,
+    excludedIds,
     toggled,
     onToggle,
     projectPrincipals,
@@ -30,12 +31,14 @@
     editingEnabled,
     onStage,
     onUndo,
+    onHide,
   }: {
     repo: RepoNode;
     comparisonId: number;
     anyChanges: boolean;
     viewMode: ViewMode;
     searchQuery: string;
+    excludedIds: ReadonlySet<string>;
     toggled: boolean;
     onToggle: () => void;
     // Every repo's principals across the owning Project (the cascade-count candidate pool
@@ -46,6 +49,7 @@
     editingEnabled: boolean;
     onStage: (edit: StagedEdit) => void;
     onUndo: (key: string) => void;
+    onHide: (id: string) => void;
   } = $props();
 
   // `toggled` records whether the user has clicked this card away from its computed default;
@@ -58,10 +62,11 @@
   let barTitle = $derived(barCellTooltip($_, repo));
   let gone = $derived(absentSide(repo) === "B");
   let sorted = $derived(sortedPrincipals(repo.principals));
-  // Rows narrow with both the tab (Changes only hides non-diffed rows) and an active search
-  // (only this row's own Principal matching keeps it visible) — same `isEntryVisible` predicate
-  // the count note and repo-visibility check use, so neither can drift from what's drawn.
-  let roster = $derived(sorted.filter((entry) => isEntryVisible(entry, viewMode, searchQuery)));
+  // Rows narrow with the tab (Changes only hides non-diffed rows), an active search (only this
+  // row's own Principal matching keeps it visible), and the exclusion set — same `isEntryVisible`
+  // predicate the count note and repo-visibility check use, so none of the three can drift from
+  // what's drawn.
+  let roster = $derived(sorted.filter((entry) => isEntryVisible(entry, viewMode, searchQuery, excludedIds)));
 
   // A principal can appear more than once per repo (e.g. Direct plus Member-of-group-X, or
   // the same access type at both Repo and Project scope), so the key needs the
@@ -117,6 +122,7 @@
           {editingEnabled}
           {onStage}
           {onUndo}
+          {onHide}
         />
       {/each}
     </div>

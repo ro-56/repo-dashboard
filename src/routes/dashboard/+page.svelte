@@ -68,6 +68,14 @@
   // resetView() below.
   let searchQuery = $state("");
 
+  // Excluded principal (CONTEXT.md, ADR-0032): same session-only lifecycle as search — survives
+  // Baseline/Comparison navigation, cleared only by resetView() below. Keyed by `principal.id`,
+  // never label text (PD-90's Q2).
+  let excludedIds = new SvelteSet<string>();
+  function hidePrincipal(id: string) {
+    excludedIds.add(id);
+  }
+
   function repoKey(repoProject: string, repo: string): string {
     return `${repoProject}::${repo}`;
   }
@@ -89,10 +97,10 @@
   let seqs = $derived(snapshotSeqs(data.snapshots));
   let same = $derived(data.baselineId === data.comparisonId);
 
-  let counts = $derived(viewCounts(data.tree, viewMode, searchQuery));
-  let allOpen = $derived(allVisibleOpen(data.tree, viewMode, anyChanges, isToggled, searchQuery));
+  let counts = $derived(viewCounts(data.tree, viewMode, searchQuery, excludedIds));
+  let allOpen = $derived(allVisibleOpen(data.tree, viewMode, anyChanges, isToggled, searchQuery, excludedIds));
   let expandLabel = $derived(allOpen ? $_("filterBar.collapseAll") : $_("filterBar.expandAll"));
-  let isEmpty = $derived(visibleRepoCount(data.tree, viewMode, searchQuery) === 0);
+  let isEmpty = $derived(visibleRepoCount(data.tree, viewMode, searchQuery, excludedIds) === 0);
   let empty = $derived(
     isEmpty
       ? emptyStateFor(
@@ -114,7 +122,7 @@
   // leaving cards hidden by the current tab untouched ("opens every visible card").
   function setBulkOpen(desiredOpen: boolean) {
     for (const project of data.tree) {
-      for (const repo of visibleRepos(project, viewMode, searchQuery)) {
+      for (const repo of visibleRepos(project, viewMode, searchQuery, excludedIds)) {
         const currentlyOpen = isRepoOpen(
           repo,
           anyChanges,
@@ -136,6 +144,7 @@
     viewMode = "all";
     toggledRepos.clear();
     searchQuery = "";
+    excludedIds.clear();
   }
 
   function setSearchQuery(query: string) {
@@ -339,12 +348,14 @@
           {anyChanges}
           {viewMode}
           {searchQuery}
+          {excludedIds}
           {isToggled}
           onToggle={toggleRepo}
           {pending}
           {editingEnabled}
           onStage={handleStage}
           onUndo={handleUndo}
+          onHide={hidePrincipal}
         />
       {/each}
       {#if empty}

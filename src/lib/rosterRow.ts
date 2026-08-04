@@ -75,6 +75,17 @@ export function matchesSearchQuery(entry: PrincipalEntry, query: string): boolea
   return entry.principal.label.toLowerCase().includes(needle);
 }
 
+/** Whether `entry` is hidden by the Excluded principal filter (CONTEXT.md, ADR-0032,
+ * `docs/adr/0032-excluded-principal-group-cascade-scoped-to-member-rows.md`): true when its own
+ * `principal.id` is in `excludedIds`, or it's a `Member` entry whose `accessType.group_id` is —
+ * the one cascade, from an excluded Group's own grant to the Member rows it derives. An unrelated
+ * Direct/Group entry belonging to the same person is never swept in, since it carries no reference
+ * to the excluded group. */
+export function isExcluded(entry: PrincipalEntry, excludedIds: ReadonlySet<string>): boolean {
+  if (excludedIds.has(entry.principal.id)) return true;
+  return entry.accessType.type === "Member" && excludedIds.has(entry.accessType.group_id);
+}
+
 /** `direct`, `group`, or `grp:<name>`, plus a `↳ ` prefix for Project-level grants
  * (ADR-0020) — never spills into the notes column. */
 export function sourceLabel(t: Translate, accessType: AccessType, scope: GrantScope): string {

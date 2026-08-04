@@ -6,6 +6,7 @@ import {
   deriveRow,
   editTargetForEntry,
   hasDiff,
+  isExcluded,
   isUnresolvedGroup,
   matchesSearchQuery,
   pendingRowView,
@@ -100,6 +101,44 @@ describe("matchesSearchQuery", () => {
     expect(matchesSearchQuery(row, "bob")).toBe(true);
     expect(matchesSearchQuery(row, "BOB")).toBe(true);
     expect(matchesSearchQuery(row, "zzz")).toBe(false);
+  });
+});
+
+describe("isExcluded", () => {
+  it("is false when the exclusion set is empty", () => {
+    const row = entry({ principal: { id: "u1", label: "Alice" } });
+    expect(isExcluded(row, new Set())).toBe(false);
+  });
+
+  it("is true when the entry's own principal id is excluded, for any access type", () => {
+    const direct = entry({ principal: { id: "u1", label: "Alice" }, accessType: { type: "Direct" } });
+    const group = entry({ principal: { id: "g1", label: "Auditors" }, accessType: { type: "Group" } });
+    expect(isExcluded(direct, new Set(["u1"]))).toBe(true);
+    expect(isExcluded(group, new Set(["g1"]))).toBe(true);
+  });
+
+  it("cascades to a Member entry whose accessType.group_id is excluded", () => {
+    const member = entry({
+      principal: { id: "u2", label: "Bob" },
+      accessType: { type: "Member", group_id: "auditors" },
+    });
+    expect(isExcluded(member, new Set(["auditors"]))).toBe(true);
+  });
+
+  it("does not sweep an unrelated Direct/Group entry belonging to the same person as an excluded group's member", () => {
+    // Excluding "auditors" hides the Member row derived from it, but a separate Direct grant
+    // held by the same person (a different PrincipalEntry, no accessType.group_id reference to
+    // the excluded group) stays visible — User Story 5 / ADR-0032.
+    const personalDirect = entry({
+      principal: { id: "u2", label: "Bob" },
+      accessType: { type: "Direct" },
+    });
+    expect(isExcluded(personalDirect, new Set(["auditors"]))).toBe(false);
+  });
+
+  it("is false for a Direct/Group entry whose own id isn't excluded, even if some other id is", () => {
+    const direct = entry({ principal: { id: "u1", label: "Alice" }, accessType: { type: "Direct" } });
+    expect(isExcluded(direct, new Set(["someone-else"]))).toBe(false);
   });
 });
 

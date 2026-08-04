@@ -14,6 +14,7 @@
     editingEnabled,
     onStage,
     onUndo,
+    onHide,
   }: {
     entry: PrincipalEntry;
     repoProject: string;
@@ -27,6 +28,7 @@
     editingEnabled: boolean;
     onStage: (edit: StagedEdit) => void;
     onUndo: (key: string) => void;
+    onHide: (id: string) => void;
   } = $props();
 
   // Direct and Group entries, at either scope (editTargetForEntry) — Member rows get no menu at
@@ -104,6 +106,10 @@
   function handleUndo() {
     if (key) onUndo(key);
   }
+
+  function handleHide() {
+    onHide(entry.principal.id);
+  }
 </script>
 
 <div
@@ -135,41 +141,44 @@
     {#if staged}
       <button type="button" class="undo" onclick={handleUndo}>↺ {$_("roster.menu.undo")}</button>
     {/if}
-    {#if menu}
-      <span class="menu-wrap">
-        <button
-          bind:this={menuTrigger}
-          type="button"
-          class="menu-trigger"
-          aria-haspopup="true"
-          aria-expanded={menuOpen}
-          aria-label={$_("roster.menu.editAria")}
-          onclick={toggleMenu}
-        >
-          ⋯
-        </button>
-        {#if menuOpen && menuPos}
-          <div class="menu-scrim" onclick={closeMenu} aria-hidden="true"></div>
-          <div class="menu" style:top="{menuPos.top}px" style:right="{menuPos.right}px">
-            <div class="menu-levels">
-              {#each menu.levelOptions as opt (opt.level)}
-                <button type="button" class="level-opt" class:active={opt.active} onclick={() => selectLevel(opt.level)}>
-                  {opt.label}
-                </button>
-              {/each}
+    <span class="actions">
+      <button type="button" class="hide-link" onclick={handleHide}>{$_("roster.hide")}</button>
+      {#if menu}
+        <span class="menu-wrap">
+          <button
+            bind:this={menuTrigger}
+            type="button"
+            class="menu-trigger"
+            aria-haspopup="true"
+            aria-expanded={menuOpen}
+            aria-label={$_("roster.menu.editAria")}
+            onclick={toggleMenu}
+          >
+            ⋯
+          </button>
+          {#if menuOpen && menuPos}
+            <div class="menu-scrim" onclick={closeMenu} aria-hidden="true"></div>
+            <div class="menu" style:top="{menuPos.top}px" style:right="{menuPos.right}px">
+              <div class="menu-levels">
+                {#each menu.levelOptions as opt (opt.level)}
+                  <button type="button" class="level-opt" class:active={opt.active} onclick={() => selectLevel(opt.level)}>
+                    {opt.label}
+                  </button>
+                {/each}
+              </div>
+              {#if menu.scopeNote}
+                <span class="menu-note">{menu.scopeNote}</span>
+              {/if}
+              <span class="menu-divider"></span>
+              {#if menu.cascadeCount !== null}
+                <span class="menu-cascade">{cascadeNote($_, menu.cascadeCount)}</span>
+              {/if}
+              <button type="button" class="menu-remove" onclick={selectRemove}>✕ {$_("roster.menu.removeAccess")}</button>
             </div>
-            {#if menu.scopeNote}
-              <span class="menu-note">{menu.scopeNote}</span>
-            {/if}
-            <span class="menu-divider"></span>
-            {#if menu.cascadeCount !== null}
-              <span class="menu-cascade">{cascadeNote($_, menu.cascadeCount)}</span>
-            {/if}
-            <button type="button" class="menu-remove" onclick={selectRemove}>✕ {$_("roster.menu.removeAccess")}</button>
-          </div>
-        {/if}
-      </span>
-    {/if}
+          {/if}
+        </span>
+      {/if}
+    </span>
   </span>
 </div>
 
@@ -359,7 +368,8 @@
     color: var(--state-revoked);
   }
 
-  .undo {
+  .undo,
+  .hide-link {
     flex: none;
     border: none;
     padding: 0;
@@ -370,9 +380,28 @@
     cursor: pointer;
   }
 
-  .menu-wrap {
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
     flex: none;
     margin-left: auto;
+  }
+
+  /* Quiet, hover-revealed — a sibling affordance to the ⋯ menu trigger, not a menu item, and
+     rendered unconditionally regardless of whether that menu exists for this row (ADR-0021/
+     ADR-0022's editing-scope restrictions don't apply to hiding). Kept in layout at all times
+     (opacity, not `display`) so hovering the row doesn't reflow it into view. */
+  .hide-link {
+    opacity: 0;
+  }
+  .roster-row:hover .hide-link,
+  .hide-link:focus-visible {
+    opacity: 1;
+  }
+
+  .menu-wrap {
+    flex: none;
   }
   .menu-trigger {
     display: inline-flex;
