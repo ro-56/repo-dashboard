@@ -150,6 +150,13 @@
       "undo": "desfazer"
     }
   },
+  "excludedBanner": {
+    "count": "{count, plural, one {# principal oculto nesta sessão} other {# principais ocultos nesta sessão}}",
+    "manage": "Gerenciar",
+    "hideList": "Ocultar lista",
+    "unhide": "Reexibir",
+    "unhideAll": "Reexibir tudo"
+  },
   "repoCard": {
     "grants": "{total, plural, one {# concessão} other {# concessões}} · {admin} admin",
     "projectMeta": "{repos, plural, one {# repositório} other {# repositórios}} · {grants, plural, one {# concessão} other {# concessões}}",

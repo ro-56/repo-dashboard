@@ -11,6 +11,7 @@
   import { exportFilename, rosterToCsv } from "$lib/rosterExport";
   import HeadBar from "$lib/components/HeadBar.svelte";
   import FilterBar from "$lib/components/FilterBar.svelte";
+  import ExcludedBanner from "$lib/components/ExcludedBanner.svelte";
   import EmptyState from "$lib/components/EmptyState.svelte";
   import ProjectSection from "$lib/components/ProjectSection.svelte";
   import RosterColumnLabels from "$lib/components/RosterColumnLabels.svelte";
@@ -74,6 +75,12 @@
   let excludedIds = new SvelteSet<string>();
   function hidePrincipal(id: string) {
     excludedIds.add(id);
+  }
+  function unhidePrincipal(id: string) {
+    excludedIds.delete(id);
+  }
+  function unhideAllPrincipals() {
+    excludedIds.clear();
   }
 
   function repoKey(repoProject: string, repo: string): string {
@@ -336,6 +343,15 @@
       onReset={resetView}
       onExportClick={handleExport}
     />
+
+    {#if excludedIds.size > 0}
+      <ExcludedBanner
+        tree={data.tree}
+        {excludedIds}
+        onUnhide={unhidePrincipal}
+        onUnhideAll={unhideAllPrincipals}
+      />
+    {/if}
 
     {#if !isEmpty}
       <RosterColumnLabels />
