@@ -206,85 +206,92 @@
 <section id="overview">
   <h2>What this does</h2>
   <p>
-    Bitbucket Cloud repository access — who can read, write to, or administer a repo, whether granted
-    directly or through a group, at the repo level or cascading down from its Project — can change at
-    any time, by anyone with admin rights, with no built-in history. Repo Dashboard closes that gap:
+    Anyone with admin rights on your Bitbucket workspace can change who has access to a repository at
+    any time, and Bitbucket doesn't keep a history of those changes. Repo Dashboard fills that gap:
   </p>
   <ul>
-    <li>It scans every repository and Project in your Bitbucket workspace and records exactly who has what access.</li>
-    <li>Each scan is saved as a permanent, timestamped <strong>snapshot</strong> — a record of "access as of this moment" that never changes afterward.</li>
-    <li>You pick any two snapshots and the dashboard shows you the differences: who gained access, who lost it, and whose permission level went up or down — with escalations (e.g. read → admin) called out specifically.</li>
-    <li>From that same view, you can fix problems directly — lower or remove someone's access — without leaving the app.</li>
-    <li>You can export a point-in-time roster to a CSV file to share with a reviewer.</li>
+    <li>It looks at every repository in your Bitbucket workspace and records exactly who has access to what.</li>
+    <li>Each scan is saved permanently as a dated <strong>snapshot</strong> — a photograph of "access as of this moment" that never changes afterward.</li>
+    <li>Pick any two snapshots and the dashboard shows you what changed between them: who gained access, who lost it, and whose access level went up or down — with anything that looks like a risky escalation (e.g. read → admin) called out specifically.</li>
+    <li>From that same screen, you can fix problems directly — lower or remove someone's access — without leaving the app.</li>
+    <li>You can export a snapshot to a CSV file if you need to share it with someone.</li>
   </ul>
-  <p>It runs as a local desktop app. Nothing is uploaded anywhere except the API calls it makes to Bitbucket itself; all snapshot data stays on your machine.</p>
+  <p>It runs entirely on your own computer. The only network traffic it produces is talking to Bitbucket itself — nothing is sent anywhere else, and all your snapshot data stays on your machine.</p>
 </section>
 
 <section id="setup">
   <h2>Getting started</h2>
-  <h3>Installing</h3>
-  <p>Repo Dashboard is a desktop application built with Tauri. Building it yourself requires:</p>
-  <ul>
-    <li><a href="https://pnpm.io/">pnpm</a></li>
-    <li><a href="https://www.rust-lang.org/tools/install">Rust</a> (stable)</li>
-    <li>Tauri's platform dependencies for your OS (WebKit/GTK on Linux, etc.)</li>
-  </ul>
-  <p>From the project folder:</p>
-  <div class="diagram">pnpm install
-pnpm tauri build      # produces a distributable binary
-# — or, while developing —
-pnpm tauri dev        # runs the full app with hot reload</div>
-  <p>If you were handed a prebuilt binary instead, just launch it — no installation steps beyond that.</p>
+  <h3>Opening the app</h3>
+  <p>Repo Dashboard is a regular desktop app — someone has already built it for you, so there's nothing to install or compile. Just double-click it (or run the executable) like any other program on your computer.</p>
+
+  <h3>Creating a Bitbucket API token</h3>
+  <p>To let Repo Dashboard talk to Bitbucket on your behalf, you'll need an API token from Bitbucket. Think of this as a special password that only works for this one purpose, and only does what you allow it to do — you create it once, paste it into the app, and never need to type your real Bitbucket password anywhere.</p>
+  <p>When creating the token in Bitbucket, you'll be asked to tick a list of "scopes" — checkboxes that control what the token is allowed to do. Tick the ones below:</p>
+  <table>
+    <tr><th>Scope</th><th>Needed for</th></tr>
+    <tr><td><code>read:project:bitbucket</code></td><td>Viewing access on Projects</td></tr>
+    <tr><td><code>read:repository:bitbucket</code></td><td>Viewing access on repositories</td></tr>
+    <tr><td><code>admin:project:bitbucket</code></td><td>Changing or removing access on a Project</td></tr>
+    <tr><td><code>admin:repository:bitbucket</code></td><td>Changing or removing access on a repository</td></tr>
+    <tr><td><code>write:permission:bitbucket</code></td><td>Changing someone's access level</td></tr>
+    <tr><td><code>delete:permission:bitbucket</code></td><td>Removing someone's access</td></tr>
+  </table>
+  <div class="callout tip">
+    <strong>Just browsing?</strong> If you only want to view who has access — the roster and the
+    comparisons between two dates — the two <code>read:</code> scopes above are all you need. Only tick
+    the <code>admin:</code>, <code>write:permission:</code>, and <code>delete:permission:</code> scopes
+    if you also want to change or remove people's access from inside the app (see
+    <a href="#editing">Changing or removing access</a>).
+  </div>
 
   <h3>First launch: connecting to Bitbucket</h3>
-  <p>On first open, the dashboard has no data yet. Open the <strong>settings drawer</strong> (the gear icon, top right) and fill in the <strong>credentials</strong> panel:</p>
+  <p>The first time you open the app, it won't have any data yet. Open the <strong>settings drawer</strong> (the gear icon, top right) and fill in the <strong>credentials</strong> panel:</p>
   <ol class="steps">
     <li><strong>Username</strong> — your Bitbucket Cloud username.</li>
-    <li><strong>App password</strong> — a Bitbucket app password with read access to repositories, projects, and workspace membership. (Only needed for read access at this point — see the callout below for what's needed to edit access later.)</li>
-    <li><strong>Workspace</strong> — the Bitbucket workspace slug to audit (Repo Dashboard audits exactly one workspace).</li>
+    <li><strong>App password</strong> — the API token you created above.</li>
+    <li><strong>Workspace</strong> — the name of the Bitbucket workspace you want to audit (Repo Dashboard looks at one workspace at a time).</li>
   </ol>
-  <p>Click <strong>Save credentials</strong>. The credential is stored encrypted in your operating system's keychain (macOS Keychain, Windows Credential Manager, or the Linux secret service) — it is never written to a plain file, and the app never redisplays the password once saved.</p>
+  <p>Click <strong>Save credentials</strong>. This is stored securely by your computer's own password manager (Keychain on a Mac, Credential Manager on Windows, or the equivalent on Linux) — never as a plain text file, and the app will never show the password back to you once it's saved.</p>
   <div class="callout">
-    <strong>Editing permissions later needs a broader credential.</strong> The app doesn't check this
-    upfront — everything looks the same either way, since the same credential is used for reading and
-    writing. If your app password only has read scopes, you'll only find out when you try to
-    <a href="#editing">apply an edit</a> and it's rejected as unauthorized. If you plan to use the
-    permission-editing feature, make sure the app password also has admin scope on repositories and
-    projects.
+    <strong>If you skipped the admin/write/delete scopes above</strong>, viewing the roster will still
+    work fine — you'll only run into trouble if you later try to
+    <a href="#editing">change or remove someone's access</a>, which will be rejected. If that happens,
+    go back to Bitbucket, add the missing scopes to your token, and save the updated token in the
+    credentials panel.
   </div>
-  <p>Once connected, open the drawer again any time via <strong>Change credentials</strong> to update the username, password, or workspace.</p>
+  <p>Once connected, you can reopen the drawer any time via <strong>Change credentials</strong> to update the username, token, or workspace.</p>
 
   <h3>Your first run</h3>
-  <p>Still in the settings drawer, click <strong>Get all data</strong> under "run" to fetch your first snapshot. See <a href="#running">Taking a snapshot</a> below for what happens during this step.</p>
+  <p>Still in the settings drawer, click <strong>Get all data</strong> to fetch your first snapshot. See <a href="#running">Taking a snapshot</a> below for what happens during this step.</p>
 </section>
 
 <section id="concepts">
   <h2>Key concepts</h2>
-  <p>A handful of terms recur throughout the dashboard. Understanding them up front makes the rest of the UI self-explanatory.</p>
+  <p>A handful of words come up again and again in the dashboard. Knowing what they mean up front makes everything else easier to follow.</p>
   <dl class="glossary">
     <dt>Principal</dt>
-    <dd>Whoever holds a permission — a person (identified by their stable account, not their display name, so a nickname change is never mistaken for someone leaving and a new person arriving) or a group.</dd>
-    <dt>Direct / Group / Member grant</dt>
+    <dd>Whoever has access — a person or a group. People are tracked by their underlying account, not their display name, so if someone changes their name it's never mistaken for one person leaving and a new one arriving.</dd>
+    <dt>Direct / Group / Member access</dt>
     <dd>
-      <strong>Direct</strong> — a permission assigned to one person by name.<br>
-      <strong>Group</strong> — a permission assigned to a group as a whole.<br>
-      <strong>Member</strong> — a permission a person holds only because they belong to a group that has a Group grant. Shown separately from a Direct grant even for the same person on the same repo, since they're two different things.
+      <strong>Direct</strong> — access given to one named person.<br>
+      <strong>Group</strong> — access given to a group as a whole.<br>
+      <strong>Member</strong> — access a person has only because they belong to a group that was given access. Shown as its own line even for someone who also has Direct access on the same repo, since they're two separate things and can be removed independently.
     </dd>
     <dt>Repo-level vs. Project-level</dt>
-    <dd>A grant can live on a specific repository, or on its Project — a Project-level grant automatically applies to every repository the Project owns. The dashboard marks Project-level rows with a "↳" prefix in the source column.</dd>
+    <dd>Access can be granted on one specific repository, or on the Project it belongs to — Project-level access automatically covers every repository under that Project. The dashboard marks Project-level rows with a "↳" arrow.</dd>
     <dt>Run</dt>
-    <dd>A full scan of the whole workspace: every repository and Project is rediscovered from scratch and every permission is re-fetched. Produces one new snapshot.</dd>
+    <dd>A full check of the whole workspace: every repository and Project is looked at again from scratch. Produces one new snapshot.</dd>
     <dt>Refresh</dt>
-    <dd>A narrow, targeted re-fetch of just the repos/Projects affected by a batch of edits you just applied — much faster than a full Run, but it never discovers new repositories (see <a href="#refresh">Refreshing</a>).</dd>
+    <dd>A quick, narrow re-check of just the repos/Projects you recently edited — much faster than a full Run, but it won't notice brand-new repositories (see <a href="#refresh">Refreshing</a>).</dd>
     <dt>Snapshot</dt>
-    <dd>The saved result of one Run or Refresh: a complete, permanent picture of access at that moment. Snapshots are never edited after the fact, only deleted.</dd>
+    <dd>The saved result of one Run or Refresh: a complete picture of access at that moment, frozen in time. Snapshots can be deleted but never edited.</dd>
     <dt>Baseline / Comparison</dt>
-    <dd>The two snapshots you're comparing. Baseline is "what it was", Comparison is "what it is now". All diffs (grants, revokes, level changes) are read as movement from Baseline to Comparison.</dd>
+    <dd>The two snapshots you're comparing. Baseline is "how it used to be", Comparison is "how it is now". Every change shown is read as a move from Baseline to Comparison.</dd>
     <dt>Grant / Revoke / Escalation / Demotion</dt>
     <dd>
-      <span class="badge added">+</span> <strong>Grant</strong> — access that exists in the Comparison but didn't in the Baseline.<br>
-      <span class="badge revoked">−</span> <strong>Revoke</strong> — access that existed in the Baseline but is gone in the Comparison.<br>
-      <span class="badge changed">~</span> <strong>Level change</strong> — the same grant exists in both, but at a different level: an <strong>Escalation</strong> if it went up, a <strong>Demotion</strong> if it went down.
+      <span class="badge added">+</span> <strong>Grant</strong> — access that's new in the Comparison; it wasn't there in the Baseline.<br>
+      <span class="badge revoked">−</span> <strong>Revoke</strong> — access that's gone in the Comparison; it existed in the Baseline.<br>
+      <span class="badge changed">~</span> <strong>Level change</strong> — the same access exists in both, just at a different level: an <strong>Escalation</strong> if it went up, a <strong>Demotion</strong> if it went down.
     </dd>
   </dl>
 </section>
@@ -336,10 +343,10 @@ save everything as one new, timestamped snapshot</div>
   </table>
   <p><code>members unresolved</code> appears on a group's own row when the group's permission was fetched successfully but its member list could not be (typically an app-password scope issue) — in that case no individual member rows are shown for that group at all, since there's no way to know who they are.</p>
   <div class="callout">
-    <strong>Note on "create-repo".</strong> Bitbucket has a fourth permission level, project-scope only,
-    between write and admin. It's shown as its own distinct word wherever a level is displayed, but for
-    the purposes of counting changes and deciding escalation/demotion, it's treated as equivalent to
-    admin — so a create-repo ↔ admin change never shows up as a diff.
+    <strong>Note on "create-repo".</strong> Bitbucket has a fourth access level, which only applies at
+    the Project level, sitting between write and admin. It's always labeled with its own name wherever
+    you see it, but for counting changes and flagging escalations, the dashboard treats it the same as
+    admin — so switching someone between create-repo and admin is never flagged as a change.
   </div>
 </section>
 
@@ -461,7 +468,7 @@ save everything as one new, timestamped snapshot</div>
   <p>That's expected — applying pushes the change to Bitbucket, but a snapshot is immutable and never updates itself. Use <strong>Refresh affected</strong> from the apply results view, or take a new full Run, to see it reflected.</p>
 
   <h3>My apply failed with "credential lacks the required scope"</h3>
-  <p>Editing permissions requires broader Bitbucket app-password scopes (repository/project admin) than just viewing them does. Update the app password's scopes in Bitbucket, save the new password in the credentials panel, and retry — the failed edit stays staged for you.</p>
+  <p>Changing or removing access needs a few extra scopes on your Bitbucket API token beyond what's needed for viewing — see <a href="#setup">Creating a Bitbucket API token</a>. Add the missing scopes to your token in Bitbucket, save the updated token in the credentials panel, and try again — the failed edit stays staged for you.</p>
 
   <h3>Can I audit more than one Bitbucket workspace?</h3>
   <p>No — one configured workspace at a time. Switching workspaces means changing the workspace field in the credentials panel and taking a new Run.</p>

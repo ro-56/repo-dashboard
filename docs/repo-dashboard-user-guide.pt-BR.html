@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Repo Dashboard — Guia do Usuário</title>
+<style>
+  :root {
+    --ink: #1b1f24;
+    --ink-mute: #6b7280;
+    --surface: #ffffff;
+    --surface-alt: #f6f7f9;
+    --rule: #e2e5e9;
+    --accent: #2451c2;
+    --added: #1a7f4e;
+    --revoked: #b3261e;
+    --changed: #9a6a00;
+    --code-bg: #f1f3f5;
+    --radius: 6px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--surface-alt);
+    line-height: 1.55;
+  }
+  .wrap {
+    max-width: 900px;
+    margin: 0 auto;
+    background: var(--surface);
+    min-height: 100vh;
+    padding: 0 0 80px;
+    box-shadow: 0 0 0 1px var(--rule);
+  }
+  header.hero {
+    padding: 48px 48px 32px;
+    border-bottom: 1px solid var(--rule);
+  }
+  header.hero h1 {
+    margin: 0 0 8px;
+    font-size: 30px;
+    letter-spacing: -0.01em;
+  }
+  header.hero p.tagline {
+    margin: 0;
+    color: var(--ink-mute);
+    font-size: 17px;
+  }
+  nav.toc {
+    margin: 24px 48px;
+    padding: 20px 24px;
+    background: var(--surface-alt);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-mute); }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+  nav.toc li { break-inside: avoid; margin-bottom: 4px; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+
+  main { padding: 0 48px; }
+  section { padding: 36px 0; border-bottom: 1px solid var(--rule); }
+  section:last-child { border-bottom: none; }
+  h2 {
+    font-size: 22px;
+    margin: 0 0 6px;
+    scroll-margin-top: 20px;
+  }
+  h3 {
+    font-size: 17px;
+    margin: 28px 0 8px;
+    scroll-margin-top: 20px;
+  }
+  p { margin: 10px 0; }
+  ul, ol { margin: 10px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  code {
+    background: var(--code-bg);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.92em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .callout {
+    margin: 16px 0;
+    padding: 14px 18px;
+    border-radius: var(--radius);
+    border-left: 4px solid var(--accent);
+    background: #eef2fb;
+    font-size: 14.5px;
+  }
+  .callout.warn { border-left-color: var(--changed); background: #fbf3e2; }
+  .callout.tip { border-left-color: var(--added); background: #e9f6ef; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 14.5px;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  th { color: var(--ink-mute); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .badge {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-family: ui-monospace, monospace;
+  }
+  .badge.added { background: #e2f5ea; color: var(--added); }
+  .badge.revoked { background: #fbe4e2; color: var(--revoked); }
+  .badge.changed { background: #f8ecd0; color: var(--changed); }
+
+  .diagram {
+    margin: 18px 0;
+    padding: 18px;
+    background: var(--surface-alt);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    white-space: pre;
+    overflow-x: auto;
+    color: #2a2f36;
+  }
+
+  .steps { counter-reset: step; list-style: none; padding-left: 0; margin: 14px 0; }
+  .steps li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 36px;
+    margin-bottom: 14px;
+  }
+  .steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  dl.glossary dt {
+    font-weight: 700;
+    margin-top: 14px;
+  }
+  dl.glossary dd {
+    margin: 2px 0 0;
+    color: #333;
+  }
+
+  footer {
+    padding: 24px 48px;
+    color: var(--ink-mute);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>Repo Dashboard</h1>
+  <p class="tagline">Uma ferramenta de desktop para auditar quem tem acesso aos repositórios Bitbucket Cloud da sua equipe — e detectar quando esse acesso muda.</p>
+</header>
+
+<nav class="toc">
+  <h2>Conteúdo</h2>
+  <ol>
+    <li><a href="#overview">O que isso faz</a></li>
+    <li><a href="#setup">Primeiros passos</a></li>
+    <li><a href="#concepts">Conceitos principais</a></li>
+    <li><a href="#running">Tirando um snapshot ("Obter todos os dados")</a></li>
+    <li><a href="#reading">Lendo o dashboard</a></li>
+    <li><a href="#comparing">Comparando duas execuções</a></li>
+    <li><a href="#filtering">Filtrando e expandindo</a></li>
+    <li><a href="#editing">Alterando ou removendo acesso</a></li>
+    <li><a href="#refresh">Atualizando após uma alteração</a></li>
+    <li><a href="#export">Exportando um roster em CSV</a></li>
+    <li><a href="#snapshots">Gerenciando snapshots</a></li>
+    <li><a href="#appearance">Aparência</a></li>
+    <li><a href="#faq">Perguntas frequentes</a></li>
+    <li><a href="#glossary">Glossário</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<section id="overview">
+  <h2>O que isso faz</h2>
+  <p>
+    Qualquer pessoa com direitos de administrador no seu workspace do Bitbucket pode alterar quem tem
+    acesso a um repositório a qualquer momento, e o Bitbucket não guarda um histórico dessas alterações.
+    O Repo Dashboard preenche essa lacuna:
+  </p>
+  <ul>
+    <li>Ele examina cada repositório do seu workspace do Bitbucket e registra exatamente quem tem acesso a quê.</li>
+    <li>Cada varredura é salva permanentemente como um <strong>snapshot</strong> datado — uma fotografia de "como estava o acesso neste momento" que nunca muda depois.</li>
+    <li>Escolha dois snapshots quaisquer e o dashboard mostra o que mudou entre eles: quem ganhou acesso, quem perdeu, e o nível de acesso de quem subiu ou desceu — com qualquer coisa que pareça um escalonamento arriscado (por exemplo, leitura → admin) destacada especificamente.</li>
+    <li>Na mesma tela, você pode corrigir problemas diretamente — reduzir ou remover o acesso de alguém — sem sair do aplicativo.</li>
+    <li>Você pode exportar um snapshot para um arquivo CSV, caso precise compartilhá-lo com alguém.</li>
+  </ul>
+  <p>Ele roda inteiramente no seu próprio computador. O único tráfego de rede que produz é a comunicação com o próprio Bitbucket — nada é enviado a mais nenhum lugar, e todos os dados dos seus snapshots ficam na sua máquina.</p>
+</section>
+
+<section id="setup">
+  <h2>Primeiros passos</h2>
+  <h3>Abrindo o aplicativo</h3>
+  <p>O Repo Dashboard é um aplicativo de desktop comum — alguém já o compilou para você, então não há nada para instalar ou compilar. Basta dar um duplo clique nele (ou executar o arquivo) como qualquer outro programa do seu computador.</p>
+
+  <h3>Criando um API token do Bitbucket</h3>
+  <p>Para que o Repo Dashboard converse com o Bitbucket em seu nome, você precisará de um API token do Bitbucket. Pense nisso como uma senha especial que só serve para essa finalidade, e que só faz o que você permitir — você a cria uma vez, cola no aplicativo, e nunca mais precisa digitar sua senha real do Bitbucket em lugar nenhum.</p>
+  <p>Ao criar o token no Bitbucket, será pedido que você marque uma lista de "escopos" ("scopes") — caixas de seleção que controlam o que o token pode fazer. Marque as seguintes:</p>
+  <table>
+    <tr><th>Escopo</th><th>Necessário para</th></tr>
+    <tr><td><code>read:project:bitbucket</code></td><td>Ver o acesso em Projetos</td></tr>
+    <tr><td><code>read:repository:bitbucket</code></td><td>Ver o acesso em repositórios</td></tr>
+    <tr><td><code>admin:project:bitbucket</code></td><td>Alterar ou remover acesso em um Projeto</td></tr>
+    <tr><td><code>admin:repository:bitbucket</code></td><td>Alterar ou remover acesso em um repositório</td></tr>
+    <tr><td><code>write:permission:bitbucket</code></td><td>Alterar o nível de acesso de alguém</td></tr>
+    <tr><td><code>delete:permission:bitbucket</code></td><td>Remover o acesso de alguém</td></tr>
+  </table>
+  <div class="callout tip">
+    <strong>Só vai consultar?</strong> Se você só quer ver quem tem acesso — o roster e as comparações
+    entre duas datas — os dois escopos <code>read:</code> acima já bastam. Marque os escopos
+    <code>admin:</code>, <code>write:permission:</code> e <code>delete:permission:</code> apenas se
+    também quiser alterar ou remover o acesso de pessoas de dentro do aplicativo (veja
+    <a href="#editing">Alterando ou removendo acesso</a>).
+  </div>
+
+  <h3>Primeiro acesso: conectando ao Bitbucket</h3>
+  <p>Na primeira vez que você abrir o aplicativo, ele ainda não terá nenhum dado. Abra o <strong>painel de configurações</strong> (o ícone de engrenagem, no canto superior direito) e preencha o painel de <strong>credenciais</strong>:</p>
+  <ol class="steps">
+    <li><strong>Usuário</strong> — seu nome de usuário no Bitbucket Cloud.</li>
+    <li><strong>Senha de aplicativo</strong> — o API token que você criou acima.</li>
+    <li><strong>Workspace</strong> — o nome do workspace do Bitbucket que você quer auditar (o Repo Dashboard trabalha com um workspace por vez).</li>
+  </ol>
+  <p>Clique em <strong>Salvar credenciais</strong>. Isso é armazenado com segurança pelo próprio gerenciador de senhas do seu computador (Keychain no Mac, Gerenciador de Credenciais no Windows, ou o equivalente no Linux) — nunca como um arquivo de texto simples, e o aplicativo nunca mostrará a senha de volta depois de salva.</p>
+  <div class="callout">
+    <strong>Se você pulou os escopos de admin/write/delete acima</strong>, ver o roster continuará
+    funcionando normalmente — você só terá problemas se mais tarde tentar
+    <a href="#editing">alterar ou remover o acesso de alguém</a>, o que será rejeitado. Se isso
+    acontecer, volte ao Bitbucket, adicione os escopos que faltam ao seu token, e salve o token
+    atualizado no painel de credenciais.
+  </div>
+  <p>Depois de conectado, você pode reabrir o painel a qualquer momento em <strong>Alterar credenciais</strong> para atualizar o usuário, o token ou o workspace.</p>
+
+  <h3>Sua primeira execução</h3>
+  <p>Ainda no painel de configurações, clique em <strong>Obter todos os dados</strong> para buscar seu primeiro snapshot. Veja <a href="#running">Tirando um snapshot</a> abaixo para entender o que acontece nessa etapa.</p>
+</section>
+
+<section id="concepts">
+  <h2>Conceitos principais</h2>
+  <p>Alguns termos aparecem repetidamente no dashboard. Entendê-los desde já facilita entender o resto da interface.</p>
+  <dl class="glossary">
+    <dt>Principal</dt>
+    <dd>Quem quer que tenha acesso — uma pessoa ou um grupo. As pessoas são identificadas pela conta que estão por trás, não pelo nome de exibição, então se alguém mudar de nome isso nunca é confundido com uma pessoa saindo e outra nova chegando.</dd>
+    <dt>Acesso direto / de grupo / por associação</dt>
+    <dd>
+      <strong>Direto</strong> — acesso concedido a uma pessoa nomeada.<br>
+      <strong>Grupo</strong> — acesso concedido a um grupo como um todo.<br>
+      <strong>Membro</strong> — acesso que uma pessoa tem apenas por pertencer a um grupo que recebeu acesso. Aparece em sua própria linha mesmo para alguém que também tenha acesso direto no mesmo repositório, já que são duas coisas separadas e podem ser removidas independentemente.
+    </dd>
+    <dt>Nível de repositório vs. nível de Projeto</dt>
+    <dd>O acesso pode ser concedido em um repositório específico, ou no Projeto ao qual ele pertence — o acesso em nível de Projeto cobre automaticamente todos os repositórios daquele Projeto. O dashboard marca as linhas em nível de Projeto com uma seta "↳".</dd>
+    <dt>Execução</dt>
+    <dd>Uma verificação completa de todo o workspace: cada repositório e Projeto é examinado novamente do zero. Produz um novo snapshot.</dd>
+    <dt>Atualização</dt>
+    <dd>Uma nova verificação rápida e restrita, apenas dos repositórios/Projetos que você acabou de editar — bem mais rápida que uma execução completa, mas não percebe repositórios totalmente novos (veja <a href="#refresh">Atualizando</a>).</dd>
+    <dt>Snapshot</dt>
+    <dd>O resultado salvo de uma Execução ou Atualização: uma fotografia completa do acesso naquele momento, congelada no tempo. Snapshots podem ser excluídos, mas nunca editados.</dd>
+    <dt>Base / Comparação</dt>
+    <dd>Os dois snapshots que você está comparando. A Base é "como era antes", a Comparação é "como está agora". Toda alteração exibida é lida como um movimento da Base para a Comparação.</dd>
+    <dt>Concessão / Revogação / Escalonamento / Rebaixamento</dt>
+    <dd>
+      <span class="badge added">+</span> <strong>Concessão</strong> — acesso que é novo na Comparação; não existia na Base.<br>
+      <span class="badge revoked">−</span> <strong>Revogação</strong> — acesso que desapareceu na Comparação; existia na Base.<br>
+      <span class="badge changed">~</span> <strong>Mudança de nível</strong> — o mesmo acesso existe nas duas, só que em um nível diferente: um <strong>Escalonamento</strong> se subiu, um <strong>Rebaixamento</strong> se desceu.
+    </dd>
+  </dl>
+</section>
+
+<section id="running">
+  <h2>Tirando um snapshot ("Obter todos os dados")</h2>
+  <p>No painel de configurações, clique em <strong>Obter todos os dados</strong>. Isso dispara uma varredura completa do workspace:</p>
+  <div class="diagram">descobre cada repositório e Projeto do workspace
+        │
+        ▼
+para cada um: busca concessões diretas, concessões de grupo,
+              e (quando possível) concessões derivadas de associação a grupo
+        │
+        ▼
+salva tudo como um novo snapshot, com data e hora</div>
+  <p>Enquanto roda, uma barra de progresso mostra qual repositório está sendo buscado no momento e quantos faltam. Ao terminar, o dashboard passa automaticamente a comparar o novo snapshot com o anterior.</p>
+  <div class="callout warn">
+    <strong>Se a primeira etapa (descobrir os repositórios) falhar</strong> — por exemplo, se sua
+    credencial for rejeitada de cara — toda a Execução é interrompida e nada é salvo; o erro aparece
+    diretamente na tela. Se a descoberta funcionar mas a busca de um repositório ou Projeto específico
+    falhar no meio do caminho, apenas esse repositório/Projeto é marcado como <em>falha na busca</em> no
+    snapshot resultante, e o resto da Execução continua normalmente — isso não é tratado como uma
+    Execução malsucedida.
+  </div>
+  <p>Uma Execução sempre leva você para a comparação mais recente vs. anterior, mesmo que você tivesse escolhido manualmente um par mais antigo para visualizar.</p>
+</section>
+
+<section id="reading">
+  <h2>Lendo o dashboard</h2>
+  <p>A visão principal é organizada como <strong>Projeto → repositório → principal</strong>. Cada Projeto tem um cabeçalho com a contagem de repositórios/concessões; cada repositório é um cartão que pode ser expandido ou recolhido.</p>
+
+  <h3>Cartões de repositório</h3>
+  <p>O cabeçalho de cada cartão mostra, da esquerda para a direita: uma seta de expandir/recolher, o caminho Projeto/repositório, uma pequena barra de distribuição admin/escrita/leitura, uma contagem de concessões ("7 concessões · 2 admin"), e badges resumindo o que mudou naquele repositório (<span class="badge added">+2</span> <span class="badge revoked">−1</span> <span class="badge changed">~1</span>, ou <code>sem alteração</code>). Repositórios com pelo menos uma alteração se abrem automaticamente ao carregar a página; se nada mudou em toda a comparação, todos os cartões se abrem em vez disso (assim você nunca vê uma tela toda recolhida e aparentemente vazia).</p>
+  <p>Um cartão de repositório também pode exibir uma etiqueta ao lado do nome:</p>
+  <table>
+    <tr><th>Etiqueta</th><th>Significado</th></tr>
+    <tr><td><code>ausente na execução N</code></td><td>Este repositório existia na Base, mas desapareceu na Comparação (foi renomeado, arquivado, ou não é mais visível para a credencial usada).</td></tr>
+    <tr><td><code>novo na execução N</code></td><td>Este repositório não existia na Base, mas aparece na Comparação.</td></tr>
+    <tr><td><code>falha na busca</code></td><td>O repositório foi descoberto, mas suas próprias permissões não puderam ser buscadas nesta Execução — suas concessões são simplesmente desconhecidas, não "zero".</td></tr>
+    <tr><td><code>falha na busca do projeto</code></td><td>A chamada de permissões do Projeto dono falhou (independentemente de a busca do próprio repositório ter funcionado ou não).</td></tr>
+  </table>
+
+  <h3>Linhas dentro de um cartão</h3>
+  <p>Cada linha representa a concessão de um principal naquele repositório. Colunas, da esquerda para a direita:</p>
+  <table>
+    <tr><th>Coluna</th><th>Mostra</th></tr>
+    <tr><td><code>±</code></td><td>Um símbolo para o estado da diferença da linha: <code>+</code> concessão, <code>−</code> revogação, <code>↑</code> escalonamento, <code>~</code> outra mudança de nível, <code>·</code> sem alteração.</td></tr>
+    <tr><td><code>nív</code></td><td>Um pequeno medidor de segmentos preenchidos — uma leitura visual rápida do nível de leitura/escrita/admin.</td></tr>
+    <tr><td><code>acesso</code></td><td>A palavra da permissão: leitura, escrita, criar repositório, ou admin.</td></tr>
+    <tr><td><code>origem</code></td><td><code>direto</code>, <code>grupo</code>, ou <code>grp:&lt;nome&gt;</code> para uma concessão derivada de associação a um grupo; com o prefixo <code>↳</code> para uma concessão em nível de Projeto.</td></tr>
+    <tr><td><code>usuário</code></td><td>O nome de exibição do principal.</td></tr>
+    <tr><td><code>desde a base</code></td><td>Para uma linha alterada, a transição "de → para" (por exemplo, <code>leitura → admin</code>).</td></tr>
+    <tr><td><code>notas</code></td><td>Etiquetas: <code>escalonamento</code> / <code>escalonamento → admin</code>, <code>membros não resolvidos</code> (veja abaixo), ou etiquetas de edição pendente.</td></tr>
+  </table>
+  <p><code>membros não resolvidos</code> aparece na própria linha de um grupo quando a permissão do grupo foi buscada com sucesso, mas sua lista de membros não pôde ser obtida (geralmente por causa de um escopo faltando na senha de aplicativo) — nesse caso, nenhuma linha individual de membro é exibida para aquele grupo, já que não há como saber quem eles são.</p>
+  <div class="callout">
+    <strong>Nota sobre "criar repositório".</strong> O Bitbucket tem um quarto nível de acesso, que só se
+    aplica em nível de Projeto, ficando entre escrita e admin. Ele sempre aparece com seu próprio nome
+    onde quer que seja exibido, mas, para contar alterações e sinalizar escalonamentos, o dashboard o
+    trata como equivalente a admin — então alternar alguém entre criar repositório e admin nunca é
+    sinalizado como uma mudança.
+  </div>
+</section>
+
+<section id="comparing">
+  <h2>Comparando duas execuções</h2>
+  <p>A barra superior tem dois seletores, <strong>base</strong> e <strong>comparação</strong>, cada um listando todas as execuções registradas por número e data (a execução 1 é sempre a primeiríssima execução já feita). Altere qualquer um dos seletores para mudar o que está sendo comparado; use o botão <strong>⇄</strong> para trocá-los de lugar.</p>
+  <p>É permitido selecionar a mesma execução para os dois — isso apenas mostra o roster dessa execução sem marcadores de diferença, o que é uma forma normal de navegar pelo acesso atual sem comparar com o histórico.</p>
+  <p>Ao lado dos seletores, uma nota como <code>14 dias de distância · 82 → 91 concessões</code> (ou <code>execução única · 82 → 82 concessões</code> quando os dois lados coincidem) dá uma noção rápida de escala, e uma fileira de chips à direita resume a diferença: <span class="badge added">+3 adicionadas</span> <span class="badge revoked">−1 revogada</span> <span class="badge changed">~2 alteradas</span> mais um chip separado <code>↑N escalonadas</code> quando alguma mudança de nível subiu. Se nada mudou, um único chip <code>sem alteração</code> aparece em vez disso.</p>
+</section>
+
+<section id="filtering">
+  <h2>Filtrando e expandindo</h2>
+  <p>A barra logo abaixo do cabeçalho oferece duas abas:</p>
+  <ul>
+    <li><strong>Todo o acesso</strong> — toda concessão no snapshot de Comparação, alterada ou não.</li>
+    <li><strong>Somente alterações</strong> — apenas as linhas que diferem da Base; repositórios sem nenhuma alteração desaparecem completamente da lista.</li>
+  </ul>
+  <p>Ao lado das abas: uma contagem em tempo real (<code>N ativos · N alterados · N linhas</code>), um alternador <strong>Expandir tudo / Recolher tudo</strong> (seu rótulo sempre reflete o que o clique vai fazer, restrito ao que está visível na aba ativa), e <strong>Redefinir</strong>, que volta para a aba Todo o acesso e limpa toda expansão/recolhimento manual que você tenha feito.</p>
+  <p>Se um filtro não deixar nada para mostrar, uma mensagem explica o motivo — seja "nenhuma alteração de permissão entre a execução X e a execução Y" (com um botão para mudar para Todo o acesso), seja um genérico "nada corresponde a estes filtros" (com um botão para redefinir).</p>
+</section>
+
+<section id="editing">
+  <h2>Alterando ou removendo acesso</h2>
+  <p>A partir do roster do snapshot de Comparação — mas somente enquanto esse snapshot for o <em>mais recente</em> já registrado — você pode editar o acesso diretamente pelo dashboard, sem precisar ir ao Bitbucket.</p>
+  <div class="callout warn">
+    A edição só está disponível quando a Comparação que você está vendo é o snapshot mais recente. Se
+    você escolheu uma execução mais antiga para comparar, os menus de linha (⋯) simplesmente não
+    aparecem — editar em cima de uma visão histórica seria mudar o presente com base em um retrato do
+    passado.
+  </div>
+  <h3>O que pode ser editado</h3>
+  <ul>
+    <li>Qualquer concessão <strong>Direta</strong> (a permissão de uma pessoa específica) — em nível de repositório ou de Projeto.</li>
+    <li>Qualquer concessão de <strong>Grupo</strong> (a permissão do próprio grupo) — em nível de repositório ou de Projeto.</li>
+    <li>Linhas de <strong>Membro</strong> (acesso derivado de associação a um grupo) não têm menu de edição algum — para alterá-las, edite a concessão do grupo correspondente.</li>
+  </ul>
+  <p>Conceder acesso a alguém que atualmente não tem nenhum ainda não é suportado — a edição cobre apenas alterar ou remover uma concessão já existente.</p>
+
+  <h3>Preparando uma alteração</h3>
+  <ol class="steps">
+    <li>Clique no menu <code>⋯</code> à direita de uma linha.</li>
+    <li>Escolha um novo nível (Leitura / Escrita / Admin) para preparar uma mudança de nível, ou <strong>✕ Remover acesso</strong> para preparar uma remoção. Selecionar novamente o nível atual da linha cancela a edição preparada, em vez de não fazer nada.</li>
+    <li>Se você estiver removendo a concessão de um <strong>grupo</strong>, o menu avisa quantas pessoas têm acesso derivado dele e também o perderiam (por exemplo, "remover isto também retira o acesso de 3 membros") — o acesso derivado de grupo (Membro) não tem um interruptor próprio, então remover a concessão do grupo remove tudo de uma vez.</li>
+  </ol>
+  <p>Linhas preparadas são marcadas como <code>pendente · não salvo</code> ou <code>remoção pendente</code> e mostram uma prévia da alteração imediatamente (com texto riscado no caso de uma remoção). Nada é enviado ao Bitbucket ainda. Clique em <strong>↺ desfazer</strong> em uma linha preparada para descartar apenas aquela alteração.</p>
+  <p>Você pode preparar quantas alterações quiser em diferentes repositórios antes de aplicar qualquer coisa.</p>
+
+  <h3>Aplicando</h3>
+  <p>Assim que ao menos uma alteração estiver preparada, um botão <strong>Aplicar N alterações</strong> aparece na barra superior. Ao clicar, abre-se uma caixa de confirmação listando cada alteração preparada (repositório, pessoa, nível de → para, e qualquer aviso de cascata), para uma última revisão antes que algo aconteça de fato.</p>
+  <p>Clique em <strong>Confirmar</strong> para enviar o lote inteiro ao Bitbucket. Cada alteração é aplicada de forma independente — se uma falhar (por exemplo, escopo de credencial insuficiente, a concessão já ter sido alterada em outro lugar, ou limitação de taxa), isso não bloqueia o restante do lote. A tela de resultados mostra um status ✓/✕ por linha, com o motivo de qualquer falha:</p>
+  <table>
+    <tr><th>Falha</th><th>Significado</th></tr>
+    <tr><td>credencial sem o escopo necessário</td><td>Sua senha de aplicativo não tem direitos de admin naquele repositório/Projeto.</td></tr>
+    <tr><td>limitado por taxa — tente novamente</td><td>O Bitbucket restringiu a requisição; tente aplicar de novo em instantes.</td></tr>
+    <tr><td>(outra mensagem)</td><td>O erro exato retornado pelo Bitbucket.</td></tr>
+  </table>
+  <p>O que falhar continua preparado no dashboard para você tentar novamente mais tarde; o que tiver sucesso é removido da lista de pendências.</p>
+  <div class="callout">
+    Aplicar altera as permissões ativas do Bitbucket — não altera o snapshot que você está vendo.
+    Um snapshot nunca se atualiza sozinho; o dashboard continuará mostrando os números antigos até
+    você fazer uma nova Execução ou Atualização (abaixo).
+  </div>
+  <p>Qualquer edição preparada mas ainda não aplicada é descartada silenciosamente (não é levada adiante) se uma nova Execução ou Atualização terminar, ou se você trocar a Comparação para outro snapshot — de qualquer forma, o snapshot contra o qual elas foram preparadas deixou de ser o que está na tela.</p>
+</section>
+
+<section id="refresh">
+  <h2>Atualizando após uma alteração</h2>
+  <p>Logo depois de aplicar um lote (na tela de resultados), se ao menos uma edição tiver dado certo, um botão <strong>Atualizar afetados</strong> aparece. Essa é uma forma rápida de ver suas edições refletidas sem uma Execução completa:</p>
+  <ul>
+    <li>Cria um novo snapshot copiando todo repositório/Projeto não tocado pelo seu lote diretamente do snapshot em que você editou.</li>
+    <li>Busca dados atualizados apenas dos repositórios específicos (ou, no caso de uma edição em nível de Projeto, de todo repositório daquele Projeto) que suas edições <em>bem-sucedidas</em> afetaram.</li>
+    <li><strong>Não</strong> redescobre o workspace — se um repositório foi criado, excluído ou movido entre Projetos desde sua última Execução, apenas uma Execução completa vai perceber isso.</li>
+  </ul>
+  <p>Em caso de sucesso, a caixa de diálogo se fecha, as edições pendentes restantes são limpas, e o novo snapshot é automaticamente selecionado como a Comparação (sua seleção de Base permanece intacta).</p>
+  <p>Fechar a tela de resultados em vez de atualizar encerra essa oportunidade — você precisaria de uma Execução completa para ver a alteração refletida depois.</p>
+</section>
+
+<section id="export">
+  <h2>Exportando um roster em CSV</h2>
+  <p>Clique em <strong>Exportar</strong> na barra de filtros para salvar um arquivo CSV com o roster completo do snapshot de Comparação atual.</p>
+  <ul>
+    <li>Sempre apenas o snapshot de Comparação — nunca uma diferença, e não é afetado pela Base ou pelos filtros de visualização ativos na tela no momento.</li>
+    <li>Uma linha por concessão: projeto do repositório, repositório, id do principal, nome de exibição, tipo de acesso (<code>direto</code> / <code>grupo</code> / <code>member:&lt;grupo&gt;</code>), nível (<code>repo</code> / <code>project</code>), nível de permissão, e a data/hora da execução.</li>
+    <li>Você será solicitado com uma caixa de diálogo nativa para salvar; o nome de arquivo sugerido é <code>roster_&lt;workspace&gt;_&lt;timestamp&gt;.csv</code>.</li>
+  </ul>
+  <p>Isso é pensado para um compartilhamento ou arquivamento pontual — o dashboard em si continua sendo a fonte da verdade para auditoria contínua, não o CSV.</p>
+</section>
+
+<section id="snapshots">
+  <h2>Gerenciando snapshots</h2>
+  <p>O painel de <strong>snapshots</strong>, no painel de configurações, lista todas as execuções já registradas, da mais recente para a mais antiga. Clique em <strong>Excluir</strong> ao lado de uma delas e depois em <strong>Confirmar</strong> para removê-la permanentemente (ou <strong>Cancelar</strong> para desistir).</p>
+  <div class="callout warn">
+    Excluir um snapshot é permanente. Se você excluir o snapshot atualmente selecionado como Base ou
+    Comparação, o dashboard volta a comparar a execução mais recente restante com a anterior a ela —
+    o mesmo padrão usado no primeiro carregamento.
+  </div>
+</section>
+
+<section id="appearance">
+  <h2>Aparência</h2>
+  <p>O painel de <strong>aparência</strong>, no painel de configurações, alterna entre os temas Claro e Escuro. A escolha se aplica imediatamente e persiste entre sessões.</p>
+</section>
+
+<section id="faq">
+  <h2>Perguntas frequentes</h2>
+
+  <h3>Nada acontece quando clico em "Obter todos os dados"</h3>
+  <p>Verifique se as credenciais estão salvas (o painel de credenciais deve mostrar "conectado como ... em ..."). Se uma Execução falhar de cara com um erro, o mais provável é que o Bitbucket tenha rejeitado a própria credencial (por exemplo, senha errada, ou a senha de aplicativo sem o escopo básico de leitura do workspace) — nesse caso, nenhum snapshot é salvo.</p>
+
+  <h3>Um repositório mostra "falha na busca" — meus dados estão errados?</h3>
+  <p>Não — uma falha na busca significa que a ferramenta ainda não sabe as permissões daquele repositório nesta Execução; isso é rastreado separadamente de "este repositório realmente não tem concessão nenhuma". Executar novamente (ou atualizar, se a falha for em um repositório editado) tentará a busca de novo.</p>
+
+  <h3>Por que não consigo editar permissões em um snapshot que estou visualizando?</h3>
+  <p>A edição só é oferecida quando o snapshot de Comparação é o mais recente registrado. Selecione a execução mais nova como sua Comparação para ter os menus de edição de volta.</p>
+
+  <h3>Por que não vejo nenhuma linha de membro sob este grupo?</h3>
+  <p>Ou o grupo realmente não tem membros, ou sua composição não pôde ser buscada (geralmente uma limitação de escopo na senha de aplicativo) — nesse último caso, a linha é marcada com <code>membros não resolvidos</code> e nenhuma linha de membro é exibida, já que a ferramenta não tem como saber quem eles seriam.</p>
+
+  <h3>Apliquei uma edição e o dashboard ainda mostra a permissão antiga</h3>
+  <p>Isso é esperado — aplicar envia a alteração ao Bitbucket, mas um snapshot é imutável e nunca se atualiza sozinho. Use <strong>Atualizar afetados</strong> na tela de resultados da aplicação, ou faça uma nova Execução completa, para ver a alteração refletida.</p>
+
+  <h3>Minha aplicação falhou com "credencial sem o escopo necessário"</h3>
+  <p>Alterar ou remover acesso exige alguns escopos extras no seu API token do Bitbucket, além do que já é necessário para apenas visualizar — veja <a href="#setup">Criando um API token do Bitbucket</a>. Adicione os escopos que faltam ao seu token no Bitbucket, salve o token atualizado no painel de credenciais, e tente de novo — a edição que falhou continua preparada para você.</p>
+
+  <h3>Posso auditar mais de um workspace do Bitbucket?</h3>
+  <p>Não — um workspace configurado por vez. Trocar de workspace significa mudar o campo de workspace no painel de credenciais e fazer uma nova Execução.</p>
+
+  <h3>Isso está conectado a alguma notificação ou alerta?</h3>
+  <p>Não. É uma ferramenta que você mesmo consulta ativamente — você abre e compara execuções por conta própria; nada envia alertas para você.</p>
+</section>
+
+<section id="glossary">
+  <h2>Glossário</h2>
+  <dl class="glossary">
+    <dt>Principal</dt>
+    <dd>Um usuário ou um grupo que pode ter uma concessão de permissão.</dd>
+    <dt>Nível de concessão (Repositório / Projeto)</dt>
+    <dd>Se uma concessão vive no próprio repositório, ou no seu Projeto (cascateando para todo repositório que o Projeto possui).</dd>
+    <dt>Concessão direta</dt>
+    <dd>Uma permissão atribuída a uma pessoa individualmente.</dd>
+    <dt>Concessão de grupo</dt>
+    <dd>Uma permissão atribuída a um grupo como entidade própria.</dd>
+    <dt>Concessão de membro</dt>
+    <dd>Uma permissão que uma pessoa tem por pertencer a um grupo com uma concessão de grupo; não editável separadamente.</dd>
+    <dt>Execução</dt>
+    <dd>Uma varredura completa do workspace (redescobre todo repositório/Projeto) que produz um novo snapshot.</dd>
+    <dt>Atualização</dt>
+    <dd>Uma busca restrita apenas aos repositórios/Projetos afetados por um lote de edições recém-aplicado; produz um novo snapshot, mas nunca redescobre o workspace.</dd>
+    <dt>Snapshot</dt>
+    <dd>Os dados de uma Execução ou Atualização, imutáveis e com data/hora, referentes a todo o workspace.</dd>
+    <dt>Base / Comparação</dt>
+    <dd>O snapshot mais antigo ("como era") e o mais novo ("como está agora") do par sendo comparado.</dd>
+    <dt>Concessão / Revogação</dt>
+    <dd>Acesso que aparece / desaparece entre a Base e a Comparação.</dd>
+    <dt>Escalonamento / Rebaixamento</dt>
+    <dd>O nível de uma concessão subindo / descendo entre a Base e a Comparação.</dd>
+    <dt>Edição pendente</dt>
+    <dd>Uma alteração preparada, ainda não aplicada, em uma concessão Direta ou de Grupo, mantida localmente até você clicar em Aplicar.</dd>
+    <dt>Aplicar</dt>
+    <dd>Enviar toda edição atualmente preparada ao Bitbucket como alterações reais de permissão.</dd>
+    <dt>Associação não resolvida</dt>
+    <dd>Um grupo cuja própria concessão foi buscada, mas cuja lista de membros não pôde ser; nenhuma linha de Membro é derivada dele naquela Execução.</dd>
+  </dl>
+</section>
+
+</main>
+
+<footer>Guia do usuário do Repo Dashboard — gerado a partir do código atual.</footer>
+</div>
+</body>
+</html>
