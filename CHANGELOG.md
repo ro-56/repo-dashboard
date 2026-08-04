@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.0] - 2026-08-04
+
+### Added
+- Excluded principal: a session-scoped "Hide" action on any roster row lets you exclude a Principal from the tree for the rest of the session — a Group exclusion cascades to its derived `Member` rows, but never sweeps in an unrelated `Direct`/`Group` grant on the same person.
+- A "N principals hidden this session" banner appears above the Roster tree whenever exclusions are active, with a "Manage"/"Hide list" toggle to view and individually "Unhide" excluded Principals, plus a bulk "Unhide all".
+
+### Changed
+- FilterBar Reset now also clears the exclusion set, alongside its existing resets.
+
 ## [1.1.0] - 2026-08-03
 
 ### Added
